@@ -23,6 +23,8 @@ htmlcov/
 
 # Notebooks
 .ipynb_checkpoints/
+/notebooks/*
+!/notebooks/.gitkeep
 
 # Local configuration and secrets
 .env
@@ -38,5 +40,6 @@ htmlcov/
 # Editors and operating systems
 .idea/
 .vscode/
+/notebooks/
 .DS_Store
 Thumbs.db
