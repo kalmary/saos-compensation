@@ -19,7 +19,7 @@ Install the base project dependencies:
 uv sync
 ```
 
-For development with the test group, which currently adds only pytest:
+The `dev` group is currently empty. The `test` group includes `dev` and currently adds only pytest:
 
 ```bash
 uv sync --group test

@@ -10,6 +10,8 @@ dependencies = [
 ]
 
 [dependency-groups]
+dev = []
 test = [
+    { include-group = "dev" },
     "pytest>=9.1.1",
 ]
