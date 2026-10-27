@@ -23,10 +23,7 @@ htmlcov/
 
 # Notebooks
 .ipynb_checkpoints/
-/notebooks/**
-!/notebooks/**/
-!/notebooks/.gitkeep
-!/notebooks/01_saos_feasibility.py
+/notebooks/
 
 # Local configuration and secrets
 .env
@@ -45,8 +42,7 @@ htmlcov/
 # Editors and operating systems
 .idea/
 .vscode/
-/tmp/**
-!/tmp/**/
+/tmp/
 .DS_Store
 Thumbs.db
 

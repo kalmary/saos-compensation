@@ -10,6 +10,8 @@ The project is at the data-feasibility stage. The exploratory script in `noteboo
 
 All contents of `data/` are ignored except `data/.gitkeep`, including package markers and nested directories.
 
+The `notebooks/` and `tmp/` directories are fully ignored, with no file exceptions.
+
 The initial snapshot contains 18 inspected judgments. All passed basic structural checks, but the review found mixed award components, unrelated search results, missing factual detail, and inconsistent dates. Data acquisition is feasible; building a reliable regression dataset remains conditional on a precise target definition, reviewed extraction, and leakage prevention. Search counts do not establish the number of usable training examples.
 
 `PROJECT.md` includes evaluation of one fixed open-weight Polish model for feature extraction and standardization. Model inference, extraction accuracy, and regression performance have not been evaluated. Database ingestion, vectorization, and training are not implemented.
@@ -28,3 +30,4 @@ The initial snapshot contains 18 inspected judgments. All passed basic structura
 - 2026-10-27: Preserved `data/.gitkeep` while keeping generated data ignored. Updated the status summary, next steps, and log instructions.
 - 2026-10-27: Added the status-maintenance rule to `AGENTS.md`, including summary updates, dated entries, and a limit of 50 log entries.
 - 2026-10-27: Restricted the `data/` exception to `.gitkeep`; all other contents remain ignored, including `__init__.py` files.
+- 2026-10-27: Simplified ignore rules for `notebooks/` and `tmp/` to exclude their entire contents, including package markers. Existing tracked files require a separate index update to stop tracking; no Git operations were performed.
