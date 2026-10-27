@@ -25,3 +25,13 @@ The `dev` group is currently empty. The `test` group includes `dev` and currentl
 uv sync --group test
 ```
 
+## Data feasibility
+
+Run the exploratory SAOS check:
+
+```bash
+uv run notebooks/01_saos_feasibility.py
+```
+
+The script prints its findings and saves a readable report to `tmp/saos_feasibility/report.md`. Raw responses and acquisition metadata are cached in the same directory. Reruns reuse that snapshot; move the directory aside to fetch a fresh one. No database or model inference is required.
+

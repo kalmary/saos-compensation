@@ -26,7 +26,7 @@ The first milestone is complete when the same request can be rerun without dupli
    - court type and level,
    - judgment date,
    - claimant and harm characteristics supported by the judgment.
-4. Evaluate a freely available information-extraction model with Polish weights for mapping judgment text to this schema.
+4. Evaluate a single open-weight instruction model supporting Polish for extracting and standardizing text features into this schema. Use a fixed model version and prompt, controlled categories, missing-value rules, and source evidence; measure quality on the labeled sample before choosing a model.
 5. Store extracted fields together with the extractor name and version.
 
 Label extraction and feature extraction must be separate. Predictor text must exclude the award, requested amount, calculations derived from it, and passages that directly explain the selected award. Related judgments and appeals must remain in one data split.

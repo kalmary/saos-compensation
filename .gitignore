@@ -23,8 +23,10 @@ htmlcov/
 
 # Notebooks
 .ipynb_checkpoints/
-/notebooks/*
+/notebooks/**
+!/notebooks/**/
 !/notebooks/.gitkeep
+!/notebooks/01_saos_feasibility.py
 
 # Local configuration and secrets
 .env
@@ -32,14 +34,24 @@ htmlcov/
 !.env.example
 
 # Local data and generated model artifacts
-/data/
-/artifacts/
-/checkpoints/
-/runs/
+/data/**
+!/data/**/
+!/data/.gitkeep
+/artifacts/**
+!/artifacts/**/
+/checkpoints/**
+!/checkpoints/**/
+!/checkpoints/.gitkeep
+/runs/**
+!/runs/**/
 
 # Editors and operating systems
 .idea/
 .vscode/
-/notebooks/
+/tmp/**
+!/tmp/**/
 .DS_Store
 Thumbs.db
+
+# Package markers in project folders
+!__init__.py

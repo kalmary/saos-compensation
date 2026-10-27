@@ -87,4 +87,5 @@ configs/
 - Add focused tests for non-trivial parsing, target extraction, leakage filtering, and configuration-driven model selection.
 - Use Python 3.12, the repository `.venv`, `uv`, and the committed `uv.lock`. Run project commands with `uv run`.
 - Do not add a dependency until the implementation imports it.
+- After each task, update the summary in `STATUS.md` and append a dated entry describing completed changes, findings, and remaining work. Keep only the latest 50 log entries in chronological order.
 - Never run Git operations, including commit, push, pull, branch, merge, or reset, without explicit user approval.
