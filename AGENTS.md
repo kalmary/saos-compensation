@@ -1,6 +1,6 @@
 # Project goal
 
-`ssaos-compensation` is a data science study project for building a regression model that estimates the compensation awarded in Polish court judgments published through the SAOS API.
+`saos-compensation` is a data science study project for building a regression model that estimates the compensation awarded in Polish court judgments published through the SAOS API.
 
 The project should provide a reproducible pipeline that:
 

@@ -1,4 +1,4 @@
-# SSAOS Compensation
+# SAOS Compensation
 
 ## Objective
 

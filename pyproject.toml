@@ -1,5 +1,5 @@
 [project]
-name = "ssaos-compensation"
+name = "saos-compensation"
 version = "0.1.0"
 description = "Regression of compensation awards from Polish SAOS judgments"
 readme = "README.md"

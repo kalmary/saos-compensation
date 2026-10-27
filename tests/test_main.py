@@ -11,4 +11,4 @@ def test_main():
         text=True,
     )
 
-    assert result.stdout == "Hello from ssaos-compensation!\n"
+    assert result.stdout == "Hello from saos-compensation!\n"

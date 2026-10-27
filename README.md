@@ -1,4 +1,4 @@
-# SSAOS Compensation
+# SAOS Compensation
 
 Study project for building a regression model that estimates compensation amounts from Polish court judgments available through the SAOS API.
 
@@ -9,8 +9,8 @@ The planned pipeline downloads a narrowly selected set of judgments, validates a
 The project requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone https://github.com/kalmary/ssaos-compensation.git
-cd ssaos-compensation
+git clone git@github.com:kalmary/saos-compensation.git
+cd saos-compensation
 ```
 
 Install the base project dependencies:
@@ -25,4 +25,3 @@ The `dev` group is currently empty. The `test` group includes `dev` and currentl
 uv sync --group test
 ```
 
-See [PROJECT.md](PROJECT.md) for the delivery plan and [AGENTS.md](AGENTS.md) for implementation constraints.

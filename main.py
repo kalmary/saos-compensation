@@ -1,5 +1,5 @@
 def main():
-    print("Hello from ssaos-compensation!")
+    print("Hello from saos-compensation!")
 
 
 if __name__ == "__main__":
