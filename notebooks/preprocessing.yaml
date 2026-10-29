@@ -1,0 +1,10 @@
+basal: ../configs/dataset/basal.yaml
+api: ../configs/dataset/api.yaml
+backend: system_one
+gemma:
+  model: null
+  context_tokens: 8192
+  chunk_characters: 5000
+  output_tokens: 768
+localities:
+  url: https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/OT_ADMS_P.gpkg
