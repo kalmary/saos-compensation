@@ -14,10 +14,9 @@ from pathlib import Path
 import yaml
 
 from . import text as api
-from .get_data import search_settings
 from .storage import write_bytes, write_json
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 REQUEST_COUNTS = {"cached": 0, "computed": 0}
 MODEL_CALLS = ContextVar("model_calls", default=None)
 
@@ -169,6 +168,8 @@ def load_config(directory=None, overrides=None):
     returns:
         Effective validated configuration.
     """
+    from ..get_data import search_settings
+
     directory = (
         Path(directory) if directory is not None else ROOT / "configs" / "dataset"
     )

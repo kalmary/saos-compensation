@@ -11,10 +11,10 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.dataset import basal_filtering as basal
+from src.dataset.processing import basal_filtering as basal
 from src.dataset import get_data
-from src.dataset.text import extract_text
-from src.dataset.text import CURRENCY, MONEY, amount_in_pln
+from src.dataset.processing.text import extract_text
+from src.dataset.processing.text import CURRENCY, MONEY, amount_in_pln
 
 FIELD_NAMES = {
     "zdarzenie_i_okolicznosci": "event_circumstances",
@@ -1119,7 +1119,7 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
         None.
     """
     import sqlite3
-    from src.dataset import localities
+    from src.dataset.processing import localities
 
     source = tmp_path / "source.gpkg"
     with sqlite3.connect(source) as connection:
@@ -1639,7 +1639,7 @@ def test_output_limit_counts_existing_files_and_persists_across_resumes(tmp_path
     returns:
         None.
     """
-    from src.dataset.storage import StorageLimitError, output_limit, write_bytes
+    from src.dataset.processing.storage import StorageLimitError, output_limit, write_bytes
 
     (tmp_path / "existing").write_bytes(b"1234")
     with output_limit(tmp_path, 8 / 1024**3):
@@ -1665,7 +1665,7 @@ def test_output_limit_preserves_existing_record_and_counts_atomic_temporary_file
     returns:
         None.
     """
-    from src.dataset.storage import StorageLimitError, output_limit, write_bytes
+    from src.dataset.processing.storage import StorageLimitError, output_limit, write_bytes
 
     path = tmp_path / "record.json"
     path.write_bytes(b"1234")

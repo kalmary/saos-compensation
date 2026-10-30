@@ -1,4 +1,4 @@
-"""Badanie danych: uv run --extra extraction notebooks/01_saos_feasibility.py.
+"""Badanie danych: uv run --no-sync notebooks/01_saos_feasibility.py.
 
 Wynik: odpowiedzi na pięć pytań, dwa targety, cytaty i opisy cech.
 To badanie wykonalności, nie gotowy ekstraktor etykiet ani zbiór do treningu.

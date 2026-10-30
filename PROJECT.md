@@ -64,7 +64,8 @@ Expose only values deliberately selected between experiments. Keep model prompts
 
 ## Initial technical decisions
 
-- Runtime: Python 3.12 managed with `uv`.
+- Runtime: Python 3.12 managed with `uv`; sync groups/extras first, then execute with `uv run --no-sync`.
+- Dataset entry point: src/dataset/get_data.py; supporting modules live under src/dataset/processing/.
 - Current outputs: local per-judgment records and a resume checkpoint; diagnostic artifacts only in debug mode.
 - Planned database: PostgreSQL with JSONB and pgvector.
 - Configuration: YAML.

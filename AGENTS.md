@@ -74,7 +74,7 @@ The current interface is `configs/dataset/api.yaml` for acquisition and `configs
 - Keep secrets out of YAML and source files; configurations may name environment variables only.
 - Preserve existing source and diagnostic artifacts; create additional diagnostic data only when debug is enabled. Avoid destructive migrations without an explicit migration and backup plan.
 - Add focused tests for non-trivial parsing, target extraction, leakage filtering, and configuration-driven model selection.
-- Use Python 3.12, the repository `.venv`, `uv`, and the committed `uv.lock`. Run project commands with `uv run`.
+- Use Python 3.12, the repository `.venv`, `uv`, and the committed `uv.lock`. Sync dependencies separately with `uv sync --locked` and the required groups/extras, then execute commands with `uv run --no-sync`; do not sync or select extras during execution.
 - Do not add a dependency until the implementation imports it.
 - After each task, update the summary in `STATUS.md` and append a dated entry describing completed changes, findings, and remaining work. Keep only the latest 50 log entries in chronological order.
 - Never run Git operations, including commit, push, pull, branch, merge, or reset, without explicit user approval.

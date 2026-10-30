@@ -18,8 +18,8 @@ import requests
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.dataset.text import MONEY, extract_text
-from src.dataset.storage import StorageLimitError, output_limit, write_bytes, write_json
+from src.dataset.processing.text import MONEY, extract_text
+from src.dataset.processing.storage import StorageLimitError, output_limit, write_bytes, write_json
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_URL = "https://www.saos.org.pl/api"
@@ -608,7 +608,7 @@ def add_metadata_features(result, record, fields, localities=None):
         "court_seat": locality[1].strip() if locality else "not_available",
     }
     if "court_locality_size" in fields:
-        from src.dataset.localities import locality_class, match_locality
+        from src.dataset.processing.localities import locality_class, match_locality
 
         rows, morphology, metadata = localities
         matched, reason = match_locality(court["name"], rows, morphology)
@@ -685,7 +685,7 @@ def write_result(result, directory, config, run_id, dataset_id):
         "target_status": award.get("status", "not_available"),
     }
     if config["api"]["debug"]:
-        from src.dataset import basal_filtering as basal
+        from src.dataset.processing import basal_filtering as basal
 
         debug = directory / "debug" / run_id
         basal.write_paragraphs(
@@ -757,7 +757,7 @@ async def process(config):
     returns:
         None.
     """
-    from src.dataset import basal_filtering as basal
+    from src.dataset.processing import basal_filtering as basal
 
     directory = ROOT / config["api"]["download_path"]
     checkpoint = load_checkpoint(config)
@@ -782,7 +782,7 @@ async def process(config):
     if "court_locality_size" in config["metadata_fields"]:
         import morfeusz2
 
-        from src.dataset.localities import load_localities
+        from src.dataset.processing.localities import load_localities
 
         rows, metadata = load_localities(
             directory / "debug" / "gugik" if config["api"]["debug"] else None,
@@ -956,7 +956,7 @@ def main():
     returns:
         None.
     """
-    from src.dataset.basal_filtering import load_config
+    from src.dataset.processing.basal_filtering import load_config
 
     options = vars(parse_arguments())
     directory = options.pop("config_dir")

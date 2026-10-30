@@ -1,4 +1,4 @@
-"""Run with: uv run notebooks/02_api_search.py (or execute the # %% cells)."""
+"""Run with: uv run --no-sync notebooks/02_api_search.py (or execute the # %% cells)."""
 
 # %% Search one page
 from pprint import pprint

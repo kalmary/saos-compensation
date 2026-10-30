@@ -1,4 +1,4 @@
-"""Lokalna próba polskiego modelu decyzyjnego: uv run --extra extraction notebooks/03_system_one_polish.py."""
+"""Lokalna próba polskiego modelu decyzyjnego: uv run --no-sync notebooks/03_system_one_polish.py."""
 
 import asyncio
 import copy

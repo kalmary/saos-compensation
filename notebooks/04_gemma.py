@@ -1,4 +1,4 @@
-"""Wariant awaryjny: uv run --extra gemma notebooks/04_gemma.py.
+"""Wariant awaryjny: uv run --no-sync notebooks/04_gemma.py.
 
 Najpierw uruchomić 03_system_one_polish.py i ocenić wyniki. Ten skrypt używa
 wyłącznie lokalnej, już zainstalowanej Gemmy. Każde pole ma osobne pytanie.

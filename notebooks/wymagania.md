@@ -19,7 +19,7 @@ Celem jest ocena, czy orzeczenia SAOS pozwalają zbudować zbiór do regresji kw
 - Dodawać komentarze wyjaśniające cel funkcjonalny sekcji, badane pytanie i ograniczenia zastosowanych reguł.
 - Stosować możliwie prosty kod i istniejące zależności.
 - W `configs/dataset/basal.yaml` konfigurować wyłącznie nazwy wybieranych cech, nazwy targetów i trzy progi pewności. Model, instrukcje i sposób cięcia tekstu są stałe w kodzie. `configs/dataset/api.yaml` zawiera tylko `max_age_years`, `max_pages` i `debug`; zero stron oznacza wszystkie wyniki. Manifest notebooków wskazuje oba pliki niezależnie od katalogu roboczego.
-- Pełną próbę uruchamiać przez `uv run --extra extraction notebooks/01_saos_feasibility.py`; wariant bez modeli przez `uv run notebooks/01_saos_feasibility.py --metadata-only`.
+- Pełną próbę uruchamiać przez `uv run --no-sync notebooks/01_saos_feasibility.py`; wariant bez modeli przez `uv run --no-sync notebooks/01_saos_feasibility.py --metadata-only`.
 - Surowe odpowiedzi, metadane pobrania i wyniki zapisywać w projektowym `tmp/`.
 - Nie zastępować wyników analizy założonymi z góry odpowiedziami. Ręcznie opracowane przykłady oznaczać osobno.
 - Nie wykonywać operacji Git bez osobnej zgody.

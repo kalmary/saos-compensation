@@ -1,125 +1,122 @@
 # SAOS Compensation
 
-Study project for building a regression model that estimates compensation amounts from Polish court judgments available through the SAOS API.
+## Repository structure
 
-The pipeline acquires date-bounded judgments from the official SAOS dump, selects compensation cases locally, validates and stores them in PostgreSQL with pgvector, extracts a leakage-safe feature schema, vectorizes configured fields, and trains interchangeable regression models from YAML configuration.
+```text
+configs/dataset/
+  api.yaml                  # acquisition defaults and output limits
+  basal.yaml                # device, feature/target selection and thresholds
+src/
+  dataset/
+    get_data.py             # dataset CLI entry point
+    processing/             # Basal extraction, text, locality and storage modules
+  main.py                   # package startup placeholder
+notebooks/                  # exploratory scripts
+fixtures/                   # development snapshots, when available
+tests/                     # automated checks
+PROJECT.md                  # workflow and design
+STATUS.md                   # current status and dated history
+```
+
+## About the repository
+
+A data science study project for predicting compensation amounts from Polish court judgments in SAOS. The implemented stage acquires judgments and extracts factual features and awarded amounts. PostgreSQL/pgvector storage, regression training and inference are planned.
 
 ## Installation
 
-The project requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone git@github.com:kalmary/saos-compensation.git
 cd saos-compensation
 ```
 
-Install the base project dependencies:
+Sync the environment before running commands. Choose the inference extra for your platform:
 
 ```bash
-uv sync
+# macOS: PyTorch with CPU and Apple MPS support
+uv sync --locked --extra pytorch-macos --group test
+
+# Linux: PyTorch with NVIDIA CUDA support
+uv sync --locked --extra pytorch-cuda-linux --group test
 ```
 
-The `dev` group is currently empty. The `test` group includes `dev` and currently adds only pytest:
+Other installation options:
+
+| Selection | Purpose |
+|---|---|
+| `uv sync --locked` | Base dependencies; no model inference |
+| `--group test` | pytest and the currently empty dev group |
+| `--group dev` | Currently empty |
+| `--extra extraction` | General Basal/PyTorch installation |
+| `--extra gemma` | Optional Ollama research fallback |
+
+Subsequent commands use `uv run --no-sync` so execution does not modify dependencies.
 
 ```bash
-uv sync --group test
+uv run --no-sync pytest -q
 ```
 
-## Dataset acquisition and filtering
+## Dataset
 
-The entrypoint is [src/dataset/get_data.py](src/dataset/get_data.py). It reads full judgments from the official [SAOS bulk-download API](https://www.saos.org.pl/help/index.php/dokumentacja-api/api-pobierania-danych), joins court/division metadata from `/api/dump/commonCourts`, and separates factual features from monetary targets using Basal.
+[src/dataset/get_data.py](src/dataset/get_data.py) is the entry point. Its supporting modules are in `processing/`. `src.dataset` exports `load_config`, `extract_text` and `extract` for reuse in future inference.
 
 ```bash
-uv run src/dataset/get_data.py --help
-uv run --extra pytorch-macos src/dataset/get_data.py --max-pages 1 --download-path tmp/dataset
+uv run --no-sync src/dataset/get_data.py --help
+uv run --no-sync src/dataset/get_data.py --max-pages 1 --download-path tmp/dataset
 ```
 
-[configs/dataset/api.yaml](configs/dataset/api.yaml) supplies the default values. Every key has a matching CLI argument; only explicitly supplied arguments override YAML:
+### Configuration
 
-| YAML | CLI | Meaning |
-|---|---|---|
-| `max_age_years` | `--max-age-years 10` | Judgment date range ending today |
-| `max_pages` | `--max-pages 1` | Maximum dump pages; 0 means all pages |
-| `max_gib` | `--max-gib 5` | Total output-directory size across resumes; 0 disables the limit |
-| `download_path` | `--download-path tmp/experiment` | Output directory relative to the project root |
-| `debug` | `--debug` / `--no-debug` | Save diagnostic evidence and intermediate results |
-| `timeout` | `--timeout 30` | HTTP connection/read timeout in seconds |
+YAML provides defaults; explicit CLI arguments override only matching acquisition settings.
 
-`--config-dir` selects another directory containing `api.yaml` and `basal.yaml`. Paths in YAML resolve from the project root; a relative `--config-dir` resolves from the current working directory.
+| Configuration | Controls |
+|---|---|
+| [api.yaml](configs/dataset/api.yaml) | `max_age_years`, `max_pages`, `max_gib`, `download_path`, `debug`, `timeout` |
+| [basal.yaml](configs/dataset/basal.yaml) | `device`, feature/target selection and confidence thresholds |
 
-Dump pages contain up to 100 full judgments. SAOS applies `judgmentStartDate` and `judgmentEndDate`. The dump API has no documented text/court filter: the pipeline locally selects common-court sentences mentioning zadośćuczynienie and a numeric PLN amount. This scans more judgments than the earlier search-plus-detail prototype. A page limit is not a random or representative sample. Pagination follows the presence of `next`; the live dump response does not provide a total count.
+Acquisition options use hyphens, e.g. `--max-gib 5`; `--debug` and `--no-debug` select diagnostic output. `--config-dir` selects another configuration directory. `device` defaults to `cpu`; choose `mps` for Apple GPUs or `cuda` for NVIDIA GPUs. Unavailable accelerators fail explicitly.
 
-One shared HTTP session reuses connections. Each request is made once with an explicit timeout; failures stop the run and are reported.
+### Acquisition and extraction
 
-`<download_path>/checkpoint.json` is operational state saved regardless of debug. It pins the date range and extraction configuration and records the next page/item plus the current page IDs. Restart the same command to resume. Records are saved atomically before advancing the checkpoint; if the process stops between those writes, the saved record is recognized by its dataset ID and is not extracted again. Completed records on earlier pages are not revisited.
+- **SAOS:** date-bounded full judgments from the official [dump API](https://www.saos.org.pl/help/index.php/dokumentacja-api/api-pobierania-danych), with court metadata joined from its court dump. Text/court filtering is local because the dump does not expose those filters.
+- **HTTP:** one shared Requests session, explicit timeout and no automatic retries.
+- **Basal:** pinned Polish model, separate factual-feature and monetary-target extraction; English feature names with Polish descriptions and source text.
+- **GUGiK and Morfeusz:** population class of the locality where the court is located; ambiguous matches remain missing. Population measurement year is unknown.
 
-You may change debug, timeout, max_gib and the page limit while resuming; increasing the page limit continues the same dataset. Changing extraction settings or the age range requires a different download path. A completed checkpoint performs no further acquisition; use a new path for a fresh dataset/date range. A changed resumed SAOS page or GUGiK snapshot is rejected to avoid silently mixing incompatible data. Existing output folders without a checkpoint are processed as a new dataset. Run one process per output directory.
+Targets are awarded compensation for non-material harm and other one-off damages. Litigation costs, interest and periodic rent are excluded. Missing values are `not_available`, never an assumed zero. Model outputs require review, including confirmed proposals.
 
-`max_gib` bounds the sum of all file sizes under download_path, including existing records, checkpoints and debug history from previous executions. Atomic temporary files count toward peak usage. The limit does not reset on resume. Writes that would exceed it are refused and the checkpoint remains resumable; increase max_gib to continue. A partial debug trace may remain for the interrupted judgment, but a partial primary record is never published. Legacy files also count. With a size limit, keep the Hugging Face model cache outside download_path: prefer `tmp/dataset` for output rather than the shared `tmp` directory containing `tmp/huggingface`.
-
-Normal extraction writes one primary record per judgment directly under `download_path`:
+### Output and resume
 
 ```text
 <download_path>/
   checkpoint.json
   <SAOS_ID>/
-    record.json
+    record.json             # features, targets and review status
+    debug/<RUN_ID>/         # source, evidence, decisions and result snapshot
+  debug/<RUN_ID>/           # original responses and run reports
 ```
 
-`record.json` contains judgment, dataset and run IDs, the configured `features` and `targets`, derived `total`, `confirmed` and review statuses. Missing values remain `not_available`, never an assumed zero. These are extraction candidates requiring review, including records where `confirmed` is true.
+Restart the same command to resume from the checkpoint. Saved records are recognized without repeating extraction. Dates and extraction settings stay pinned; debug, timeout, size and page limits may change. A completed dataset or different extraction settings require a new output path. Run one process per output directory.
 
-With `debug: false`, extraction writes only primary records and checkpoint.json. It does not persist raw responses, source exports, model-call caches, quotes, scores or intermediate decisions. Runtime model weights remain in the project model cache. Existing diagnostic files are preserved.
+`max_pages: 0` reads all pages; a page limit is not random sampling. `max_gib` caps all files in the output directory across resumes, including diagnostic history; `0` disables it. Keep model weights outside that directory, for example by using `tmp/dataset` as output rather than `tmp`.
 
-With `debug: true`, additional artifacts explain how each result was produced:
+With `debug: false`, only records and the checkpoint are saved. With `debug: true`, sources, quotes/offsets, scores, accepted/rejected passages, configuration and exact model calls are preserved per run. Existing diagnostics are retained.
 
-```text
-<download_path>/
-  checkpoint.json
-  debug/
-    <RUN_ID>/
-      raw/                 # original HTTP responses and acquisition metadata
-      acquisition.json
-      filtering.json
-    decisions/             # shared immutable model-response cache
-    gugik/                 # shared official locality snapshot
-  <SAOS_ID>/
-    record.json            # latest completed result, linked to its RUN_ID
-    debug/
-      <RUN_ID>/
-        judgment.json
-        metadata.json
-        source.txt
-        config.json
-        result.json        # exact primary-record snapshot from this run
-        analysis.json
-        model_calls.json
-        facts.txt
-        reasoning.txt
-        review.txt
-        record.json        # extracted descriptions
-        award.json
-```
+Research experiments remain in `notebooks/`; their outputs are separate from the dataset CLI. See [PROJECT.md](PROJECT.md) for the full workflow.
 
-Every execution uses a separate UTC run ID; per-judgment diagnostics, result snapshots and acquisition/filtering reports from earlier runs are never overwritten. Acquisition summaries and failures are also printed to the console. Diagnostic scores describe model decisions; they are not causal explanations of a future compensation regressor. Model-call caching is enabled only in debug mode and is keyed by the request and pinned model identity. Cached answers are validated before use.
+## ML pipeline
 
-Install the platform-specific inference dependencies with `uv sync --extra pytorch-macos` on macOS or `uv sync --extra pytorch-cuda-linux` on Linux with an NVIDIA GPU. Both extras include Basal and PyTorch, with platform markers. The Linux PyPI PyTorch package supplies CUDA runtime libraries; a compatible NVIDIA driver and visible GPU are still required. No separate CUDA toolkit or MLX dependency is needed for these PyTorch backends. The existing `extraction` extra remains available for general CPU use.
+_To be implemented: reviewed labels, leakage checks, grouped splits and field vectorization._
 
-[configs/dataset/basal.yaml](configs/dataset/basal.yaml) chooses the device, supported features, targets and three confidence thresholds. The pinned Polish model revision and prompts remain fixed in code. `device: cpu` is the default; `mps` selects the Apple GPU and `cuda` selects an NVIDIA GPU. The requested accelerator must be available; unavailable devices fail before source or model downloads. `judgment_year` comes from the judgment date; `instance` requires a confidence-checked procedural-stage decision rather than inference from court level. `court_locality_size` is the population class of the locality where the court is located. It matches the locality name from SAOS court metadata against official GUGiK BDOT10k using Morfeusz inflection analysis and reads LICZBAMIESZKANCOW to choose the class. Ambiguous matches remain missing. This is a current snapshot with no population measurement year, not historical population at judgment time; its provenance is available in debug mode. `court_seat` remains an optional supported source-form seat name.
+## Training
 
-Numeric PLN amounts support decimal commas, ordinary/nonbreaking thousands separators, `tys.`, `mln`, `mld` and their full Polish unit names. Decimal arithmetic preserves source offsets and handles descending compound units such as `4 mln 250 tys. zł`. Entirely written-out amounts remain unsupported.
+_To be implemented: regression baseline and configuration-driven model training._
 
-The exploratory scripts in `notebooks/` retain their separate research outputs under `tmp/saos_feasibility`, `tmp/system_one` and `tmp/gemma`; the source pipeline does not import them.
+## Evaluation
 
-Development cases live in [fixtures/](fixtures/). Each folder contains `judgment.json` plus the input text and model outputs. Cases are discovered from the files, not an ID list in config. Tests replay saved model responses offline. These are development snapshots, not independently labeled ground truth.
+_To be implemented: MAE, RMSE and error analysis across case groups._
 
-To run the actual model on those fixture inputs without SAOS acquisition:
+## Inference
 
-```bash
-uv run --extra pytorch-macos notebooks/03_system_one_polish.py --fixtures
-```
-
-Basal selects factual passages, extracts the configured descriptions, and separately interprets sentences containing monetary amounts. Targets are awarded compensation and other one-off damages; process/court costs, interest and rent are excluded. Ambiguous outputs remain for review. PostgreSQL ingestion, vectorization and regression training are not implemented.
-
-The optional local Gemma fallback remains in `notebooks/04_gemma.py`; it does not download models. Research requirements are in [notebooks/wymagania.md](notebooks/wymagania.md).
-
-Implementation identifiers, diagnostics and comments use English. Feature names are English; their Polish descriptions and source text are sent to Basal. Polish remains in model prompts, monetary decision categories, source evidence and text-matching rules. Source-pipeline missing values use `not_available`; older notebook/fixture snapshots retain their original representation.
+_To be implemented: compensation prediction from model-ready case features._
