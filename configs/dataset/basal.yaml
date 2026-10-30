@@ -2,8 +2,8 @@
 device: cpu
 # Output features; Polish identifiers belong to the fixed Basal schema.
 feature_fields:
-- judgment_year # Year of the judgment.
-- instance # Procedural instance based on evidence.
+- judgment_year
+- instance # Not inferred from court level.
 - court_locality_size # Court-seat population class from GUGiK.
 - zdarzenie_i_okolicznosci # Event and circumstances.
 - rodzaj_doznanej_krzywdy # Nature of the harm.

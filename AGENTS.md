@@ -63,6 +63,7 @@ The current interface is `configs/dataset/api.yaml` for acquisition and `configs
 - Keep `PROJECT.md` current after behavior or design changes. Edit or replace outdated statements in their existing sections; do not append contradictory updates or maintain a history there. Dated history belongs in `STATUS.md`.
 - Use English for implementation identifiers, configuration keys, comments, docstrings, errors and diagnostics. Retain Polish only where required by model-facing prompts/schema identifiers, source-text matching, original evidence or Polish-text analysis. New metadata names and machine-readable status values must be English.
 - Use `pytorch-macos` for local PyTorch work on macOS and `pytorch-cuda-linux` for Linux CUDA dependencies. CPU is the default device; explicitly selected accelerators must be available before inference starts.
+- Comments and parameter descriptions should explain non-obvious behavior or constraints, not restate names.
 - Make the smallest complete change and reuse existing project patterns.
 - Use descriptive, general names. Do not over-modify unrelated code.
 - Do not add comments or metadata referring to AI tools or the development conversation.

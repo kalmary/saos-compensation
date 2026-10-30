@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Static acquisition review identified missing resume/checkpoints and a missing path from download-only source.json files to extraction. Raw HTTP debug snapshots are per-run, but per-judgment diagnostics and the filtering summary are overwritten on reruns. No tests were executed.
+
 Basal configuration now defaults to `device: cpu`, with explicit `mps` and `cuda` selection and availability checks before source/model downloads. Platform inference extras are `pytorch-macos` and `pytorch-cuda-linux`; the former is the local workflow. uv.lock was refreshed without installing packages. Installation and tests for this change were not run, as requested. Existing extraction/Gemma extras remain available.
 
 Implementation comments and source-pipeline diagnostics use English. Metadata fields are judgment_year, instance, court_seat and court_locality_size; primary output missing values use not_available. Model-facing Polish prompts, schema identifiers and source text remain unchanged. PROJECT.md now describes the actual dump/CLI/output/debug workflow in place; AGENTS.md points to it and requires replacing obsolete project statements rather than appending contradictory updates.
@@ -67,3 +69,5 @@ Prior validation, before the device/language changes: 175 tests passed, includin
 - 2026-10-30: Added device selection with CPU default, explicit MPS/CUDA checks, and separate pytorch-macos/pytorch-cuda-linux extras with platform markers; refreshed uv.lock without installation. Converted implementation comments, active metadata identifiers and diagnostics to English while preserving Polish Basal interaction and original fixtures. Replaced outdated PROJECT.md acquisition/configuration sections and added language/project-maintenance rules to AGENTS.md. Updated regression expectations and added device checks as unexecuted tests. No installation, inference or test run after the request not to test these changes; CUDA hardware remains unavailable locally.
 
 - 2026-10-30: Added concise, single-line English explanations for acquisition YAML keys, CLI options and Basal settings. No tests or installation run, as requested; unrelated fixture deletions were left untouched.
+
+- 2026-10-30: Removed self-evident judgment_year commentary, clarified that instance is not inferred from court level, and added the non-obvious-comments rule. Reviewed get_data.py statically: acquisition restarts from page zero, extraction cannot consume download-only source records, and reruns overwrite per-judgment diagnostics/filtering.json. Corrected PROJECT.md to describe the actual diagnostic retention behavior. No implementation changes or tests; existing fixture deletions remain untouched.
