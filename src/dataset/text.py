@@ -7,23 +7,69 @@ from html.parser import HTMLParser
 
 class JudgmentText(HTMLParser):
     def __init__(self):
+        """
+        Initialize the instance state.
+
+        args:
+            None
+
+        returns:
+            None.
+        """
         super().__init__(convert_charrefs=True)
         self.parts = []
 
     def handle_starttag(self, tag, attrs):
+        """
+        Preserve paragraph boundaries introduced by opening HTML tags.
+
+        args:
+            tag: HTML tag name.
+            attrs: HTML tag attributes.
+
+        returns:
+            None.
+        """
         if tag in {"p", "div", "br", "h1", "h2", "h3", "h4", "h5", "li", "tr"}:
             self.parts.append("\n")
 
     def handle_endtag(self, tag):
+        """
+        Preserve paragraph boundaries introduced by closing HTML tags.
+
+        args:
+            tag: HTML tag name.
+
+        returns:
+            None.
+        """
         if tag in {"p", "div", "h1", "h2", "h3", "h4", "h5", "li", "tr"}:
             self.parts.append("\n")
 
     def handle_data(self, data):
         # HTML source line breaks do not create paragraphs inside inline elements.
+        """
+        Normalize whitespace inside an HTML text node.
+
+        args:
+            data: HTML text node.
+
+        returns:
+            None.
+        """
         self.parts.append(re.sub(r"\s+", " ", data))
 
 
 def extract_text(html):
+    """
+    Normalize HTML while preserving paragraph boundaries.
+
+    args:
+        html: Original judgment HTML.
+
+    returns:
+        Normalized plain text.
+    """
     parser = JudgmentText()
     parser.feed(html)
     lines = [
@@ -67,6 +113,15 @@ MONEY = re.compile(
 
 
 def amount_in_pln(match):
+    """
+    Normalize a numeric PLN mention using exact decimal arithmetic.
+
+    args:
+        match: Matched numeric PLN occurrence.
+
+    returns:
+        Exact normalized amount as a decimal string.
+    """
     total = Decimal(0)
     previous_scale = None
     scaled = False

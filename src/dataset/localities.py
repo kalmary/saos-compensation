@@ -10,10 +10,22 @@ from pathlib import Path
 
 import requests
 
+from .storage import write_bytes, write_json
+
 SOURCE = "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/OT_ADMS_P.gpkg"
 
 
 def locality_class(kind, population):
+    """
+    Map an official locality type and population to a size category.
+
+    args:
+        kind: Official locality type.
+        population: Recorded locality population.
+
+    returns:
+        Population category or a missing-value marker.
+    """
     if kind == "wieś":
         return "village"
     if kind != "miasto" or population is None:
@@ -32,7 +44,16 @@ def locality_class(kind, population):
 
 
 def load_localities(directory=None, timeout=30):
-    """Load the official snapshot; keep it on disk only in debug mode."""
+    """
+    Read official locality attributes and verify retained snapshot integrity.
+
+    args:
+        directory: Input or output directory for this operation.
+        timeout: Connection/read timeout in seconds.
+
+    returns:
+        Locality rows and snapshot provenance.
+    """
     with tempfile.TemporaryDirectory() as temporary:
         path = (
             Path(directory) / "OT_ADMS_P.gpkg"
@@ -52,16 +73,14 @@ def load_localities(directory=None, timeout=30):
             with requests.get(SOURCE, timeout=timeout) as response:
                 response.raise_for_status()
                 content = response.content
-            path.write_bytes(content)
+            write_bytes(path, content)
             metadata = {
                 "url": SOURCE,
                 "sha256": hashlib.sha256(content).hexdigest(),
                 "acquired_at": datetime.now(timezone.utc).isoformat(),
                 "population_year": None,
             }
-            metadata_path.write_text(
-                json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
-            )
+            write_json(metadata_path, metadata)
         with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as connection:
             if connection.execute("pragma quick_check").fetchone()[0] != "ok":
                 raise ValueError("Incomplete or damaged GUGiK GeoPackage")
@@ -76,6 +95,17 @@ def load_localities(directory=None, timeout=30):
 
 def match_locality(court_name, rows, morphology):
     # Use Morfeusz to match inflected court-seat names against official localities; ambiguous matches remain missing.
+    """
+    Match an inflected court-location name without guessing ambiguous results.
+
+    args:
+        court_name: Source court name containing its location.
+        rows: Candidate source records.
+        morphology: Polish inflection analyzer.
+
+    returns:
+        Matched locality or None, and a diagnostic reason.
+    """
     location = re.search(r"\b(?:w|we)\s+([^\n]+)$", court_name)
     if not location:
         return None, "court name does not contain a seat"

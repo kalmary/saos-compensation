@@ -22,7 +22,8 @@ This is a regression problem. Do not turn it into judgment classification or gen
 - Read `PROJECT.md` before changing behavior. It is the authoritative description of the current acquisition, output and configuration workflow.
 - Use the official SAOS dump endpoints and validate their current schema. Apply supported date filters, select relevant compensation cases locally, join court metadata and deduplicate by stable SAOS ID.
 - Keep CLI and `configs/dataset/api.yaml` aligned: YAML supplies defaults; explicit CLI arguments override only their corresponding values.
-- Produce per-judgment feature/target records under download_path. Additional source, evidence, model-call and intermediate artifacts must be written only when debug is enabled. Preserve existing artifacts when debug is disabled.
+- Produce per-judgment feature/target records and an atomic checkpoint.json under download_path. Resume from the saved position and advance only after the final record is durable. Preserve the dataset date bounds and reject incompatible extraction settings. Additional source, evidence, model-call and intermediate artifacts must be written only when debug is enabled. Preserve existing artifacts when debug is disabled; store new diagnostics and run reports under a unique run ID so later runs cannot overwrite their history.
+- Enforce max_gib on the total output directory across resumptions, including existing files and debug history. Refuse writes that exceed the limit and keep the model cache outside a size-limited output directory.
 - Use explicit HTTP timeouts and a shared session. Surface failures without manual retry loops or silently missing records.
 - Keep API access, extraction and future PostgreSQL/pgvector ingestion separable. Raw, validated and model-ready representations must not overwrite one another.
 
@@ -64,6 +65,7 @@ The current interface is `configs/dataset/api.yaml` for acquisition and `configs
 - Use English for implementation identifiers, configuration keys, comments, docstrings, errors and diagnostics. Retain Polish only where required by model-facing prompts/schema identifiers, source-text matching, original evidence or Polish-text analysis. New metadata names and machine-readable status values must be English.
 - Use `pytorch-macos` for local PyTorch work on macOS and `pytorch-cuda-linux` for Linux CUDA dependencies. CPU is the default device; explicitly selected accelerators must be available before inference starts.
 - Comments and parameter descriptions should explain non-obvious behavior or constraints, not restate names.
+- Every function, including helpers and methods, must have a short English triple-quoted docstring with a description, an `args:` section listing its parameters, and a `returns:` section describing its result. Use `None` when there are no arguments or return value.
 - Make the smallest complete change and reuse existing project patterns.
 - Use descriptive, general names. Do not over-modify unrelated code.
 - Do not add comments or metadata referring to AI tools or the development conversation.

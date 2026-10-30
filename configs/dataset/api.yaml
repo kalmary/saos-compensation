@@ -2,11 +2,12 @@
 max_age_years: 10
 # Maximum dump pages (100 judgments each); 0 reads all pages.
 max_pages: 0
-# Save sources, evidence and model decisions; false writes only primary records.
+
+# Total output-directory size in GiB across resumed runs; 0 disables the limit.
+max_gib: 5
+# Save sources, evidence and model decisions; false writes records and the resume checkpoint.
 debug: true
 # Output directory relative to the project root.
 download_path: "tmp/"
-# Save source records without extracting features or targets.
-download_only: false
 # HTTP connection/read timeout in seconds, not a total download limit.
 timeout: 20

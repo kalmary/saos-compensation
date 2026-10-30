@@ -1,23 +1,27 @@
 # Inference device: cpu (default), mps (Apple GPU), or cuda (NVIDIA GPU).
 device: cpu
-# Output features; Polish identifiers belong to the fixed Basal schema.
+
 feature_fields:
 - judgment_year
-- instance # Not inferred from court level.
-- court_locality_size # Court-seat population class from GUGiK.
-- zdarzenie_i_okolicznosci # Event and circumstances.
-- rodzaj_doznanej_krzywdy # Nature of the harm.
-- przebieg_nasilenie_i_czas_trwania # Severity, progression and duration.
-- konsekwencje_dla_zycia # Effects on daily life.
-- indywidualne_okolicznosci_poszkodowanego # Personal circumstances.
-- podjete_dzialania_i_potrzebna_pomoc # Treatment and assistance.
+- instance
+- court_locality_size # Population class of the locality where the court is located (GUGiK).
+- event_circumstances
+- harm_type
+- harm_severity_duration
+- life_impact
+- claimant_circumstances
+- treatment_assistance
+
 # Awarded principal components, excluding costs, interest and periodic rent.
 target_fields:
-- zadoscuczynienie # Compensation for non-material harm.
-- pozostale_odszkodowanie # One-off damages for material loss.
+- zadoscuczynienie
+- pozostale_odszkodowanie
+
 # Minimum probability for factual passages and procedural instance.
 minimum_probability: 0.6
+
 # Maximum leakage probability; lower values are stricter.
 maximum_leak_probability: 0.2
+
 # Minimum probability for amount assignment and final award confirmation.
 amount_minimum_probability: 0.6

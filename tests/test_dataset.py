@@ -13,16 +13,45 @@ sys.path.insert(0, str(ROOT))
 
 from src.dataset import basal_filtering as basal
 from src.dataset import get_data
-from src.dataset.get_data import run
 from src.dataset.text import extract_text
 from src.dataset.text import CURRENCY, MONEY, amount_in_pln
+
+FIELD_NAMES = {
+    "zdarzenie_i_okolicznosci": "event_circumstances",
+    "rodzaj_doznanej_krzywdy": "harm_type",
+    "przebieg_nasilenie_i_czas_trwania": "harm_severity_duration",
+    "konsekwencje_dla_zycia": "life_impact",
+    "indywidualne_okolicznosci_poszkodowanego": "claimant_circumstances",
+    "podjete_dzialania_i_potrzebna_pomoc": "treatment_assistance",
+}
+
+
+def translate_fields(value):
+    """
+    Adapt historical fixture schema keys without modifying original artifacts.
+
+    args:
+        value: Value to serialize or adapt.
+
+    returns:
+        Value with historical schema keys adapted.
+    """
+    if isinstance(value, dict):
+        return {
+            FIELD_NAMES.get(key, key): translate_fields(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [translate_fields(item) for item in value]
+    return value
+
 
 CONFIG = {
     "max_age_years": 10,
     "max_pages": 0,
+    "max_gib": 0,
     "debug": False,
     "download_path": "tmp/",
-    "download_only": False,
     "timeout": 30,
 }
 
@@ -40,6 +69,16 @@ CONFIG = {
     ],
 )
 def test_pln_amount_formats(text, amount):
+    """
+    Verify pln amount formats.
+
+    args:
+        text: Normalized Polish source text.
+        amount: Input for this operation.
+
+    returns:
+        None.
+    """
     assert MONEY.fullmatch(text)["amount"] == amount
     assert CURRENCY.search(text)
 
@@ -59,6 +98,15 @@ def test_pln_amount_formats(text, amount):
     ],
 )
 def test_other_currencies_and_unrelated_words_are_not_matched(text):
+    """
+    Verify other currencies and unrelated words are not matched.
+
+    args:
+        text: Normalized Polish source text.
+
+    returns:
+        None.
+    """
     assert not MONEY.search(text)
     assert not CURRENCY.search(text)
 
@@ -93,6 +141,16 @@ def test_other_currencies_and_unrelated_words_are_not_matched(text):
     ],
 )
 def test_scaled_amounts_are_converted_without_losing_source_offsets(text, expected):
+    """
+    Verify scaled amounts are converted without losing source offsets.
+
+    args:
+        text: Normalized Polish source text.
+        expected: Expected result.
+
+    returns:
+        None.
+    """
     match = MONEY.fullmatch(text)
     assert match is not None
     assert amount_in_pln(match) == expected
@@ -118,19 +176,48 @@ def test_scaled_amounts_are_converted_without_losing_source_offsets(text, expect
     ],
 )
 def test_invalid_amounts_do_not_produce_partial_matches(text):
+    """
+    Verify invalid amounts do not produce partial matches.
+
+    args:
+        text: Normalized Polish source text.
+
+    returns:
+        None.
+    """
     assert not MONEY.search(text)
 
 
 @pytest.mark.parametrize("text", ["1 tys. 2 mln zł", "1 mln 2 mln zł"])
 def test_compound_amounts_require_descending_units(text):
+    """
+    Verify compound amounts require descending units.
+
+    args:
+        text: Normalized Polish source text.
+
+    returns:
+        None.
+    """
     with pytest.raises(ValueError, match="largest to smallest"):
         amount_in_pln(MONEY.fullmatch(text))
 
 
 def test_config_and_path_are_independent_of_working_directory(monkeypatch, tmp_path):
+    """
+    Verify config and path are independent of working directory.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+
+    returns:
+        None.
+    """
+    expected = basal.load_config()
     monkeypatch.chdir(tmp_path)
     config = basal.load_config()
-    assert {**config["api"], "debug": False} == CONFIG
+    assert config == expected
     assert list(config["fields"]) == list(basal.FEATURE_DESCRIPTIONS)
     assert get_data.ROOT / config["api"]["download_path"] == ROOT / "tmp"
     start, end, params = get_data.search_settings(CONFIG, date(2024, 2, 29))
@@ -149,17 +236,39 @@ def test_config_and_path_are_independent_of_working_directory(monkeypatch, tmp_p
         {"download_path": "../outside"},
         {"download_path": ""},
         {"download_path": "/tmp"},
+        {"max_gib": -1},
+        {"max_gib": True},
+        {"max_gib": float("nan")},
         {"timeout": 0},
         {"timeout": float("inf")},
-        {"download_only": "false"},
     ],
 )
 def test_invalid_config_is_rejected(change):
+    """
+    Verify invalid config is rejected.
+
+    args:
+        change: Configuration change under examination.
+
+    returns:
+        None.
+    """
     with pytest.raises(ValueError):
         get_data.search_settings({**CONFIG, **change})
 
 
 def search_response(params, identifiers, more=False):
+    """
+    Provide the search response behavior used by this operation.
+
+    args:
+        params: Effective SAOS query parameters.
+        identifiers: Input for this operation.
+        more: Input for this operation.
+
+    returns:
+        Result of this operation.
+    """
     return {
         "items": [{"id": identifier} for identifier in identifiers],
         "info": None,
@@ -182,9 +291,31 @@ def search_response(params, identifiers, more=False):
 def test_pagination_uses_next_without_result_count(
     monkeypatch, tmp_path, limit, expected
 ):
+    """
+    Verify pagination uses next without result count.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        limit: Maximum batch or fragment size.
+        expected: Expected result.
+
+    returns:
+        None.
+    """
     pages = []
 
     def fetch(url, *args):
+        """
+        Provide the fetch behavior used by this operation.
+
+        args:
+            url: Resource URL.
+            args: Input for this operation.
+
+        returns:
+            Result of this operation.
+        """
         from urllib.parse import parse_qs, urlparse
 
         page = int(parse_qs(urlparse(url).query)["pageNumber"][0])
@@ -202,6 +333,17 @@ def test_pagination_uses_next_without_result_count(
 
 @pytest.mark.parametrize("defect", ["query", "duplicate", "links", "id", "empty_next"])
 def test_invalid_dump_response_stops_download(monkeypatch, tmp_path, defect):
+    """
+    Verify invalid dump response stops download.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        defect: Malformed field under examination.
+
+    returns:
+        None.
+    """
     _, _, params = get_data.search_settings(CONFIG)
     payload = search_response(params, [1, 2], True)
     if defect == "query":
@@ -223,6 +365,17 @@ def test_invalid_dump_response_stops_download(monkeypatch, tmp_path, defect):
 def test_http_reads_fresh_data_and_saves_raw_only_in_debug(
     monkeypatch, tmp_path, debug
 ):
+    """
+    Verify http reads fresh data and saves raw only in debug.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        debug: Whether to save diagnostic artifacts.
+
+    returns:
+        None.
+    """
     calls = []
     raw = b'{"data": {"id": 42}, "untouched": [1, null]}'
 
@@ -232,15 +385,52 @@ def test_http_reads_fresh_data_and_saves_raw_only_in_debug(
         status_code = 200
 
         def raise_for_status(self):
+            """
+            Provide the raise for status behavior used by this operation.
+
+            args:
+                None
+
+            returns:
+                Result of this operation.
+            """
             pass
 
         def __enter__(self):
+            """
+            Provide the   enter   behavior used by this operation.
+
+            args:
+                None
+
+            returns:
+                Result of this operation.
+            """
             return self
 
         def __exit__(self, *args):
+            """
+            Provide the   exit   behavior used by this operation.
+
+            args:
+                args: Input for this operation.
+
+            returns:
+                Result of this operation.
+            """
             pass
 
     def get(url, **kwargs):
+        """
+        Provide the get behavior used by this operation.
+
+        args:
+            url: Resource URL.
+            kwargs: Input for this operation.
+
+        returns:
+            Result of this operation.
+        """
         calls.append(kwargs)
         return Response()
 
@@ -261,9 +451,28 @@ def test_http_reads_fresh_data_and_saves_raw_only_in_debug(
 
 
 def test_http_timeout_is_not_retried(monkeypatch):
+    """
+    Verify http timeout is not retried.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+
+    returns:
+        None.
+    """
     calls = []
 
     def get(*args, **kwargs):
+        """
+        Provide the get behavior used by this operation.
+
+        args:
+            args: Input for this operation.
+            kwargs: Input for this operation.
+
+        returns:
+            Result of this operation.
+        """
         calls.append(kwargs)
         raise requests.Timeout("offline")
 
@@ -273,14 +482,48 @@ def test_http_timeout_is_not_retried(monkeypatch):
     assert len(calls) == 1
 
 
-def fixture(identifier=254930):
-    return json.loads(
-        (ROOT / "fixtures" / str(identifier) / "judgment.json").read_text()
-    )
+def fixture():
+    """
+    Create a structurally valid judgment for isolated validation checks.
+
+    args:
+        None
+
+    returns:
+        Synthetic SAOS judgment payload.
+    """
+    return {
+        "data": {
+            "id": 254930,
+            "judgmentDate": "2020-05-12",
+            "courtType": "COMMON",
+            "judgmentType": "SENTENCE",
+            "courtCases": [{"caseNumber": "I C 42/20"}],
+            "division": {
+                "id": 10,
+                "name": "I Wydział Cywilny",
+                "court": {
+                    "id": 1,
+                    "name": "Sąd Okręgowy w Warszawie",
+                    "type": "REGIONAL",
+                },
+            },
+            "textContent": "<p>Zasądza 10 000 zł tytułem zadośćuczynienia.</p>",
+        }
+    }
 
 
 @pytest.mark.parametrize("defect", ["id", "date", "court", "case", "text", "type"])
 def test_invalid_judgments_are_rejected(defect):
+    """
+    Verify invalid judgments are rejected.
+
+    args:
+        defect: Malformed field under examination.
+
+    returns:
+        None.
+    """
     payload = fixture()
     data = payload["data"]
     if defect == "id":
@@ -305,6 +548,18 @@ def test_invalid_judgments_are_rejected(defect):
 def test_download_deduplicates_filters_and_reports_rejections(
     monkeypatch, tmp_path, debug, capsys
 ):
+    """
+    Verify download deduplicates filters and reports rejections.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        debug: Whether to save diagnostic artifacts.
+        capsys: Captured console output.
+
+    returns:
+        None.
+    """
     monkeypatch.setattr(get_data, "ROOT", tmp_path)
     data = fixture()["data"]
     division = data["division"]
@@ -314,12 +569,27 @@ def test_download_deduplicates_filters_and_reports_rejections(
     monkeypatch.setattr(
         get_data,
         "search_pages",
-        lambda *args: iter([(0, {"items": [valid, valid, invalid, irrelevant]})]),
+        lambda *args: iter(
+            [(0, {"items": [valid, valid, invalid, irrelevant], "links": []})]
+        ),
     )
     monkeypatch.setattr(
         get_data, "load_divisions", lambda *args: {division["id"]: division}
     )
-    records = list(get_data.download({**CONFIG, "debug": debug}))
+    config = basal.load_config(overrides={**CONFIG, "debug": debug})
+    checkpoint = get_data.load_checkpoint(config)
+    records = []
+    for record in get_data.download(config["api"], checkpoint, "run"):
+        records.append(record)
+        get_data.write_json(
+            tmp_path / "tmp" / str(record["id"]) / "record.json",
+            {
+                "id": record["id"],
+                "dataset_id": checkpoint["dataset_id"],
+                "features": {},
+                "targets": {},
+            },
+        )
     assert [record["id"] for record in records] == [254930]
     assert records[0]["division"] == division
     report = json.loads(capsys.readouterr().out)
@@ -328,21 +598,46 @@ def test_download_deduplicates_filters_and_reports_rejections(
         and report["accepted"] == report["duplicates"] == report["filtered"] == 1
     )
     assert report["rejected"] == [{"id": 254931, "reason": "Missing judgment text"}]
-    assert bool(list(tmp_path.rglob("*.json"))) == debug
+    assert (tmp_path / "tmp/debug").exists() == debug
+    assert checkpoint["complete"]
 
 
 def test_partial_network_failure_is_visible(monkeypatch, tmp_path, capsys):
+    """
+    Verify partial network failure is visible.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        capsys: Captured console output.
+
+    returns:
+        None.
+    """
     monkeypatch.setattr(get_data, "ROOT", tmp_path)
 
     def fail(*args):
+        """
+        Provide the fail behavior used by this operation.
+
+        args:
+            args: Input for this operation.
+
+        returns:
+            Result of this operation.
+        """
         raise requests.Timeout("SAOS unavailable")
 
     monkeypatch.setattr(get_data, "search_pages", fail)
+    config = basal.load_config(overrides=CONFIG)
+    checkpoint = get_data.load_checkpoint(config)
+    get_data.write_json(tmp_path / "tmp/checkpoint.json", checkpoint)
     with pytest.raises(requests.Timeout):
-        list(get_data.download(CONFIG))
+        list(get_data.download(CONFIG, checkpoint, "run"))
     report = json.loads(capsys.readouterr().out)
     assert not report["complete"] and report["error"] == "SAOS unavailable"
-    assert not list(tmp_path.iterdir())
+    assert (tmp_path / "tmp/checkpoint.json").exists()
+    assert not (tmp_path / "tmp/debug").exists()
 
 
 @pytest.mark.parametrize(
@@ -353,9 +648,20 @@ def test_partial_network_failure_is_visible(monkeypatch, tmp_path, capsys):
 def test_basal_replays_saved_requests_without_behavior_changes(
     monkeypatch, tmp_path, path
 ):
+    """
+    Verify basal replays saved requests without behavior changes.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        path: Path to the relevant input or output file.
+
+    returns:
+        None.
+    """
     config = basal.load_config()
     monkeypatch.setattr(basal, "ROOT", tmp_path)
-    calls = json.loads(path.read_text())
+    calls = translate_fields(json.loads(path.read_text()))
     responses = {
         json.dumps(call["request"], sort_keys=True, ensure_ascii=False): call[
             "response"
@@ -366,6 +672,15 @@ def test_basal_replays_saved_requests_without_behavior_changes(
 
     class Server:
         async def serve(self, request):
+            """
+            Provide the serve behavior used by this operation.
+
+            args:
+                request: Input for this operation.
+
+            returns:
+                Result of this operation.
+            """
             key = json.dumps(request, sort_keys=True, ensure_ascii=False)
             assert key in responses, "Extraction changed a saved model request"
             seen.append(key)
@@ -375,7 +690,9 @@ def test_basal_replays_saved_requests_without_behavior_changes(
     text = extract_text(payload["data"]["textContent"])
     result = asyncio.run(basal.extract(Server(), text, config, payload["data"]["id"]))
     assert seen
-    assert result["features"] == json.loads((path.parent / "record.json").read_text())
+    assert result["features"] == translate_fields(
+        json.loads((path.parent / "record.json").read_text())
+    )
     expected = json.loads((path.parent / "award.json").read_text())
     for key in (*config["target_fields"], "suma", "confirmed"):
         assert result["award"].get(key) == expected.get(key)
@@ -383,17 +700,21 @@ def test_basal_replays_saved_requests_without_behavior_changes(
         assert all(text[row["start"] : row["end"]] == row["text"] for row in quotes)
 
 
-def test_download_only_does_not_load_basal(monkeypatch, tmp_path):
-    from src.dataset import get_data as pipeline
-
-    monkeypatch.setattr(pipeline, "download", lambda config: iter([{"id": 42}]))
-    asyncio.run(run(basal.load_config(), download_only=True))
-
-
 @pytest.mark.parametrize("debug", [False, True])
 def test_pipeline_writes_separate_outputs_and_stops_worker(
     monkeypatch, tmp_path, debug
 ):
+    """
+    Verify pipeline writes separate outputs and stops worker.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        debug: Whether to save diagnostic artifacts.
+
+    returns:
+        None.
+    """
     import argparse
     import sys
     import types
@@ -401,15 +722,34 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
 
     config = basal.load_config()
     config["api"]["debug"] = debug
+    config["api"]["max_gib"] = 0
     config["metadata_fields"] = ["judgment_year", "instance", "court_seat"]
     monkeypatch.setattr(pipeline, "check_device", lambda device: None)
     stopped = []
 
     class Server:
         def __init__(self, args):
+            """
+            Initialize the instance state.
+
+            args:
+                args: Input for this operation.
+
+            returns:
+                None.
+            """
             pass
 
         async def worker(self):
+            """
+            Provide the worker behavior used by this operation.
+
+            args:
+                None
+
+            returns:
+                Result of this operation.
+            """
             try:
                 await asyncio.Event().wait()
             finally:
@@ -428,7 +768,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     monkeypatch.setattr(
         pipeline,
         "download",
-        lambda config: (
+        lambda *args: (
             record
             for record in [
                 {
@@ -442,6 +782,18 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     )
 
     async def extract(server, text, config, identifier):
+        """
+        Extract source-grounded factual descriptions and separate monetary targets.
+
+        args:
+            server: Local inference server.
+            text: Normalized Polish source text.
+            config: Effective pipeline or acquisition settings.
+            identifier: Stable judgment identifier.
+
+        returns:
+            Feature and target results with review evidence.
+        """
         await asyncio.sleep(0)
         return {
             "id": identifier,
@@ -475,16 +827,25 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         "zadoscuczynienie": "not_available",
         "pozostale_odszkodowanie": "not_available",
     }
-    assert (path / "debug/analysis.json").exists() == debug
-    assert (directory / "debug/filtering.json").exists() == debug
+    assert (path / "debug" / record["run_id"] / "analysis.json").exists() == debug
+    assert (directory / "debug" / record["run_id"] / "filtering.json").exists() == debug
     if not debug:
         assert sorted(
             p.relative_to(directory).as_posix() for p in directory.rglob("*")
-        ) == ["42", "42/record.json"]
+        ) == ["42", "42/record.json", "checkpoint.json"]
     assert stopped == [True]
 
 
 def test_notebooks_accept_shared_dataset_config():
+    """
+    Verify notebooks accept shared dataset config.
+
+    args:
+        None
+
+    returns:
+        None.
+    """
     import importlib
 
     sys.path.insert(0, str(ROOT / "notebooks"))
@@ -504,6 +865,16 @@ def test_notebooks_accept_shared_dataset_config():
 def test_metadata_features_use_judgment_date_instance_and_court_seat(
     court_name, expected
 ):
+    """
+    Verify metadata features use judgment date instance and court seat.
+
+    args:
+        court_name: Source court name containing its location.
+        expected: Expected result.
+
+    returns:
+        None.
+    """
     result = {
         "features": {},
         "field_status": {},
@@ -528,6 +899,15 @@ def test_metadata_features_use_judgment_date_instance_and_court_seat(
 
 
 def test_metadata_selection_and_unknown_instance_do_not_infer_from_court_level():
+    """
+    Verify metadata selection and unknown instance do not infer from court level.
+
+    args:
+        None
+
+    returns:
+        None.
+    """
     result = {
         "features": {},
         "field_status": {},
@@ -545,6 +925,15 @@ def test_metadata_selection_and_unknown_instance_do_not_infer_from_court_level()
 
 
 def test_config_allows_metadata_only_without_adding_it_to_basal_schema(tmp_path):
+    """
+    Verify config allows metadata only without adding it to basal schema.
+
+    args:
+        tmp_path: Isolated temporary directory.
+
+    returns:
+        None.
+    """
     import yaml
 
     config = basal.read_config(ROOT / "configs/dataset/basal.yaml")
@@ -561,10 +950,9 @@ def test_config_allows_metadata_only_without_adding_it_to_basal_schema(tmp_path)
     [
         ([], {}),
         (["--max-pages", "2"], {"max_pages": 2}),
+        (["--max-gib", "5"], {"max_gib": 5.0}),
         (["--no-debug"], {"debug": False}),
         (["--debug"], {"debug": True}),
-        (["--download-only"], {"download_only": True}),
-        (["--no-download-only"], {"download_only": False}),
         (
             [
                 "--timeout",
@@ -579,6 +967,16 @@ def test_config_allows_metadata_only_without_adding_it_to_basal_schema(tmp_path)
     ],
 )
 def test_cli_overrides_only_explicit_arguments(arguments, expected):
+    """
+    Verify cli overrides only explicit arguments.
+
+    args:
+        arguments: Command-line arguments, or None for process arguments.
+        expected: Expected result.
+
+    returns:
+        None.
+    """
     options = vars(get_data.parse_arguments(arguments))
     assert options.pop("config_dir") is None
     assert options == expected
@@ -588,6 +986,15 @@ def test_cli_overrides_only_explicit_arguments(arguments, expected):
 
 
 def test_cli_can_override_yaml_before_validation(tmp_path):
+    """
+    Verify cli can override yaml before validation.
+
+    args:
+        tmp_path: Isolated temporary directory.
+
+    returns:
+        None.
+    """
     import yaml
 
     api = {**CONFIG, "max_pages": -1, "debug": True}
@@ -606,12 +1013,32 @@ def test_cli_can_override_yaml_before_validation(tmp_path):
 
 @pytest.mark.parametrize("debug", [False, True])
 def test_model_request_cache_is_debug_only(monkeypatch, tmp_path, debug):
+    """
+    Verify model request cache is debug only.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        debug: Whether to save diagnostic artifacts.
+
+    returns:
+        None.
+    """
     config = basal.load_config(overrides={"debug": debug})
     monkeypatch.setattr(basal, "ROOT", tmp_path)
     calls = []
 
     class Server:
         async def serve(self, request):
+            """
+            Provide the serve behavior used by this operation.
+
+            args:
+                request: Input for this operation.
+
+            returns:
+                Result of this operation.
+            """
             calls.append(request)
             return {
                 "answers": {
@@ -622,6 +1049,15 @@ def test_model_request_cache_is_debug_only(monkeypatch, tmp_path, debug):
     questions = {"q": {"type": "noul", "instructions": "Czy to fakt?"}}
 
     async def ask():
+        """
+        Request a validated model decision and optionally reuse its diagnostic cache.
+
+        args:
+            None
+
+        returns:
+            Validated model answers.
+        """
         await basal.ask(Server(), "Opis.", questions, config)
         await basal.ask(Server(), "Opis.", questions, config)
 
@@ -631,6 +1067,15 @@ def test_model_request_cache_is_debug_only(monkeypatch, tmp_path, debug):
 
 
 def test_population_feature_uses_official_match_and_preserves_provenance():
+    """
+    Verify population feature uses official match and preserves provenance.
+
+    args:
+        None
+
+    returns:
+        None.
+    """
     import morfeusz2
 
     row = {
@@ -662,6 +1107,17 @@ def test_population_feature_uses_official_match_and_preserves_provenance():
 
 @pytest.mark.parametrize("debug", [False, True])
 def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, debug):
+    """
+    Verify locality download is retained only for debug.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        debug: Whether to save diagnostic artifacts.
+
+    returns:
+        None.
+    """
     import sqlite3
     from src.dataset import localities
 
@@ -677,13 +1133,40 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
 
     class Response:
         def __enter__(self):
+            """
+            Provide the   enter   behavior used by this operation.
+
+            args:
+                None
+
+            returns:
+                Result of this operation.
+            """
             self.content = content
             return self
 
         def __exit__(self, *args):
+            """
+            Provide the   exit   behavior used by this operation.
+
+            args:
+                args: Input for this operation.
+
+            returns:
+                Result of this operation.
+            """
             pass
 
         def raise_for_status(self):
+            """
+            Provide the raise for status behavior used by this operation.
+
+            args:
+                None
+
+            returns:
+                Result of this operation.
+            """
             pass
 
     monkeypatch.setattr(localities.requests, "get", lambda *args, **kwargs: Response())
@@ -695,9 +1178,30 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
 
 
 def test_court_dump_joins_divisions_across_pages(monkeypatch):
+    """
+    Verify court dump joins divisions across pages.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+
+    returns:
+        None.
+    """
     pages = []
 
     def fetch(url, directory, session, timeout):
+        """
+        Provide the fetch behavior used by this operation.
+
+        args:
+            url: Resource URL.
+            directory: Input or output directory for this operation.
+            session: Reusable HTTP session, when supplied.
+            timeout: Connection/read timeout in seconds.
+
+        returns:
+            Result of this operation.
+        """
         from urllib.parse import parse_qs, urlparse
 
         page = int(parse_qs(urlparse(url).query)["pageNumber"][0])
@@ -722,6 +1226,15 @@ def test_court_dump_joins_divisions_across_pages(monkeypatch):
 
 
 def test_court_dump_rejects_duplicate_divisions(monkeypatch):
+    """
+    Verify court dump rejects duplicate divisions.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+
+    returns:
+        None.
+    """
     payload = {
         "items": [
             {
@@ -750,6 +1263,16 @@ def test_court_dump_rejects_duplicate_divisions(monkeypatch):
     ],
 )
 def test_malformed_court_dump_is_rejected(monkeypatch, court):
+    """
+    Verify malformed court dump is rejected.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        court: Input for this operation.
+
+    returns:
+        None.
+    """
     monkeypatch.setattr(
         get_data, "fetch_json", lambda *args: {"items": [court], "links": []}
     )
@@ -768,6 +1291,20 @@ def test_malformed_court_dump_is_rejected(monkeypatch, court):
 def test_explicit_device_configuration_and_availability(
     monkeypatch, tmp_path, device, cuda, mps, mode
 ):
+    """
+    Verify explicit device configuration and availability.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        device: Explicit CPU or accelerator selection.
+        cuda: Input for this operation.
+        mps: Input for this operation.
+        mode: Input for this operation.
+
+    returns:
+        None.
+    """
     import types
     import yaml
 
@@ -791,6 +1328,16 @@ def test_explicit_device_configuration_and_availability(
 
 @pytest.mark.parametrize("device", ["cuda", "mps"])
 def test_unavailable_accelerator_is_reported(monkeypatch, device):
+    """
+    Verify unavailable accelerator is reported.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        device: Explicit CPU or accelerator selection.
+
+    returns:
+        None.
+    """
     import types
 
     fake = types.SimpleNamespace(
@@ -806,6 +1353,392 @@ def test_unavailable_accelerator_is_reported(monkeypatch, device):
 
 
 def test_missing_pytorch_has_installation_guidance(monkeypatch):
+    """
+    Verify missing pytorch has installation guidance.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+
+    returns:
+        None.
+    """
     monkeypatch.setitem(sys.modules, "torch", None)
     with pytest.raises(RuntimeError, match="pytorch-macos"):
         get_data.check_device("cpu")
+
+
+def test_checkpoint_freezes_dates_and_allows_operational_overrides(
+    monkeypatch, tmp_path
+):
+    """
+    Verify checkpoint freezes dates and allows operational overrides.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+
+    returns:
+        None.
+    """
+    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    config = basal.load_config(overrides=CONFIG)
+    checkpoint = get_data.load_checkpoint(config)
+    checkpoint["request"] = get_data.search_settings(CONFIG, date(2024, 2, 29))[2]
+    get_data.write_json(tmp_path / "tmp/checkpoint.json", checkpoint)
+    changed = basal.load_config(
+        overrides={**CONFIG, "debug": True, "timeout": 5, "max_pages": 2, "max_gib": 5}
+    )
+    assert get_data.load_checkpoint(changed) == checkpoint
+    changed["system_one"]["minimum_probability"] = 0.8
+    with pytest.raises(ValueError, match="Extraction settings changed"):
+        get_data.load_checkpoint(changed)
+
+
+def test_resume_skips_committed_records_and_retries_only_unfinished_item(
+    monkeypatch, tmp_path, capsys
+):
+    """
+    Verify resume skips committed records and retries only unfinished item.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        capsys: Captured console output.
+
+    returns:
+        None.
+    """
+    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    config = basal.load_config(overrides=CONFIG)
+    checkpoint = get_data.load_checkpoint(config)
+    data = fixture()["data"]
+    division = data["division"]
+    items = [
+        {**data, "id": identifier, "division": {"id": division["id"]}}
+        for identifier in (1, 2, 3)
+    ]
+    starts = []
+
+    def pages(*args):
+        """
+        Provide the pages behavior used by this operation.
+
+        args:
+            args: Input for this operation.
+
+        returns:
+            Result of this operation.
+        """
+        starts.append(args[4])
+        return iter([(0, {"items": items, "links": [{"rel": "next"}]})])
+
+    monkeypatch.setattr(get_data, "search_pages", pages)
+    monkeypatch.setattr(
+        get_data, "load_divisions", lambda *args: {division["id"]: division}
+    )
+    stream = get_data.download(config["api"], checkpoint, "first")
+    assert next(stream)["id"] == 1
+    get_data.write_json(
+        tmp_path / "tmp/1/record.json",
+        {
+            "id": 1,
+            "dataset_id": checkpoint["dataset_id"],
+            "features": {},
+            "targets": {},
+        },
+    )
+    assert next(stream)["id"] == 2
+    stream.close()
+    resumed = get_data.load_checkpoint(config)
+    assert resumed["next_item"] == 1
+    stream = get_data.download(config["api"], resumed, "second")
+    assert next(stream)["id"] == 2
+    stream.close()
+    assert starts == [0, 0]
+    assert (tmp_path / "tmp/1/record.json").exists()
+    capsys.readouterr()
+
+
+def test_resume_recognizes_record_saved_before_checkpoint_advance(
+    monkeypatch, tmp_path, capsys
+):
+    """
+    Verify resume recognizes record saved before checkpoint advance.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        capsys: Captured console output.
+
+    returns:
+        None.
+    """
+    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    config = basal.load_config(overrides=CONFIG)
+    checkpoint = get_data.load_checkpoint(config)
+    data = fixture()["data"]
+    division = data["division"]
+    item = {**data, "division": {"id": division["id"]}}
+    monkeypatch.setattr(
+        get_data,
+        "search_pages",
+        lambda *args: iter([(0, {"items": [item], "links": []})]),
+    )
+    monkeypatch.setattr(
+        get_data, "load_divisions", lambda *args: {division["id"]: division}
+    )
+    stream = get_data.download(config["api"], checkpoint, "first")
+    assert next(stream)["id"] == data["id"]
+    get_data.write_json(
+        tmp_path / "tmp" / str(data["id"]) / "record.json",
+        {
+            "id": data["id"],
+            "dataset_id": checkpoint["dataset_id"],
+            "features": {},
+            "targets": {},
+        },
+    )
+    stream.close()
+    resumed = get_data.load_checkpoint(config)
+    assert list(get_data.download(config["api"], resumed, "second")) == []
+    assert resumed["complete"]
+    capsys.readouterr()
+
+
+def test_changed_resume_page_is_rejected(monkeypatch, tmp_path, capsys):
+    """
+    Verify changed resume page is rejected.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        capsys: Captured console output.
+
+    returns:
+        None.
+    """
+    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    config = basal.load_config(overrides=CONFIG)
+    checkpoint = get_data.load_checkpoint(config)
+    checkpoint["page_ids"] = [1]
+    monkeypatch.setattr(
+        get_data,
+        "search_pages",
+        lambda *args: iter([(0, {"items": [{"id": 2}], "links": []})]),
+    )
+    with pytest.raises(ValueError, match="page contents changed"):
+        list(get_data.download(config["api"], checkpoint, "run"))
+    assert not checkpoint["complete"]
+    capsys.readouterr()
+
+
+def test_checkpoint_does_not_advance_without_saved_output(
+    monkeypatch, tmp_path, capsys
+):
+    """
+    Verify checkpoint does not advance without saved output.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+        capsys: Captured console output.
+
+    returns:
+        None.
+    """
+    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    config = basal.load_config(overrides=CONFIG)
+    checkpoint = get_data.load_checkpoint(config)
+    data = fixture()["data"]
+    division = data["division"]
+    item = {**data, "division": {"id": division["id"]}}
+    monkeypatch.setattr(
+        get_data,
+        "search_pages",
+        lambda *args: iter([(0, {"items": [item], "links": []})]),
+    )
+    monkeypatch.setattr(
+        get_data, "load_divisions", lambda *args: {division["id"]: division}
+    )
+    stream = get_data.download(config["api"], checkpoint, "run")
+    next(stream)
+    with pytest.raises(RuntimeError, match="completed record"):
+        next(stream)
+    assert get_data.load_checkpoint(config)["next_item"] == 0
+    capsys.readouterr()
+
+
+def test_debug_history_preserves_result_and_analysis_for_each_run(
+    monkeypatch, tmp_path
+):
+    """
+    Verify debug history preserves result and analysis for each run.
+
+    args:
+        monkeypatch: Scoped replacements for the test.
+        tmp_path: Isolated temporary directory.
+
+    returns:
+        None.
+    """
+    config = basal.load_config(overrides={**CONFIG, "debug": True})
+    result = {
+        "id": 42,
+        "features": {"description": "first"},
+        "diagnostics": [],
+        "status": "review required",
+        "award": {
+            "zadoscuczynienie": "100",
+            "pozostale_odszkodowanie": "brak informacji",
+        },
+    }
+    path = tmp_path / "42"
+    get_data.write_result(result, path, config, "first", "dataset")
+    result["features"]["description"] = "second"
+    get_data.write_result(result, path, config, "second", "dataset")
+    assert (
+        json.loads((path / "record.json").read_text())["features"]["description"]
+        == "second"
+    )
+    assert (
+        json.loads((path / "debug/first/result.json").read_text())["features"][
+            "description"
+        ]
+        == "first"
+    )
+    assert (
+        json.loads((path / "debug/first/analysis.json").read_text())["features"][
+            "description"
+        ]
+        == "first"
+    )
+    assert (path / "debug/second/analysis.json").exists()
+
+
+def test_removed_download_only_option_is_rejected():
+    """
+    Verify removed download only option is rejected.
+
+    args:
+        None
+
+    returns:
+        None.
+    """
+    with pytest.raises(SystemExit):
+        get_data.parse_arguments(["--download-only"])
+
+
+def test_output_limit_counts_existing_files_and_persists_across_resumes(tmp_path):
+    """
+    Verify output limit counts existing files and persists across resumes.
+
+    args:
+        tmp_path: Isolated temporary directory.
+
+    returns:
+        None.
+    """
+    from src.dataset.storage import StorageLimitError, output_limit, write_bytes
+
+    (tmp_path / "existing").write_bytes(b"1234")
+    with output_limit(tmp_path, 8 / 1024**3):
+        write_bytes(tmp_path / "new", b"5678")
+        with pytest.raises(StorageLimitError):
+            write_bytes(tmp_path / "overflow", b"9")
+    assert sum(path.stat().st_size for path in tmp_path.iterdir()) == 8
+    assert not (tmp_path / "overflow").exists()
+    with pytest.raises(StorageLimitError):
+        with output_limit(tmp_path, 8 / 1024**3):
+            pass
+
+
+def test_output_limit_preserves_existing_record_and_counts_atomic_temporary_file(
+    tmp_path,
+):
+    """
+    Verify output limit preserves existing record and counts atomic temporary file.
+
+    args:
+        tmp_path: Isolated temporary directory.
+
+    returns:
+        None.
+    """
+    from src.dataset.storage import StorageLimitError, output_limit, write_bytes
+
+    path = tmp_path / "record.json"
+    path.write_bytes(b"1234")
+    with output_limit(tmp_path, 6 / 1024**3):
+        with pytest.raises(StorageLimitError):
+            write_bytes(path, b"5678")
+        assert path.read_bytes() == b"1234"
+        write_bytes(path, b"12")
+        write_bytes(tmp_path / "next", b"3456")
+    assert sum(path.stat().st_size for path in tmp_path.iterdir()) == 6
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["next", "record.json"]
+
+
+def test_resume_starts_at_next_page_after_network_failure(
+    monkeypatch, tmp_path, capsys
+):
+    """
+    Keep completed pages committed when fetching the next page fails.
+
+    args:
+        monkeypatch: Scoped dependency replacements.
+        tmp_path: Isolated output directory.
+        capsys: Captured acquisition reports.
+
+    returns:
+        None.
+    """
+    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    config = basal.load_config(overrides=CONFIG)
+    checkpoint = get_data.load_checkpoint(config)
+    data = fixture()["data"]
+    division = data["division"]
+    item = {**data, "division": {"id": division["id"]}}
+
+    def pages(*args):
+        """
+        Yield one page before simulating a network interruption.
+
+        args:
+            args: Acquisition arguments including the starting page.
+
+        returns:
+            Iterator of the first page.
+        """
+        assert args[4] == 0
+        yield 0, {"items": [item], "links": [{"rel": "next"}]}
+        raise requests.Timeout("offline")
+
+    monkeypatch.setattr(get_data, "search_pages", pages)
+    monkeypatch.setattr(
+        get_data, "load_divisions", lambda *args: {division["id"]: division}
+    )
+    stream = get_data.download(config["api"], checkpoint, "first")
+    next(stream)
+    get_data.write_json(
+        tmp_path / "tmp" / str(data["id"]) / "record.json",
+        {
+            "id": data["id"],
+            "dataset_id": checkpoint["dataset_id"],
+            "features": {},
+            "targets": {},
+        },
+    )
+    with pytest.raises(requests.Timeout):
+        next(stream)
+    resumed = get_data.load_checkpoint(config)
+    assert resumed["page"] == 1 and resumed["next_item"] == 0
+    starts = []
+    monkeypatch.setattr(
+        get_data,
+        "search_pages",
+        lambda *args: starts.append(args[4]) or iter([(1, {"items": [], "links": []})]),
+    )
+    assert list(get_data.download(config["api"], resumed, "second")) == []
+    assert starts == [1] and resumed["complete"]
+    capsys.readouterr()

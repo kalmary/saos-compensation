@@ -15,6 +15,7 @@ import yaml
 
 from . import text as api
 from .get_data import search_settings
+from .storage import write_bytes, write_json
 
 ROOT = Path(__file__).resolve().parents[2]
 REQUEST_COUNTS = {"cached": 0, "computed": 0}
@@ -121,16 +122,16 @@ DEFAULTS = {
     },
 }
 FEATURE_DESCRIPTIONS = {
-    "zdarzenie_i_okolicznosci": "Zdarzenie będące przyczyną krzywdy i jego okoliczności.",
-    "rodzaj_doznanej_krzywdy": "Konkretny rodzaj krzywdy poszkodowanego, np. obrażenie ciała, śmierć bliskiego albo "
+    "event_circumstances": "Zdarzenie będące przyczyną krzywdy i jego okoliczności.",
+    "harm_type": "Konkretny rodzaj krzywdy poszkodowanego, np. obrażenie ciała, śmierć bliskiego albo "
     "naruszenie dobrego imienia.",
-    "przebieg_nasilenie_i_czas_trwania": "Przebieg dolegliwości, ich nasilenie, czas trwania oraz ustąpienie lub "
+    "harm_severity_duration": "Przebieg dolegliwości, ich nasilenie, czas trwania oraz ustąpienie lub "
     "utrzymywanie się.",
-    "konsekwencje_dla_zycia": "Co zmieniło się w funkcjonowaniu, pracy, relacjach lub samodzielności i jakie skutki "
+    "life_impact": "Co zmieniło się w funkcjonowaniu, pracy, relacjach lub samodzielności i jakie skutki "
     "pozostały?",
-    "indywidualne_okolicznosci_poszkodowanego": "Wiek, zawód, wcześniejsza sytuacja osobista i zdrowie "
+    "claimant_circumstances": "Wiek, zawód, wcześniejsza sytuacja osobista i zdrowie "
     "poszkodowanego albo relacja ze zmarłym.",
-    "podjete_dzialania_i_potrzebna_pomoc": "Jak łagodzono skutki i jakiego leczenia, wsparcia lub innej pomocy "
+    "treatment_assistance": "Jak łagodzono skutki i jakiego leczenia, wsparcia lub innej pomocy "
     "potrzebował poszkodowany?",
 }
 METADATA_FIELDS = (
@@ -142,6 +143,15 @@ METADATA_FIELDS = (
 
 
 def read_config(path):
+    """
+    Read a YAML mapping and reject other configuration structures.
+
+    args:
+        path: Path to the relevant input or output file.
+
+    returns:
+        Parsed configuration mapping.
+    """
     value = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"Configuration must be a mapping: {path}")
@@ -149,6 +159,16 @@ def read_config(path):
 
 
 def load_config(directory=None, overrides=None):
+    """
+    Validate configuration and assemble effective extraction settings.
+
+    args:
+        directory: Input or output directory for this operation.
+        overrides: Explicit acquisition overrides.
+
+    returns:
+        Effective validated configuration.
+    """
     directory = (
         Path(directory) if directory is not None else ROOT / "configs" / "dataset"
     )
@@ -225,6 +245,16 @@ def load_config(directory=None, overrides=None):
 # Extract fills fields from source spans; choice and noul check inputs. Scores do not establish accuracy.
 def fragments(text, limit):
     # Split at paragraphs and spaces while preserving source offsets; the model determines meaning.
+    """
+    Yield bounded paragraph fragments with original source offsets.
+
+    args:
+        text: Normalized Polish source text.
+        limit: Maximum batch or fragment size.
+
+    returns:
+        Iterator of source fragments.
+    """
     for line in re.finditer(r"[^\n]+", text):
         start = line.start()
         while start < line.end():
@@ -240,6 +270,16 @@ def fragments(text, limit):
 
 
 def feature_input(text, config):
+    """
+    Select source text for factual passage classification.
+
+    args:
+        text: Normalized Polish source text.
+        config: Effective pipeline or acquisition settings.
+
+    returns:
+        Selected source text, offsets and selection status.
+    """
     return {
         "text": text,
         "start": 0,
@@ -250,6 +290,17 @@ def feature_input(text, config):
 
 def check_decision(response, questions, state=None):
     # Reject truncated inputs, incomplete answers and invalid probability distributions.
+    """
+    Validate model answers, probability distributions and extraction offsets.
+
+    args:
+        response: Raw model response.
+        questions: Model question definitions.
+        state: Input state supplied to the model.
+
+    returns:
+        Validated answer mapping.
+    """
     if response.get("truncated"):
         raise ValueError("The inference engine truncated its input")
     answers = response.get("answers")
@@ -320,6 +371,18 @@ def check_decision(response, questions, state=None):
 
 
 async def ask(server, state, questions, config):
+    """
+    Request a validated model decision and optionally reuse its diagnostic cache.
+
+    args:
+        server: Local inference server.
+        state: Input state supplied to the model.
+        questions: Model question definitions.
+        config: Effective pipeline or acquisition settings.
+
+    returns:
+        Validated model answers.
+    """
     request = {"state": state, "lang": config["language"], "questions": questions}
     # Selection thresholds do not change model answers, so they do not invalidate the cache.
     identity = {
@@ -351,19 +414,14 @@ async def ask(server, state, questions, config):
         response = await server.serve(request)
         check_decision(response, questions, state)
         if debug:
-            path.write_text(
-                json.dumps(
-                    {
-                        "request": request,
-                        "response": response,
-                        "model": config["system_one"],
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-                + "\n",
-                encoding="utf-8",
+            write_json(
+                path,
+                {
+                    "request": request,
+                    "response": response,
+                    "model": config["system_one"],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
             )
     if MODEL_CALLS.get() is not None:
         MODEL_CALLS.get().append({"request": request, "response": response})
@@ -371,11 +429,30 @@ async def ask(server, state, questions, config):
 
 
 def choices(question, criteria):
+    """
+    Build a model question with an explicit choice space.
+
+    args:
+        question: Instructions for the model question.
+        criteria: Allowed model choices and their descriptions.
+
+    returns:
+        Choice-question definition.
+    """
     return {"type": "choice", "instructions": question, "criteria": criteria}
 
 
 def sentence_fragments(chunk):
     # Split mixed paragraphs into sentences without treating initials or decimal amounts as boundaries.
+    """
+    Split paragraphs into sentences while retaining original offsets.
+
+    args:
+        chunk: Source fragment with offsets.
+
+    returns:
+        Iterator of source sentences.
+    """
     boundaries = [
         0,
         *[
@@ -402,6 +479,18 @@ def sentence_fragments(chunk):
 
 
 async def classify_paragraphs(server, text, config, identifier):
+    """
+    Classify source fragments with neighboring context and inspect mixed passages.
+
+    args:
+        server: Local inference server.
+        text: Normalized Polish source text.
+        config: Effective pipeline or acquisition settings.
+        identifier: Stable judgment identifier.
+
+    returns:
+        Selected input metadata and fragment diagnostics.
+    """
     selected = feature_input(text, config)
     chunks = [
         {
@@ -418,6 +507,17 @@ async def classify_paragraphs(server, text, config, identifier):
     diagnostics = []
 
     async def classify(chunk, unit, parent=None):
+        """
+        Classify one fragment and retain its contextual model decision.
+
+        args:
+            chunk: Source fragment with offsets.
+            unit: Fragment granularity.
+            parent: Original paragraph, when classifying a sentence.
+
+        returns:
+            Result of this operation.
+        """
         context = config["context_characters"]
         state = {
             "oceniany_fragment": chunk["text"],
@@ -451,6 +551,17 @@ async def classify_paragraphs(server, text, config, identifier):
 
 
 def select_facts(diagnostics, threshold, maximum_leak):
+    """
+    Mark factual passages that meet confidence and leakage constraints.
+
+    args:
+        diagnostics: Fragment decisions and their source locations.
+        threshold: Minimum decision confidence.
+        maximum_leak: Maximum admitted leakage score.
+
+    returns:
+        Accepted factual fragments.
+    """
     for row in diagnostics:
         answer, section = row["answers"], row["answers"]["sekcja"]
         row["accepted"] = (
@@ -466,6 +577,16 @@ def select_facts(diagnostics, threshold, maximum_leak):
 
 def extraction_source(text, passages):
     # Each extraction input line maps to a complete source sentence, preserving negation and subject.
+    """
+    Assemble extraction input and map its sentences to source locations.
+
+    args:
+        text: Normalized Polish source text.
+        passages: Accepted factual source fragments.
+
+    returns:
+        Assembled text and its source mapping.
+    """
     sentences = {}
     for passage in passages:
         for sentence in sentence_fragments(passage):
@@ -487,6 +608,18 @@ def extraction_source(text, passages):
 
 
 def describe_record(answer, mapping, fields, threshold):
+    """
+    Recover complete source sentences for extracted feature values.
+
+    args:
+        answer: Validated extraction answer.
+        mapping: Mapping between input sentences and source offsets.
+        fields: Configured feature fields.
+        threshold: Minimum decision confidence.
+
+    returns:
+        Feature values, evidence, statuses and confidence scores.
+    """
     values, evidence, statuses, confidence = {}, {}, {}, {}
     for field in fields:
         detail = answer["fields"][field]
@@ -522,6 +655,17 @@ def describe_record(answer, mapping, fields, threshold):
 
 
 def extraction_batches(text, passages, limit):
+    """
+    Yield bounded factual batches with source mappings.
+
+    args:
+        text: Normalized Polish source text.
+        passages: Accepted factual source fragments.
+        limit: Maximum batch or fragment size.
+
+    returns:
+        Iterator of extraction text and source mappings.
+    """
     _, sentences = extraction_source(text, passages)
     batch, size = [], 0
     for sentence in sentences:
@@ -538,6 +682,15 @@ AWARD_FIELDS = ("zadoscuczynienie", "pozostale_odszkodowanie")
 
 
 def amount_contexts(text):
+    """
+    Yield complete sentence contexts with each PLN occurrence marked.
+
+    args:
+        text: Normalized Polish source text.
+
+    returns:
+        Iterator of marked amount contexts.
+    """
     heading = list(api.REASONS.finditer(text))
     boundary = heading[0].start() if len(heading) == 1 else None
     # Use the complete sentence or list item; let the model determine the monetary role.
@@ -570,6 +723,17 @@ def amount_contexts(text):
 
 
 def award_state(text, row, context_characters=600):
+    """
+    Assemble the ruling and context for a selected monetary occurrence.
+
+    args:
+        text: Normalized Polish source text.
+        row: Amount occurrence with its source context.
+        context_characters: Maximum preceding context length.
+
+    returns:
+        Structured Polish model input.
+    """
     heading = list(api.REASONS.finditer(text))
     ruling = (
         text[: heading[0].start()]
@@ -587,6 +751,17 @@ def award_state(text, row, context_characters=600):
 
 
 def propose_award(text, decisions, target_fields=None):
+    """
+    Consolidate compatible component assignments without summing repeated mentions.
+
+    args:
+        text: Normalized Polish source text.
+        decisions: Amount assignments to consolidate.
+        target_fields: Configured award components.
+
+    returns:
+        Consolidated award proposal with evidence.
+    """
     target_fields = AWARD_FIELDS if target_fields is None else target_fields
     result = {
         field: "brak informacji"
@@ -660,6 +835,17 @@ def propose_award(text, decisions, target_fields=None):
 
 
 def finish_award(proposal, accepted, decision):
+    """
+    Retain confirmed award components or mark an unsupported proposal for review.
+
+    args:
+        proposal: Assembled award candidates.
+        accepted: Whether the award proposal was confirmed.
+        decision: Final model verification result.
+
+    returns:
+        Verified award result with unsupported values withheld.
+    """
     result = {**proposal, "verification": decision, "confirmed": accepted}
     if not accepted:
         result["proposal"] = proposal
@@ -675,6 +861,18 @@ def finish_award(proposal, accepted, decision):
 
 
 async def extract_award(server, text, diagnostics, config):
+    """
+    Assign contextual amounts and verify the assembled award proposal.
+
+    args:
+        server: Local inference server.
+        text: Normalized Polish source text.
+        diagnostics: Fragment decisions and their source locations.
+        config: Effective pipeline or acquisition settings.
+
+    returns:
+        Award proposal and supporting amount decisions.
+    """
     decisions = []
     threshold = config["system_one"]["amount_minimum_probability"]
     for row in amount_contexts(text):
@@ -723,6 +921,18 @@ async def extract_award(server, text, diagnostics, config):
 
 
 async def extract(server, text, config, identifier):
+    """
+    Extract source-grounded factual descriptions and separate monetary targets.
+
+    args:
+        server: Local inference server.
+        text: Normalized Polish source text.
+        config: Effective pipeline or acquisition settings.
+        identifier: Stable judgment identifier.
+
+    returns:
+        Feature and target results with review evidence.
+    """
     fields = config["fields"]
     threshold = config["system_one"]["minimum_probability"]
     heading = api.REASONS.search(text)
@@ -886,41 +1096,40 @@ async def extract(server, text, config, identifier):
 
 
 def write_paragraphs(result, directory, threshold, debug=False):
-    # Export original passages for review; full decisions and source offsets remain in the analysis JSON.
+    """
+    Export feature values, award evidence and optional diagnostic passages.
+
+    args:
+        result: Extraction result and supporting evidence.
+        directory: Input or output directory for this operation.
+        threshold: Minimum decision confidence.
+        debug: Whether to save diagnostic artifacts.
+
+    returns:
+        None.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     if "award" in result:
         award = (
             result["award"]
             if debug
             else {
-                k: v
-                for k, v in result["award"].items()
-                if k not in {"evidence", "amount_decisions", "proposal", "verification"}
+                key: value
+                for key, value in result["award"].items()
+                if key
+                not in {"evidence", "amount_decisions", "proposal", "verification"}
             }
         )
-        (directory / "award.json").write_text(
-            json.dumps(award, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
-    (directory / "record.json").write_text(
-        json.dumps(result["features"], ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+        write_json(directory / "award.json", award)
+    write_json(directory / "record.json", result["features"])
     if not debug:
         return
-    (directory / "analysis.json").write_text(
-        json.dumps(
-            {k: v for k, v in result.items() if k != "model_calls"},
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    write_json(
+        directory / "analysis.json",
+        {key: value for key, value in result.items() if key != "model_calls"},
     )
     if "model_calls" in result:
-        (directory / "model_calls.json").write_text(
-            json.dumps(result["model_calls"], ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        write_json(directory / "model_calls.json", result["model_calls"])
     diagnostics = result["diagnostics"]
     groups = {
         "facts.txt": [row for row in diagnostics if row["accepted"]],
@@ -939,6 +1148,7 @@ def write_paragraphs(result, directory, threshold, debug=False):
         ],
     }
     for filename, rows in groups.items():
-        (directory / filename).write_text(
-            "\n\n".join(row["text"] for row in rows) + "\n", encoding="utf-8"
+        write_bytes(
+            directory / filename,
+            ("\n\n".join(row["text"] for row in rows) + "\n").encode("utf-8"),
         )

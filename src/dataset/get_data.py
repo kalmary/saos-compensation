@@ -11,6 +11,7 @@ from calendar import monthrange
 from contextlib import closing
 from datetime import date, datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 import requests
 
@@ -18,13 +19,25 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.dataset.text import MONEY, extract_text
+from src.dataset.storage import StorageLimitError, output_limit, write_bytes, write_json
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_URL = "https://www.saos.org.pl/api"
 
 
 def fetch_json(url, directory=None, session=None, timeout=30):
-    """Read one response; keep original bytes only when diagnostics are enabled."""
+    """
+    Fetch one SAOS response and optionally preserve its original bytes.
+
+    args:
+        url: Resource URL.
+        directory: Input or output directory for this operation.
+        session: Reusable HTTP session, when supplied.
+        timeout: Connection/read timeout in seconds.
+
+    returns:
+        Decoded JSON response object.
+    """
     if not url.startswith(BASE_URL + "/"):
         raise ValueError(f"Expected a SAOS API URL: {url}")
     client = session or requests
@@ -39,8 +52,7 @@ def fetch_json(url, directory=None, session=None, timeout=30):
     if directory is not None:
         key = hashlib.sha256(url.encode()).hexdigest()
         path = Path(directory) / f"{key}.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(raw)
+        write_bytes(path, raw)
         write_json(
             path.with_suffix(".meta.json"),
             {
@@ -56,19 +68,31 @@ def fetch_json(url, directory=None, session=None, timeout=30):
 
 
 def search_settings(config, today=None):
+    """
+    Validate acquisition settings and derive inclusive judgment-date bounds.
+
+    args:
+        config: Effective pipeline or acquisition settings.
+        today: Date used to anchor the acquisition range.
+
+    returns:
+        Start date, end date and effective query parameters.
+    """
     if not isinstance(config, dict) or set(config) != {
         "max_age_years",
         "max_pages",
+        "max_gib",
         "debug",
         "download_path",
-        "download_only",
         "timeout",
     }:
         raise ValueError(
-            "api.yaml requires max_age_years, max_pages, debug, download_path, download_only and timeout"
+            "api.yaml requires max_age_years, max_pages, max_gib, debug, download_path and timeout"
         )
-    if type(config["download_only"]) is not bool:
-        raise ValueError("download_only must be true or false")
+    if type(config["max_gib"]) not in (int, float) or not 0 <= config[
+        "max_gib"
+    ] < float("inf"):
+        raise ValueError("max_gib must be a nonnegative finite number")
     if type(config["timeout"]) not in (int, float) or not 0 < config["timeout"] < float(
         "inf"
     ):
@@ -102,9 +126,26 @@ def search_settings(config, today=None):
     return start, end, params
 
 
-def search_pages(config, directory=None, today=None, session=None):
-    _, _, params = search_settings(config, today)
-    page = 0
+def search_pages(
+    config, directory=None, today=None, session=None, start_page=0, params=None
+):
+    """
+    Yield dump pages starting at the saved pagination position.
+
+    args:
+        config: Effective pipeline or acquisition settings.
+        directory: Input or output directory for this operation.
+        today: Date used to anchor the acquisition range.
+        session: Reusable HTTP session, when supplied.
+        start_page: First page number to request.
+        params: Effective SAOS query parameters.
+
+    returns:
+        Iterator of page-number/response pairs.
+    """
+    _, _, defaults = search_settings(config, today)
+    params = defaults if params is None else params
+    page = start_page
     while config["max_pages"] == 0 or page < config["max_pages"]:
         result = search_judgments(
             {**params, "pageNumber": page}, directory, session, config["timeout"]
@@ -116,6 +157,18 @@ def search_pages(config, directory=None, today=None, session=None):
 
 
 def search_judgments(params, directory=None, session=None, timeout=30):
+    """
+    Fetch a dump page and validate its query, identifiers and pagination.
+
+    args:
+        params: Effective SAOS query parameters.
+        directory: Input or output directory for this operation.
+        session: Reusable HTTP session, when supplied.
+        timeout: Connection/read timeout in seconds.
+
+    returns:
+        Result of this operation.
+    """
     url = (
         requests.Request("GET", BASE_URL + "/dump/judgments", params=params)
         .prepare()
@@ -158,6 +211,17 @@ def search_judgments(params, directory=None, session=None, timeout=30):
 
 
 def load_divisions(session, directory=None, timeout=30):
+    """
+    Build a division-to-court lookup from the official court dump.
+
+    args:
+        session: Reusable HTTP session, when supplied.
+        directory: Input or output directory for this operation.
+        timeout: Connection/read timeout in seconds.
+
+    returns:
+        Division records indexed by identifier.
+    """
     divisions = {}
     page = 0
     while True:
@@ -202,16 +266,19 @@ def load_divisions(session, directory=None, timeout=30):
         page += 1
 
 
-def write_json(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
-    temporary.replace(path)
-
-
 def validate_judgment(payload, identifier, start, end):
+    """
+    Validate source metadata and normalize the judgment text.
+
+    args:
+        payload: Decoded source or model payload.
+        identifier: Stable judgment identifier.
+        start: Beginning of the permitted source range.
+        end: End of the permitted source range.
+
+    returns:
+        Validated metadata and normalized text.
+    """
     data = payload.get("data") if isinstance(payload, dict) else None
     if (
         not isinstance(data, dict)
@@ -260,23 +327,141 @@ def validate_judgment(payload, identifier, start, end):
     return data, text
 
 
-def download(config):
-    """Read full dump pages and select common-court compensation judgments."""
-    start, end, params = search_settings(config)
-    directory = ROOT / config["download_path"]
-    debug = (
-        directory / "debug" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        if config["debug"]
-        else None
+def load_checkpoint(config):
+    """
+    Load compatible progress or initialize a new dataset checkpoint.
+
+    args:
+        config: Effective pipeline or acquisition settings.
+
+    returns:
+        Compatible progress, or a new unpersisted checkpoint.
+    """
+    api = config["api"]
+    _, _, request = search_settings(api)
+    signature = hashlib.sha256(
+        json.dumps(
+            {key: value for key, value in config.items() if key != "api"},
+            ensure_ascii=False,
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+    path = ROOT / api["download_path"] / "checkpoint.json"
+    if not path.exists():
+        return {
+            "dataset_id": uuid4().hex,
+            "signature": signature,
+            "request": request,
+            "page": 0,
+            "next_item": 0,
+            "page_ids": None,
+            "complete": False,
+            "localities_sha256": None,
+        }
+    checkpoint = json.loads(path.read_text(encoding="utf-8"))
+    required = {
+        "dataset_id",
+        "signature",
+        "request",
+        "page",
+        "next_item",
+        "page_ids",
+        "complete",
+        "localities_sha256",
+    }
+    if not isinstance(checkpoint, dict) or set(checkpoint) != required:
+        raise ValueError("Invalid checkpoint structure")
+    if not isinstance(checkpoint["dataset_id"], str) or not checkpoint["dataset_id"]:
+        raise ValueError("Invalid checkpoint dataset ID")
+    if checkpoint["signature"] != signature:
+        raise ValueError("Extraction settings changed; use a different download_path")
+    for key in ("page", "next_item"):
+        if type(checkpoint[key]) is not int or checkpoint[key] < 0:
+            raise ValueError(f"Invalid checkpoint {key}")
+    if type(checkpoint["complete"]) is not bool:
+        raise ValueError("Invalid checkpoint completion state")
+    ids = checkpoint["page_ids"]
+    if checkpoint["complete"] and (ids is not None or checkpoint["next_item"] != 0):
+        raise ValueError("Completed checkpoint has an unfinished page")
+    if ids is not None and (
+        not isinstance(ids, list)
+        or any(type(value) is not int or value <= 0 for value in ids)
+    ):
+        raise ValueError("Invalid checkpoint page IDs")
+    if (ids is None and checkpoint["next_item"] != 0) or (
+        ids is not None and checkpoint["next_item"] > len(ids)
+    ):
+        raise ValueError("Checkpoint position exceeds the saved page")
+    try:
+        end = date.fromisoformat(checkpoint["request"]["judgmentEndDate"])
+        expected = search_settings(api, end)[2]
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("Invalid checkpoint request") from error
+    if checkpoint["request"] != expected:
+        raise ValueError(
+            "Acquisition date settings changed; use a different download_path"
+        )
+    digest = checkpoint["localities_sha256"]
+    if digest is not None and (not isinstance(digest, str) or len(digest) != 64):
+        raise ValueError("Invalid checkpoint locality snapshot hash")
+    return checkpoint
+
+
+def record_complete(path, identifier, dataset_id):
+    """
+    Check whether a saved record belongs to the current dataset.
+
+    args:
+        path: Path to the relevant input or output file.
+        identifier: Stable judgment identifier.
+        dataset_id: Identifier shared by records in this dataset.
+
+    returns:
+        True when a complete record matches the judgment and dataset.
+    """
+    if not path.exists():
+        return False
+    record = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(record, dict):
+        raise ValueError(f"Invalid saved record: {path}")
+    return (
+        type(record.get("id")) is int
+        and record.get("id") == identifier
+        and record.get("dataset_id") == dataset_id
+        and isinstance(record.get("features"), dict)
+        and isinstance(record.get("targets"), dict)
     )
+
+
+def download(config, checkpoint, run_id):
+    """
+    Yield pending judgments and advance progress after completed output is saved.
+
+    args:
+        config: Effective pipeline or acquisition settings.
+        checkpoint: Saved dataset progress and compatibility information.
+        run_id: Unique identifier for this execution.
+
+    returns:
+        Iterator of pending validated judgments.
+    """
+    params = checkpoint["request"]
+    start = date.fromisoformat(params["judgmentStartDate"])
+    end = date.fromisoformat(params["judgmentEndDate"])
+    directory = ROOT / config["download_path"]
+    checkpoint_path = directory / "checkpoint.json"
+    debug = directory / "debug" / run_id if config["debug"] else None
     raw = debug / "raw" if debug else None
     manifest = {
         "started_at": datetime.now(timezone.utc).isoformat(),
         "request": params,
+        "start_page": checkpoint["page"],
+        "start_item": checkpoint["next_item"],
         "pages": 0,
         "downloaded": 0,
         "accepted": 0,
         "duplicates": 0,
+        "saved_records": 0,
         "rejected": [],
         "filtered": 0,
         "complete": False,
@@ -285,15 +470,34 @@ def download(config):
     divisions = None
     try:
         with requests.Session() as session:
-            for number, page in search_pages(config, raw, end, session):
-                manifest["pages"] = number + 1
-                for item in page["items"]:
+            for number, page in search_pages(
+                config, raw, end, session, checkpoint["page"], params
+            ):
+                ids = [item["id"] for item in page["items"]]
+                if checkpoint["page_ids"] is not None and ids != checkpoint["page_ids"]:
+                    raise ValueError(
+                        "SAOS page contents changed since the checkpoint; use a different download_path"
+                    )
+                checkpoint["page_ids"] = ids
+                write_json(checkpoint_path, checkpoint)
+                manifest["pages"] += 1
+                first = checkpoint["next_item"]
+                for index, item in enumerate(page["items"]):
+                    if index < first:
+                        continue
                     identifier = item["id"]
+                    checkpoint["next_item"] = index
+                    manifest["downloaded"] += 1
                     if identifier in seen:
                         manifest["duplicates"] += 1
                         continue
                     seen.add(identifier)
-                    manifest["downloaded"] += 1
+                    record_path = directory / str(identifier) / "record.json"
+                    if record_complete(
+                        record_path, identifier, checkpoint["dataset_id"]
+                    ):
+                        manifest["saved_records"] += 1
+                        continue
                     if (
                         item.get("courtType") != "COMMON"
                         or item.get("judgmentType") != "SENTENCE"
@@ -340,13 +544,30 @@ def download(config):
                         "text": text,
                         "source_url": f"{BASE_URL}/judgments/{identifier}",
                     }
-                    if config["debug"]:
-                        path = directory / str(identifier) / "debug"
+                    if debug:
+                        path = directory / str(identifier) / "debug" / run_id
                         write_json(path / "judgment.json", item)
                         write_json(path / "metadata.json", record)
-                        (path / "source.txt").write_text(text + "\n", encoding="utf-8")
+                        write_bytes(path / "source.txt", (text + "\n").encode("utf-8"))
+                    write_json(checkpoint_path, checkpoint)
                     manifest["accepted"] += 1
                     yield record
+                    # Advance only after the consumer has durably saved the final record.
+                    if not record_complete(
+                        record_path, identifier, checkpoint["dataset_id"]
+                    ):
+                        raise RuntimeError(
+                            f"Cannot advance checkpoint without a completed record: {identifier}"
+                        )
+                    checkpoint["next_item"] = index + 1
+                    write_json(checkpoint_path, checkpoint)
+                checkpoint.update(
+                    page=number + 1,
+                    next_item=0,
+                    page_ids=None,
+                    complete=not any(link["rel"] == "next" for link in page["links"]),
+                )
+                write_json(checkpoint_path, checkpoint)
         manifest["complete"] = True
     except Exception as error:
         manifest["error"] = str(error)
@@ -354,11 +575,29 @@ def download(config):
     finally:
         manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
         if debug:
-            write_json(debug / "acquisition.json", manifest)
+            try:
+                write_json(debug / "acquisition.json", manifest)
+            except StorageLimitError:
+                print(
+                    "Output limit reached; acquisition report is available in the console.",
+                    flush=True,
+                )
         print(json.dumps(manifest, ensure_ascii=False), flush=True)
 
 
 def add_metadata_features(result, record, fields, localities=None):
+    """
+    Add configured court and date features with their source provenance.
+
+    args:
+        result: Extraction result and supporting evidence.
+        record: Normalized or saved judgment record.
+        fields: Configured feature fields.
+        localities: Official locality data and matching context.
+
+    returns:
+        None.
+    """
     court = record["division"]["court"]
     locality = re.search(r"\b(?:w|we)\s+(.+)$", court["name"])
     values = {
@@ -409,41 +648,64 @@ def add_metadata_features(result, record, fields, localities=None):
         )
 
 
-def write_result(result, directory, config):
+def write_result(result, directory, config, run_id, dataset_id):
+    """
+    Save a primary record and optional run-specific diagnostic snapshots.
+
+    args:
+        result: Extraction result and supporting evidence.
+        directory: Input or output directory for this operation.
+        config: Effective pipeline or acquisition settings.
+        run_id: Unique identifier for this execution.
+        dataset_id: Identifier shared by records in this dataset.
+
+    returns:
+        None.
+    """
     award = result["award"]
-    write_json(
-        directory / "record.json",
-        {
-            "id": result["id"],
-            "features": {
-                field: "not_available" if value == "brak informacji" else value
-                for field, value in result["features"].items()
-            },
-            "targets": {
-                field: "not_available"
-                if award[field] == "brak informacji"
-                else award[field]
-                for field in config["target_fields"]
-            },
-            "total": "not_available"
-            if award.get("suma", "brak informacji") == "brak informacji"
-            else award["suma"],
-            "confirmed": award.get("confirmed", False),
-            "status": result["status"],
-            "target_status": award.get("status", "not_available"),
+    record = {
+        "id": result["id"],
+        "dataset_id": dataset_id,
+        "run_id": run_id,
+        "features": {
+            field: "not_available" if value == "brak informacji" else value
+            for field, value in result["features"].items()
         },
-    )
+        "targets": {
+            field: "not_available"
+            if award[field] == "brak informacji"
+            else award[field]
+            for field in config["target_fields"]
+        },
+        "total": "not_available"
+        if award.get("suma", "brak informacji") == "brak informacji"
+        else award["suma"],
+        "confirmed": award.get("confirmed", False),
+        "status": result["status"],
+        "target_status": award.get("status", "not_available"),
+    }
     if config["api"]["debug"]:
         from src.dataset import basal_filtering as basal
 
-        debug = directory / "debug"
+        debug = directory / "debug" / run_id
         basal.write_paragraphs(
             result, debug, config["system_one"]["minimum_probability"], True
         )
         write_json(debug / "config.json", config)
+        write_json(debug / "result.json", record)
+    write_json(directory / "record.json", record)
 
 
 def check_device(device):
+    """
+    Require the requested PyTorch backend to be available before inference.
+
+    args:
+        device: Explicit CPU or accelerator selection.
+
+    returns:
+        None.
+    """
     try:
         import torch
     except (ImportError, OSError) as error:
@@ -465,31 +727,75 @@ def check_device(device):
         )
 
 
-async def run(config, download_only=None):
+async def run(config):
+    """
+    Execute the configured pipeline within the cumulative output-size budget.
+
+    args:
+        config: Effective pipeline or acquisition settings.
+
+    returns:
+        None.
+    """
+    directory = ROOT / config["api"]["download_path"]
+    try:
+        with output_limit(directory, config["api"]["max_gib"]):
+            await process(config)
+    except StorageLimitError as error:
+        print(
+            f"{error}. Increase max_gib to continue from checkpoint.json.", flush=True
+        )
+
+
+async def process(config):
+    """
+    Resume acquisition and extract configured features and monetary targets.
+
+    args:
+        config: Effective pipeline or acquisition settings.
+
+    returns:
+        None.
+    """
     from src.dataset import basal_filtering as basal
 
     directory = ROOT / config["api"]["download_path"]
-    download_only = (
-        config["api"]["download_only"] if download_only is None else download_only
-    )
-    if download_only:
-        for record in download(config["api"]):
-            write_json(directory / str(record["id"]) / "source.json", record)
-            print(f"Downloaded judgment {record['id']}", flush=True)
+    checkpoint = load_checkpoint(config)
+    limit = config["api"]["max_pages"]
+    if checkpoint["complete"] or (limit and checkpoint["page"] >= limit):
+        print("No pending judgments within the configured page limit.", flush=True)
         return
-
+    model_cache = (
+        Path(os.environ.get("HF_HOME", ROOT / "tmp" / "huggingface"))
+        .expanduser()
+        .resolve()
+    )
+    if config["api"]["max_gib"] and model_cache.is_relative_to(directory.resolve()):
+        raise ValueError(
+            "HF_HOME must be outside download_path when max_gib is enabled; use an output subdirectory such as tmp/dataset"
+        )
+    os.environ.setdefault("HF_HOME", str(model_cache))
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     check_device(config["system_one"]["device"])
+    write_json(directory / "checkpoint.json", checkpoint)
     localities = None
     if "court_locality_size" in config["metadata_fields"]:
         import morfeusz2
+
         from src.dataset.localities import load_localities
 
         rows, metadata = load_localities(
             directory / "debug" / "gugik" if config["api"]["debug"] else None,
             timeout=config["api"]["timeout"],
         )
+        digest = metadata["sha256"]
+        if checkpoint["localities_sha256"] not in (None, digest):
+            raise ValueError(
+                "GUGiK snapshot changed since the checkpoint; use a different download_path"
+            )
+        checkpoint["localities_sha256"] = digest
+        write_json(directory / "checkpoint.json", checkpoint)
         localities = rows, morfeusz2.Morfeusz(), metadata
-    os.environ.setdefault("HF_HOME", str(ROOT / "tmp" / "huggingface"))
     from basal.server import Server, parser
     from huggingface_hub import snapshot_download
 
@@ -518,6 +824,8 @@ async def run(config, download_only=None):
     basal.REQUEST_COUNTS.update(cached=0, computed=0)
     summary = {
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "run_id": run_id,
+        "dataset_id": checkpoint["dataset_id"],
         "config": config,
         "engine_version": "2.4.1",
         "engine_arguments": vars(args),
@@ -526,7 +834,7 @@ async def run(config, download_only=None):
         "complete": False,
     }
     try:
-        with closing(download(config["api"])) as records:
+        with closing(download(config["api"], checkpoint, run_id)) as records:
             for record in records:
                 identifier = record["id"]
                 token = basal.MODEL_CALLS.set([] if config["api"]["debug"] else None)
@@ -541,7 +849,13 @@ async def run(config, download_only=None):
                 add_metadata_features(
                     result, record, config["metadata_fields"], localities
                 )
-                write_result(result, directory / str(identifier), config)
+                write_result(
+                    result,
+                    directory / str(identifier),
+                    config,
+                    run_id,
+                    checkpoint["dataset_id"],
+                )
                 summary["processed"] += 1
                 summary["confirmed_awards"] += int(
                     result["award"].get("confirmed", False)
@@ -556,7 +870,13 @@ async def run(config, download_only=None):
         await asyncio.gather(worker, return_exceptions=True)
         summary["requests"] = basal.REQUEST_COUNTS.copy()
         if config["api"]["debug"]:
-            write_json(directory / "debug" / "filtering.json", summary)
+            try:
+                write_json(directory / "debug" / run_id / "filtering.json", summary)
+            except StorageLimitError:
+                print(
+                    "Output limit reached; filtering report is available in the console.",
+                    flush=True,
+                )
         print(
             json.dumps(
                 {
@@ -571,6 +891,15 @@ async def run(config, download_only=None):
 
 
 def parse_arguments(arguments=None):
+    """
+    Parse explicit CLI overrides without replacing YAML defaults.
+
+    args:
+        arguments: Command-line arguments, or None for process arguments.
+
+    returns:
+        Namespace containing explicit CLI overrides.
+    """
     parser = argparse.ArgumentParser(
         description=__doc__,
         epilog="Explicit CLI options override api.yaml; model settings are in basal.yaml.",
@@ -592,6 +921,12 @@ def parse_arguments(arguments=None):
         help="Maximum dump pages (100 judgments each); 0 reads all pages",
     )
     parser.add_argument(
+        "--max-gib",
+        type=float,
+        default=argparse.SUPPRESS,
+        help="Total output-directory limit in GiB across resumed runs; 0 disables it",
+    )
+    parser.add_argument(
         "--download-path",
         default=argparse.SUPPRESS,
         help="Output directory relative to the project root",
@@ -608,16 +943,19 @@ def parse_arguments(arguments=None):
         default=argparse.SUPPRESS,
         help="Save sources, evidence and model decisions",
     )
-    parser.add_argument(
-        "--download-only",
-        action=argparse.BooleanOptionalAction,
-        default=argparse.SUPPRESS,
-        help="Save source records without extracting features or targets",
-    )
     return parser.parse_args(arguments)
 
 
 def main():
+    """
+    Load effective settings and run the dataset pipeline.
+
+    args:
+        None
+
+    returns:
+        None.
+    """
     from src.dataset.basal_filtering import load_config
 
     options = vars(parse_arguments())
