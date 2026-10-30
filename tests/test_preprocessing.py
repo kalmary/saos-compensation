@@ -1,6 +1,5 @@
 import asyncio
-import copy
-from datetime import date, timedelta
+from datetime import date
 import importlib
 import sys
 from pathlib import Path
@@ -108,7 +107,7 @@ def test_paragraph_roles_use_context_without_requiring_headings(monkeypatch, tmp
     assert any(row["unit"] == "sentence" for row in rows)
     assert "Powódka złamała nogę." in seen[1]["poprzedzajacy_kontekst"]
     assert "Sąd rozważył podstawę prawną." in seen[1]["nastepujacy_kontekst"]
-    extraction.write_paragraphs({"diagnostics": rows, "features": {"opis": "brak informacji"}}, tmp_path, 0.3)
+    extraction.write_paragraphs({"diagnostics": rows, "features": {"opis": "brak informacji"}}, tmp_path, 0.3, debug=True)
     facts = (tmp_path / "facts.txt").read_text()
     assert "Powódka złamała nogę." in facts
     assert "Zasądzono" not in facts
@@ -352,74 +351,112 @@ def test_recognized_ruling_amount_disambiguates_previous_payment_and_total_harm(
     assert result["pozostale_odszkodowanie"] == "brak informacji"
 
 
-def test_dataset_configs_separate_inference_from_acquisition():
+def test_dataset_configs_expose_only_requested_controls():
     root = Path(__file__).resolve().parents[1]
     basal = extraction.read_config(root / 'configs/dataset/basal.yaml')
     api = extraction.read_config(root / 'configs/dataset/api.yaml')
-    assert not {'judgment_ids', 'base_url', 'sampling', 'gemma', 'localities'} & basal.keys()
-    assert not {'system_one', 'questions', 'fields'} & api.keys()
-    assert set(basal['questions']) == {'section', 'leakage', 'amount', 'award_check', 'extraction', 'instance'}
+    assert set(api) == {'max_age_years', 'max_pages', 'debug', 'download_path', 'download_only', 'timeout'}
+    assert set(basal) == {'feature_fields', 'target_fields', 'minimum_probability', 'maximum_leak_probability', 'amount_minimum_probability'}
+    assert api['max_pages'] == 0
 
 
-def test_custom_question_configuration_reaches_the_model(monkeypatch):
-    config = extraction.load_config()
-    config['questions']['amount']['instructions'] = 'Sprawdź wyłącznie oznaczoną kwotę.'
-    seen = []
-
-    async def answer(server, state, questions, settings):
-        seen.append(questions)
-        return {'swiadczenie': {'choice': 'pomin', 'confidence': 0.9}}
-
-    monkeypatch.setattr(extraction, 'ask', answer)
-    asyncio.run(extraction.extract_award(None, 'WYROK\nz powództwa A. B.\nZasądza 100 zł.\nUZASADNIENIE\nOpis.', [], config))
-    assert seen[0]['swiadczenie']['instructions'] == 'Sprawdź wyłącznie oznaczoną kwotę.'
-
-
-def test_missing_question_is_rejected_before_inference(tmp_path):
+def test_feature_and_target_selection_is_applied(tmp_path):
     import yaml
 
     root = Path(__file__).resolve().parents[1]
     basal = extraction.read_config(root / 'configs/dataset/basal.yaml')
-    del basal['questions']['amount']
-    (tmp_path / 'basal.yaml').write_text(yaml.safe_dump(basal, allow_unicode=True))
+    basal['feature_fields'] = ['zdarzenie_i_okolicznosci']
+    basal['target_fields'] = ['zadoscuczynienie']
+    (tmp_path / 'basal.yaml').write_text(yaml.safe_dump(basal))
     manifest = {'basal': 'basal.yaml', 'api': str(root / 'configs/dataset/api.yaml')}
     path = tmp_path / 'settings.yaml'
     path.write_text(yaml.safe_dump(manifest))
-    with pytest.raises(ValueError, match='Brak instrukcji: amount'):
-        extraction.load_config(path)
+    config = extraction.load_config(path)
+    assert list(config['fields']) == ['zdarzenie_i_okolicznosci']
+    rows = assigned_amounts(AWARD_TEXT, {'15000': 'zadoscuczynienie', '2176': 'pozostale_odszkodowanie'})
+    award = extraction.propose_award(AWARD_TEXT, rows, config['target_fields'])
+    assert award['zadoscuczynienie'] == '15000'
+    assert 'pozostale_odszkodowanie' not in award
+    assert award['suma'] == 'brak informacji'
 
 
-def test_api_configuration_builds_queries_and_preserves_development_scope():
-    config = extraction.load_config()['api']
-    start, end, params, queries = feasibility.search_settings(config, date(2026, 10, 28))
-    assert (start, end) == (date(2016, 10, 28), date(2026, 10, 28))
-    assert params['judgmentDateFrom'] == '2016-10-28'
-    assert queries['temat + kwota']['all'] == 'zadośćuczynienie zł'
-    assert queries['temat + tag']['keywords'] == 'zadośćuczynienie'
-    ranges = list(feasibility.yearly_ranges(start, end))
-    assert len(ranges) == 10
-    assert ranges[0][0] == start and ranges[-1][1] == end
-    assert all(previous[1] + timedelta(days=1) == following[0] for previous, following in zip(ranges, ranges[1:]))
+def test_api_age_limit_and_fixed_query():
+    start, end, params = feasibility.search_settings({'max_age_years': 10, 'max_pages': 0, 'debug': False}, date(2026, 10, 29))
+    assert (start, end) == (date(2016, 10, 29), date(2026, 10, 29))
+    assert params['all'] == 'zadośćuczynienie zł'
+    assert params['courtType'] == 'COMMON' and params['judgmentTypes'] == 'SENTENCE'
+    assert params['judgmentDateFrom'] == '2016-10-29'
+    assert feasibility.search_settings({'max_age_years': 10, 'max_pages': 1, 'debug': False}, date(2024, 2, 29))[0] == date(2014, 2, 28)
 
 
-def test_explicit_dates_and_leap_year_ranges():
-    config = copy.deepcopy(extraction.load_config()['api'])
-    config['date_range'].update({'from': '2024-02-29', 'to': '2025-03-01'})
-    start, end, _, _ = feasibility.search_settings(config)
-    assert (start, end) == (date(2024, 2, 29), date(2025, 3, 1))
-    assert list(feasibility.yearly_ranges(start, end)) == [
-        (date(2024, 2, 29), date(2025, 2, 27)), (date(2025, 2, 28), date(2025, 3, 1))]
-    config['date_range'].update({'from': None, 'to': '2024-02-29'})
-    assert feasibility.search_settings(config)[0] == date(2014, 2, 28)
+@pytest.mark.parametrize(('limit', 'expected'), [(0, [0, 1, 2]), (1, [0]), (2, [0, 1]), (8, [0, 1, 2])])
+def test_page_limit_zero_reads_all_available_pages(monkeypatch, limit, expected):
+    seen = []
+
+    def search(params):
+        seen.append(params['pageNumber'])
+        return {'items': [{'id': params['pageNumber'] + 1}], 'info': {'totalResults': 250}}
+
+    monkeypatch.setattr(feasibility, 'search_judgments', search)
+    pages = list(feasibility.search_pages({'max_age_years': 10, 'max_pages': limit, 'debug': False}))
+    assert seen == expected
+    assert [number for number, _ in pages] == expected
 
 
-@pytest.mark.parametrize(('section', 'key', 'value'), [
-    ('date_range', 'years', 0), ('date_range', 'from', '2099-01-01'),
-    ('request', 'pageSize', 101), ('request', 'pageNumber', -1),
-    ('request', 'all', ''), ('sampling', 'court_levels', ['UNKNOWN']),
-])
-def test_invalid_acquisition_configuration_is_rejected(section, key, value):
-    config = copy.deepcopy(extraction.load_config()['api'])
-    config[section][key] = value
+@pytest.mark.parametrize(('key', 'value'), [('max_age_years', 0), ('max_age_years', True), ('max_pages', -1), ('max_pages', 1.5), ('debug', 'true')])
+def test_invalid_acquisition_configuration_is_rejected(key, value):
+    config = {'max_age_years': 10, 'max_pages': 0, 'debug': False, key: value}
     with pytest.raises(ValueError):
-        feasibility.search_settings(config, date(2026, 10, 28))
+        feasibility.search_settings(config)
+
+
+def test_debug_files_are_optional_and_source_round_trips(tmp_path):
+    result = {'features': {'opis': 'Opis.'}, 'award': {'zadoscuczynienie': '100', 'evidence': []}, 'diagnostics': []}
+    extraction.write_paragraphs(result, tmp_path / 'normal', 0.6)
+    assert {p.name for p in (tmp_path / 'normal').iterdir()} == {'record.json', 'award.json'}
+    extraction.write_paragraphs(result, tmp_path / 'debug', 0.6, debug=True)
+    assert (tmp_path / 'debug/facts.txt').exists()
+    assert (tmp_path / 'debug/analysis.json').exists()
+    payload = {'data': {'id': 7, 'textContent': '<p>Pełny tekst.</p>'}}
+    feasibility.save_source(payload, tmp_path / 'debug')
+    assert feasibility.fixture_texts(tmp_path) == {7: 'Pełny tekst.'}
+
+
+def test_debug_download_propagates_original_judgment(monkeypatch, tmp_path):
+    payload = {'data': {'id': 42, 'judgmentDate': date.today().isoformat(), 'textContent': '<p>Treść.</p>'}}
+    monkeypatch.setattr(feasibility, 'OUTPUT', tmp_path)
+    monkeypatch.setattr(feasibility, 'search_pages', lambda config: iter([(0, {'items': [{'id': 42}]})]))
+    monkeypatch.setattr(feasibility, 'fetch_json', lambda url: payload)
+    config = {'max_age_years': 10, 'max_pages': 1, 'debug': False}
+    assert feasibility.judgment_texts(config) == {42: 'Treść.'}
+    assert not (tmp_path / '42').exists()
+    config['debug'] = True
+    feasibility.judgment_texts(config)
+    import json
+    assert json.loads((tmp_path / '42/judgment.json').read_text()) == payload
+
+
+def test_debug_trace_contains_real_request_and_response_even_from_cache(monkeypatch, tmp_path):
+    config = extraction.load_config()
+    monkeypatch.setattr(extraction, 'ROOT', tmp_path)
+    calls = []
+    response = {'answers': {'q': {'noul': 0.8, 'probabilities': {'true': 0.8, 'false': 0.2}}}}
+
+    class Server:
+        async def serve(self, request):
+            calls.append(request)
+            return response
+
+    questions = {'q': {'type': 'noul', 'instructions': 'Czy to fakt?'}}
+    trace = []
+    token = extraction.MODEL_CALLS.set(trace)
+    try:
+        async def run():
+            await extraction.ask(Server(), 'Opis.', questions, config)
+            await extraction.ask(Server(), 'Opis.', questions, config)
+        asyncio.run(run())
+    finally:
+        extraction.MODEL_CALLS.reset(token)
+    assert len(calls) == 1 and len(trace) == 2
+    assert trace[0]['request'] == {'state': 'Opis.', 'lang': 'pl', 'questions': questions}
+    assert trace[1]['response'] == response

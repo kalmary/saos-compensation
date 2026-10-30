@@ -1,0 +1,514 @@
+{
+  "zadoscuczynienie": "17000",
+  "pozostale_odszkodowanie": "brak informacji",
+  "suma": "brak informacji",
+  "kwota_nierozdzielona": "17000",
+  "beneficjent": "K. J.",
+  "waluta": "PLN",
+  "evidence": [
+    {
+      "text": "1. zasądza od pozwanego (...) Spółka Akcyjna V. (...) w siedzibą w W. na rzecz powódki K. J. kwotę 17.000 zł (siedemnaście tysięcy złotych) wraz z ustawowymi odsetkami za opóźnienie od dnia 10 stycznia 2017 roku do dnia zapłaty;",
+      "start": 375,
+      "end": 603,
+      "section": "sentencja",
+      "amount_start": 474,
+      "amount_end": 483
+    },
+    {
+      "text": "Biorąc pod uwagę wszystkie przytoczone okoliczności Sąd uznał, iż żądanie ponad już otrzymane dodatkowego zadośćuczynienia jest uzasadnione w zakresie kwoty 17 000 zł,",
+      "start": 12074,
+      "end": 12241,
+      "section": "uzasadnienie",
+      "amount_start": 12231,
+      "amount_end": 12240
+    }
+  ],
+  "status": "propozycja z kontekstów kwot — do kontroli",
+  "verification": {
+    "type": "noul",
+    "noul": 0.9004352688789368,
+    "probabilities": {
+      "true": 0.9004352688789368,
+      "false": 0.09956470876932144
+    },
+    "confidence": 0.9004352688789368
+  },
+  "confirmed": true,
+  "amount_decisions": [
+    {
+      "text": "1. zasądza od pozwanego (...) Spółka Akcyjna V. (...) w siedzibą w W. na rzecz powódki K. J. kwotę 17.000 zł (siedemnaście tysięcy złotych) wraz z ustawowymi odsetkami za opóźnienie od dnia 10 stycznia 2017 roku do dnia zapłaty;",
+      "start": 375,
+      "end": 603,
+      "kwota": "17000",
+      "amount_start": 474,
+      "amount_end": 483,
+      "marked": "1. zasądza od pozwanego (...) Spółka Akcyjna V. (...) w siedzibą w W. na rzecz powódki K. J. kwotę <KWOTA>17.000 zł</KWOTA> (siedemnaście tysięcy złotych) wraz z ustawowymi odsetkami za opóźnienie od dnia 10 stycznia 2017 roku do dnia zapłaty;",
+      "section": "sentencja",
+      "category": "suma",
+      "confidence": 0.6681591272354126,
+      "accepted": true,
+      "decision": {
+        "type": "choice",
+        "choice": "suma",
+        "probabilities": {
+          "zadoscuczynienie": 0.06531888991594315,
+          "pozostale_odszkodowanie": 0.11209019273519516,
+          "suma": 0.6681591272354126,
+          "pomin": 0.023857567459344864,
+          "nieustalone": 0.13057425618171692
+        },
+        "confidence": 0.6681591272354126
+      }
+    },
+    {
+      "text": "4. nakazuje pobrać na rzecz Skarbu Państwa – Sądu Rejonowego w Bełchatowie od powódki K. J. kwotę 17,40 zł (siedemnaście złotych czterdzieści groszy) zaś od pozwanego (...) Spółka Akcyjna V. (...) z siedzibą w W. kwotę 52,30 zł (pięćdziesiąt dwa złote trzydzieści groszy) tytułem nieuiszczonych kosztów sądowych.",
+      "start": 831,
+      "end": 1143,
+      "kwota": "17.40",
+      "amount_start": 929,
+      "amount_end": 937,
+      "marked": "4. nakazuje pobrać na rzecz Skarbu Państwa – Sądu Rejonowego w Bełchatowie od powódki K. J. kwotę <KWOTA>17,40 zł</KWOTA> (siedemnaście złotych czterdzieści groszy) zaś od pozwanego (...) Spółka Akcyjna V. (...) z siedzibą w W. kwotę 52,30 zł (pięćdziesiąt dwa złote trzydzieści groszy) tytułem nieuiszczonych kosztów sądowych.",
+      "section": "sentencja",
+      "category": "nieustalone",
+      "confidence": 0.7812492847442627,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.024160318076610565,
+          "pozostale_odszkodowanie": 0.035233885049819946,
+          "suma": 0.07164816558361053,
+          "pomin": 0.08770827949047089,
+          "nieustalone": 0.7812492847442627
+        },
+        "confidence": 0.7812492847442627
+      }
+    },
+    {
+      "text": "4. nakazuje pobrać na rzecz Skarbu Państwa – Sądu Rejonowego w Bełchatowie od powódki K. J. kwotę 17,40 zł (siedemnaście złotych czterdzieści groszy) zaś od pozwanego (...) Spółka Akcyjna V. (...) z siedzibą w W. kwotę 52,30 zł (pięćdziesiąt dwa złote trzydzieści groszy) tytułem nieuiszczonych kosztów sądowych.",
+      "start": 831,
+      "end": 1143,
+      "kwota": "52.30",
+      "amount_start": 1050,
+      "amount_end": 1058,
+      "marked": "4. nakazuje pobrać na rzecz Skarbu Państwa – Sądu Rejonowego w Bełchatowie od powódki K. J. kwotę 17,40 zł (siedemnaście złotych czterdzieści groszy) zaś od pozwanego (...) Spółka Akcyjna V. (...) z siedzibą w W. kwotę <KWOTA>52,30 zł</KWOTA> (pięćdziesiąt dwa złote trzydzieści groszy) tytułem nieuiszczonych kosztów sądowych.",
+      "section": "sentencja",
+      "category": "nieustalone",
+      "confidence": 0.9280145168304443,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.011913913302123547,
+          "pozostale_odszkodowanie": 0.014380286447703838,
+          "suma": 0.013452474027872086,
+          "pomin": 0.03223874047398567,
+          "nieustalone": 0.9280145168304443
+        },
+        "confidence": 0.9280145168304443
+      }
+    },
+    {
+      "text": "o zasądzenie od pozwanego (...) S.A. V. (...) z siedzibą w W. kwoty 22.600 zł tytułem zadośćuczynienia pieniężnego za doznaną krzywdę związaną z upadkiem z dnia 06.08.2015 r. wraz z ustawowymi odsetkami liczonymi od dnia 10.01.2017 r. do dnia zapłaty, oraz o zwrot kosztów procesu wskazując, że powódka doznała szkody w wypadku (upadek z roweru po zahaczeniu o słupek znaku drogowego) wynikającym z nieprawidłowego usytuowania znaku na drodze rowerowej, której zarządca zawarł ubezpieczenie OC z pozwanym.",
+      "start": 1232,
+      "end": 1737,
+      "kwota": "22600",
+      "amount_start": 1300,
+      "amount_end": 1309,
+      "marked": "o zasądzenie od pozwanego (...) S.A. V. (...) z siedzibą w W. kwoty <KWOTA>22.600 zł</KWOTA> tytułem zadośćuczynienia pieniężnego za doznaną krzywdę związaną z upadkiem z dnia 06.08.2015 r. wraz z ustawowymi odsetkami liczonymi od dnia 10.01.2017 r. do dnia zapłaty, oraz o zwrot kosztów procesu wskazując, że powódka doznała szkody w wypadku (upadek z roweru po zahaczeniu o słupek znaku drogowego) wynikającym z nieprawidłowego usytuowania znaku na drodze rowerowej, której zarządca zawarł ubezpieczenie OC z pozwanym.",
+      "section": "uzasadnienie",
+      "category": "zadoscuczynienie",
+      "confidence": 0.8944599032402039,
+      "accepted": true,
+      "decision": {
+        "type": "choice",
+        "choice": "zadoscuczynienie",
+        "probabilities": {
+          "zadoscuczynienie": 0.8944599032402039,
+          "pozostale_odszkodowanie": 0.010882923379540443,
+          "suma": 0.03708387911319733,
+          "pomin": 0.014534031972289085,
+          "nieustalone": 0.0430392250418663
+        },
+        "confidence": 0.8944599032402039
+      }
+    },
+    {
+      "text": "Powódka zgłosiła szkodę 21-10-2016 r. W toku dotychczas przeprowadzonego postępowania likwidacyjnego pozwany uznał swoją odpowiedzialność i przyznał na rzecz powódki kwotę 6000 zł, którą pomniejszył o 60% przyczynienia się powódki do powstania szkody, w związku z czym zapłacił na rzecz powódki kwotę 2.400 zł.",
+      "start": 3434,
+      "end": 3744,
+      "kwota": "6000",
+      "amount_start": 3606,
+      "amount_end": 3613,
+      "marked": "Powódka zgłosiła szkodę 21-10-2016 r. W toku dotychczas przeprowadzonego postępowania likwidacyjnego pozwany uznał swoją odpowiedzialność i przyznał na rzecz powódki kwotę <KWOTA>6000 zł</KWOTA>, którą pomniejszył o 60% przyczynienia się powódki do powstania szkody, w związku z czym zapłacił na rzecz powódki kwotę 2.400 zł.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.6872121691703796,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.05391634255647659,
+          "pozostale_odszkodowanie": 0.16138026118278503,
+          "suma": 0.07961934804916382,
+          "pomin": 0.01787189394235611,
+          "nieustalone": 0.6872121691703796
+        },
+        "confidence": 0.6872121691703796
+      }
+    },
+    {
+      "text": "Powódka zgłosiła szkodę 21-10-2016 r. W toku dotychczas przeprowadzonego postępowania likwidacyjnego pozwany uznał swoją odpowiedzialność i przyznał na rzecz powódki kwotę 6000 zł, którą pomniejszył o 60% przyczynienia się powódki do powstania szkody, w związku z czym zapłacił na rzecz powódki kwotę 2.400 zł.",
+      "start": 3434,
+      "end": 3744,
+      "kwota": "2400",
+      "amount_start": 3735,
+      "amount_end": 3743,
+      "marked": "Powódka zgłosiła szkodę 21-10-2016 r. W toku dotychczas przeprowadzonego postępowania likwidacyjnego pozwany uznał swoją odpowiedzialność i przyznał na rzecz powódki kwotę 6000 zł, którą pomniejszył o 60% przyczynienia się powódki do powstania szkody, w związku z czym zapłacił na rzecz powódki kwotę <KWOTA>2.400 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.8584873080253601,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.025605812668800354,
+          "pozostale_odszkodowanie": 0.06570727378129959,
+          "suma": 0.027978483587503433,
+          "pomin": 0.02222125045955181,
+          "nieustalone": 0.8584873080253601
+        },
+        "confidence": 0.8584873080253601
+      }
+    },
+    {
+      "text": "Biorąc pod uwagę wszystkie przytoczone okoliczności Sąd uznał, iż żądanie ponad już otrzymane dodatkowego zadośćuczynienia jest uzasadnione w zakresie kwoty 17 000 zł,",
+      "start": 12074,
+      "end": 12241,
+      "kwota": "17000",
+      "amount_start": 12231,
+      "amount_end": 12240,
+      "marked": "Biorąc pod uwagę wszystkie przytoczone okoliczności Sąd uznał, iż żądanie ponad już otrzymane dodatkowego zadośćuczynienia jest uzasadnione w zakresie kwoty <KWOTA>17 000 zł</KWOTA>,",
+      "section": "uzasadnienie",
+      "category": "zadoscuczynienie",
+      "confidence": 0.8658256530761719,
+      "accepted": true,
+      "decision": {
+        "type": "choice",
+        "choice": "zadoscuczynienie",
+        "probabilities": {
+          "zadoscuczynienie": 0.8658256530761719,
+          "pozostale_odszkodowanie": 0.012374703772366047,
+          "suma": 0.017705649137496948,
+          "pomin": 0.011581221595406532,
+          "nieustalone": 0.09251280874013901
+        },
+        "confidence": 0.8658256530761719
+      }
+    },
+    {
+      "text": "Łącznie w ten sposób otrzymane zadośćuczynienie w kwocie 19 400 zł będzie odpowiednią rekompensatą pieniężną za spowodowaną wypadkiem krzywdę.",
+      "start": 12295,
+      "end": 12437,
+      "kwota": "19400",
+      "amount_start": 12352,
+      "amount_end": 12361,
+      "marked": "Łącznie w ten sposób otrzymane zadośćuczynienie w kwocie <KWOTA>19 400 zł</KWOTA> będzie odpowiednią rekompensatą pieniężną za spowodowaną wypadkiem krzywdę.",
+      "section": "uzasadnienie",
+      "category": "zadoscuczynienie",
+      "confidence": 0.8441968560218811,
+      "accepted": true,
+      "decision": {
+        "type": "choice",
+        "choice": "zadoscuczynienie",
+        "probabilities": {
+          "zadoscuczynienie": 0.8441968560218811,
+          "pozostale_odszkodowanie": 0.014146254397928715,
+          "suma": 0.055214643478393555,
+          "pomin": 0.020299583673477173,
+          "nieustalone": 0.0661427304148674
+        },
+        "confidence": 0.8441968560218811
+      }
+    },
+    {
+      "text": "Kosztami po stronie powoda były: wpis 1130 zł, wynagrodzenie pełnomocnika w kwocie 3600 zł (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa 17 zł, wydatki na opinie biegłego 300 zł, łącznie koszty po stronie powoda: 5047 zł.",
+      "start": 12909,
+      "end": 13238,
+      "kwota": "1130",
+      "amount_start": 12947,
+      "amount_end": 12954,
+      "marked": "Kosztami po stronie powoda były: wpis <KWOTA>1130 zł</KWOTA>, wynagrodzenie pełnomocnika w kwocie 3600 zł (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa 17 zł, wydatki na opinie biegłego 300 zł, łącznie koszty po stronie powoda: 5047 zł.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.9404698014259338,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.01008850708603859,
+          "pozostale_odszkodowanie": 0.02135717123746872,
+          "suma": 0.01769177056849003,
+          "pomin": 0.010392810218036175,
+          "nieustalone": 0.9404698014259338
+        },
+        "confidence": 0.9404698014259338
+      }
+    },
+    {
+      "text": "Kosztami po stronie powoda były: wpis 1130 zł, wynagrodzenie pełnomocnika w kwocie 3600 zł (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa 17 zł, wydatki na opinie biegłego 300 zł, łącznie koszty po stronie powoda: 5047 zł.",
+      "start": 12909,
+      "end": 13238,
+      "kwota": "3600",
+      "amount_start": 12992,
+      "amount_end": 12999,
+      "marked": "Kosztami po stronie powoda były: wpis 1130 zł, wynagrodzenie pełnomocnika w kwocie <KWOTA>3600 zł</KWOTA> (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa 17 zł, wydatki na opinie biegłego 300 zł, łącznie koszty po stronie powoda: 5047 zł.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.9101083874702454,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.017698565497994423,
+          "pozostale_odszkodowanie": 0.02738114446401596,
+          "suma": 0.02486884966492653,
+          "pomin": 0.01994316838681698,
+          "nieustalone": 0.9101083874702454
+        },
+        "confidence": 0.9101083874702454
+      }
+    },
+    {
+      "text": "Kosztami po stronie powoda były: wpis 1130 zł, wynagrodzenie pełnomocnika w kwocie 3600 zł (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa 17 zł, wydatki na opinie biegłego 300 zł, łącznie koszty po stronie powoda: 5047 zł.",
+      "start": 12909,
+      "end": 13238,
+      "kwota": "17",
+      "amount_start": 13154,
+      "amount_end": 13159,
+      "marked": "Kosztami po stronie powoda były: wpis 1130 zł, wynagrodzenie pełnomocnika w kwocie 3600 zł (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa <KWOTA>17 zł</KWOTA>, wydatki na opinie biegłego 300 zł, łącznie koszty po stronie powoda: 5047 zł.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.9282411336898804,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.010317759588360786,
+          "pozostale_odszkodowanie": 0.012141823768615723,
+          "suma": 0.014619063585996628,
+          "pomin": 0.03468012064695358,
+          "nieustalone": 0.9282411336898804
+        },
+        "confidence": 0.9282411336898804
+      }
+    },
+    {
+      "text": "Kosztami po stronie powoda były: wpis 1130 zł, wynagrodzenie pełnomocnika w kwocie 3600 zł (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa 17 zł, wydatki na opinie biegłego 300 zł, łącznie koszty po stronie powoda: 5047 zł.",
+      "start": 12909,
+      "end": 13238,
+      "kwota": "300",
+      "amount_start": 13188,
+      "amount_end": 13194,
+      "marked": "Kosztami po stronie powoda były: wpis 1130 zł, wynagrodzenie pełnomocnika w kwocie 3600 zł (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa 17 zł, wydatki na opinie biegłego <KWOTA>300 zł</KWOTA>, łącznie koszty po stronie powoda: 5047 zł.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.9271509647369385,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.012635450810194016,
+          "pozostale_odszkodowanie": 0.02744869329035282,
+          "suma": 0.014914248138666153,
+          "pomin": 0.017850643023848534,
+          "nieustalone": 0.9271509647369385
+        },
+        "confidence": 0.9271509647369385
+      }
+    },
+    {
+      "text": "Kosztami po stronie powoda były: wpis 1130 zł, wynagrodzenie pełnomocnika w kwocie 3600 zł (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa 17 zł, wydatki na opinie biegłego 300 zł, łącznie koszty po stronie powoda: 5047 zł.",
+      "start": 12909,
+      "end": 13238,
+      "kwota": "5047",
+      "amount_start": 13230,
+      "amount_end": 13237,
+      "marked": "Kosztami po stronie powoda były: wpis 1130 zł, wynagrodzenie pełnomocnika w kwocie 3600 zł (§ 2 pkt 5 rozporządzenia Ministra Sprawiedliwości z dnia 22 października 2015 r. w sprawie opłat za czynności radców prawnych), opłata od pełnomocnictwa 17 zł, wydatki na opinie biegłego 300 zł, łącznie koszty po stronie powoda: <KWOTA>5047 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.8511330485343933,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.017258306965231895,
+          "pozostale_odszkodowanie": 0.04024970531463623,
+          "suma": 0.08107959479093552,
+          "pomin": 0.010279339738190174,
+          "nieustalone": 0.8511330485343933
+        },
+        "confidence": 0.8511330485343933
+      }
+    },
+    {
+      "text": "Po stronie pozwanego kosztami były wynagrodzenie pełnomocnika z opłatą skarbową 3617 zł.",
+      "start": 13239,
+      "end": 13327,
+      "kwota": "3617",
+      "amount_start": 13319,
+      "amount_end": 13326,
+      "marked": "Po stronie pozwanego kosztami były wynagrodzenie pełnomocnika z opłatą skarbową <KWOTA>3617 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.928443431854248,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.008089976385235786,
+          "pozostale_odszkodowanie": 0.013214902020990849,
+          "suma": 0.014423276297748089,
+          "pomin": 0.03582846000790596,
+          "nieustalone": 0.928443431854248
+        },
+        "confidence": 0.928443431854248
+      }
+    },
+    {
+      "text": "Razem koszty wyniosły 8664 zł.",
+      "start": 13328,
+      "end": 13358,
+      "kwota": "8664",
+      "amount_start": 13350,
+      "amount_end": 13357,
+      "marked": "Razem koszty wyniosły <KWOTA>8664 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.850709855556488,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.013165280222892761,
+          "pozostale_odszkodowanie": 0.02468494325876236,
+          "suma": 0.0962456539273262,
+          "pomin": 0.015194364823400974,
+          "nieustalone": 0.850709855556488
+        },
+        "confidence": 0.850709855556488
+      }
+    },
+    {
+      "text": "Powoda obciąża 25 % tej kwoty, zatem 2166 zł.",
+      "start": 13359,
+      "end": 13404,
+      "kwota": "2166",
+      "amount_start": 13396,
+      "amount_end": 13403,
+      "marked": "Powoda obciąża 25 % tej kwoty, zatem <KWOTA>2166 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.7019091248512268,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.03499969467520714,
+          "pozostale_odszkodowanie": 0.06228749454021454,
+          "suma": 0.13696810603141785,
+          "pomin": 0.06383556872606277,
+          "nieustalone": 0.7019091248512268
+        },
+        "confidence": 0.7019091248512268
+      }
+    },
+    {
+      "text": "Powód poniósł koszty w wysokości 5047 zł, więc może żądać od pozwanego różnicy między ostatnimi kwotami (kosztami obciążającymi powoda a poniesionymi przez niego) tytułem zwrotu części kosztów – 2881 zł.",
+      "start": 13405,
+      "end": 13608,
+      "kwota": "5047",
+      "amount_start": 13438,
+      "amount_end": 13445,
+      "marked": "Powód poniósł koszty w wysokości <KWOTA>5047 zł</KWOTA>, więc może żądać od pozwanego różnicy między ostatnimi kwotami (kosztami obciążającymi powoda a poniesionymi przez niego) tytułem zwrotu części kosztów – 2881 zł.",
+      "section": "uzasadnienie",
+      "category": "suma",
+      "confidence": 0.48324254155158997,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "suma",
+        "probabilities": {
+          "zadoscuczynienie": 0.04406733065843582,
+          "pozostale_odszkodowanie": 0.04872904717922211,
+          "suma": 0.48324254155158997,
+          "pomin": 0.07418068498373032,
+          "nieustalone": 0.34978047013282776
+        },
+        "confidence": 0.48324254155158997
+      }
+    },
+    {
+      "text": "Powód poniósł koszty w wysokości 5047 zł, więc może żądać od pozwanego różnicy między ostatnimi kwotami (kosztami obciążającymi powoda a poniesionymi przez niego) tytułem zwrotu części kosztów – 2881 zł.",
+      "start": 13405,
+      "end": 13608,
+      "kwota": "2881",
+      "amount_start": 13600,
+      "amount_end": 13607,
+      "marked": "Powód poniósł koszty w wysokości 5047 zł, więc może żądać od pozwanego różnicy między ostatnimi kwotami (kosztami obciążającymi powoda a poniesionymi przez niego) tytułem zwrotu części kosztów – <KWOTA>2881 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.804862916469574,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.01994430273771286,
+          "pozostale_odszkodowanie": 0.02670164778828621,
+          "suma": 0.058169905096292496,
+          "pomin": 0.09032124280929565,
+          "nieustalone": 0.804862916469574
+        },
+        "confidence": 0.804862916469574
+      }
+    },
+    {
+      "text": "Ponadto na podstawie art. 113 ust. 1 ustawy o kosztach sądowych w sprawach cywilnych Sąd nakazał pobrać od stron w analogicznym stosunku na rzecz Skarbu Państwa - Sądu Rejonowego w Bełchatowie kwotę 69,70 złotych tytułem wydatków na opinie biegłego tymczasowo pokrytych przez Skarb Państwa – Sąd Rejonowy w Bełchatowie.",
+      "start": 13609,
+      "end": 13928,
+      "kwota": "69.70",
+      "amount_start": 13808,
+      "amount_end": 13821,
+      "marked": "Ponadto na podstawie art. 113 ust. 1 ustawy o kosztach sądowych w sprawach cywilnych Sąd nakazał pobrać od stron w analogicznym stosunku na rzecz Skarbu Państwa - Sądu Rejonowego w Bełchatowie kwotę <KWOTA>69,70 złotych</KWOTA> tytułem wydatków na opinie biegłego tymczasowo pokrytych przez Skarb Państwa – Sąd Rejonowy w Bełchatowie.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.6552262902259827,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.020821483805775642,
+          "pozostale_odszkodowanie": 0.029443839564919472,
+          "suma": 0.03333592042326927,
+          "pomin": 0.26117244362831116,
+          "nieustalone": 0.6552262902259827
+        },
+        "confidence": 0.6552262902259827
+      }
+    }
+  ]
+}

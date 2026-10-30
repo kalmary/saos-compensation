@@ -1,41 +1,8 @@
-base_url: https://www.saos.org.pl/api
-# null w to oznacza dziś; null w from wylicza początek według years.
-date_range:
-  years: 10
-  from: null
-  to: null
-request:
-  all: zadośćuczynienie
-  courtType: COMMON
-  judgmentTypes: SENTENCE
-  pageSize: 10
-  pageNumber: 0
-  sortingField: DATABASE_ID
-  sortingDirection: ASC
-queries:
-  temat: {}
-  temat + kwota:
-    all: zadośćuczynienie zł
-  temat + zasądzenie + kwota:
-    all: zadośćuczynienie zasądza zł
-  temat + tag:
-    keywords: zadośćuczynienie
-sampling:
-  seed: 42
-  examples_per_query: 2
-  query:
-    all: zadośćuczynienie zł
-  court_levels:
-  - DISTRICT
-  - REGIONAL
-  - APPEAL
-# Ręczne przykłady poza statystyką losowanej próbki.
-additional_judgment_ids:
-- 554194
-- 553925
-- 553824
-# Ograniczenie próby Basala; nie filtr wyszukiwarki SAOS.
-judgment_ids:
-- 554194
-- 553925
-- 254930
+max_age_years: 10
+# 0 = wszystkie strony; dodatnia liczba ogranicza pobieranie.
+max_pages: 0
+debug: true
+download_path: "tmp/" # tmp dir in project root
+
+download_only: false
+timeout: 30

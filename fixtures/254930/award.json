@@ -1,0 +1,75 @@
+{
+  "zadoscuczynienie": "brak informacji",
+  "pozostale_odszkodowanie": "brak informacji",
+  "suma": "brak informacji",
+  "kwota_nierozdzielona": "brak informacji",
+  "beneficjent": "P. A.",
+  "waluta": "PLN",
+  "evidence": [
+    {
+      "text": "Sąd Rejonowy w Mławie wyrokiem z 10 maja 2016 r. zasądził od Towarzystwa (...) S.A. w W. na rzecz P. A. 25.000 zł tytułem zadośćuczynienia z ustawowymi odsetkami od 17 marca 2012 r., oddalił powództwo w pozostałym zakresie i rozstrzygnął o kosztach procesu.",
+      "start": 821,
+      "end": 1078,
+      "section": "uzasadnienie",
+      "amount_start": 925,
+      "amount_end": 934
+    }
+  ],
+  "status": "model nie potwierdził propozycji — do przeglądu",
+  "verification": {
+    "type": "noul",
+    "noul": 0.32894983887672424,
+    "probabilities": {
+      "true": 0.32894983887672424,
+      "false": 0.6710501313209534
+    },
+    "confidence": 0.6710501313209534
+  },
+  "confirmed": false,
+  "proposal": {
+    "zadoscuczynienie": "25000",
+    "pozostale_odszkodowanie": "brak informacji",
+    "suma": "brak informacji",
+    "kwota_nierozdzielona": "brak informacji",
+    "beneficjent": "P. A.",
+    "waluta": "PLN",
+    "evidence": [
+      {
+        "text": "Sąd Rejonowy w Mławie wyrokiem z 10 maja 2016 r. zasądził od Towarzystwa (...) S.A. w W. na rzecz P. A. 25.000 zł tytułem zadośćuczynienia z ustawowymi odsetkami od 17 marca 2012 r., oddalił powództwo w pozostałym zakresie i rozstrzygnął o kosztach procesu.",
+        "start": 821,
+        "end": 1078,
+        "section": "uzasadnienie",
+        "amount_start": 925,
+        "amount_end": 934
+      }
+    ],
+    "status": "propozycja z kontekstów kwot — do kontroli"
+  },
+  "amount_decisions": [
+    {
+      "text": "Sąd Rejonowy w Mławie wyrokiem z 10 maja 2016 r. zasądził od Towarzystwa (...) S.A. w W. na rzecz P. A. 25.000 zł tytułem zadośćuczynienia z ustawowymi odsetkami od 17 marca 2012 r., oddalił powództwo w pozostałym zakresie i rozstrzygnął o kosztach procesu.",
+      "start": 821,
+      "end": 1078,
+      "kwota": "25000",
+      "amount_start": 925,
+      "amount_end": 934,
+      "marked": "Sąd Rejonowy w Mławie wyrokiem z 10 maja 2016 r. zasądził od Towarzystwa (...) S.A. w W. na rzecz P. A. <KWOTA>25.000 zł</KWOTA> tytułem zadośćuczynienia z ustawowymi odsetkami od 17 marca 2012 r., oddalił powództwo w pozostałym zakresie i rozstrzygnął o kosztach procesu.",
+      "section": "uzasadnienie",
+      "category": "zadoscuczynienie",
+      "confidence": 0.9629339575767517,
+      "accepted": true,
+      "decision": {
+        "type": "choice",
+        "choice": "zadoscuczynienie",
+        "probabilities": {
+          "zadoscuczynienie": 0.9629339575767517,
+          "pozostale_odszkodowanie": 0.00512590492144227,
+          "suma": 0.012337795458734035,
+          "pomin": 0.006658611353486776,
+          "nieustalone": 0.012943636626005173
+        },
+        "confidence": 0.9629339575767517
+      }
+    }
+  ]
+}

@@ -81,8 +81,7 @@ async def run(texts=None, config=None):
     model, digest = candidates[0].model, candidates[0].digest
     if texts is None:
         api.OUTPUT.mkdir(parents=True, exist_ok=True)
-        texts = {identifier: api.extract_text(api.fetch_json(f"{api.BASE_URL}/judgments/{identifier}")["data"]["textContent"])
-                 for identifier in config["judgment_ids"]}
+        texts = api.judgment_texts(config["api"])
     quote_schema = {"type": "object", "properties": {"cytaty": {"type": "array", "items": {"type": "string"}}},
                     "required": ["cytaty"], "additionalProperties": False}
     award_schema = {"type": "object", "properties": {"zgodne": {"type": "boolean"},
@@ -130,7 +129,7 @@ async def run(texts=None, config=None):
             supported = any(q["start"] <= row["amount_start"] and q["end"] >= row["amount_end"] for q in quotes)
             amount_decisions.append({**row, "category": category, "decision": payload,
                 "accepted": supported and category in {*shared.AWARD_FIELDS, "suma"}})
-        award = shared.propose_award(text, amount_decisions)
+        award = shared.propose_award(text, amount_decisions, config.get("target_fields", shared.AWARD_FIELDS))
         if award["evidence"] and "conflict" not in award:
             heading = api.REASONS.search(text)
             source = text[:heading.start()] + "\n" + "\n".join(q["text"] for q in award["evidence"])
@@ -160,8 +159,12 @@ async def run(texts=None, config=None):
     for identifier, result in results.items():
         directory = path.parent / str(identifier)
         directory.mkdir(parents=True, exist_ok=True)
-        for filename, value in (("record.json", result["features"]), ("award.json", result["award"])):
+        award = result["award"] if config["api"]["debug"] else {k: v for k, v in result["award"].items() if k not in {"evidence", "amount_decisions", "proposal", "verification"}}
+        for filename, value in (("record.json", result["features"]), ("award.json", award)):
             (directory / filename).write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if config["api"]["debug"]:
+            (directory / "source.txt").write_text(texts[identifier] + "\n", encoding="utf-8")
+            (directory / "analysis.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Wyniki Gemmy: {path}")
     return output
 

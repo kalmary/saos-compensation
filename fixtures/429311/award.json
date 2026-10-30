@@ -1,0 +1,100 @@
+{
+  "zadoscuczynienie": "brak informacji",
+  "pozostale_odszkodowanie": "brak informacji",
+  "suma": "brak informacji",
+  "kwota_nierozdzielona": "brak informacji",
+  "beneficjent": "J. J.",
+  "waluta": "PLN",
+  "evidence": [
+    {
+      "text": "- 5 000 zł z odsetkami ustawowymi za opóźnienie częściowego zadośćuczynienia za doznaną krzywdę wskutek naruszenia dobra osobistego – nietykalności mieszkania, stanowiącego współwłasność powódki, zlokalizowanego w P. oraz – godności osobistej oraz o przeprosiny,",
+      "start": 621,
+      "end": 883,
+      "section": "uzasadnienie",
+      "amount_start": 623,
+      "amount_end": 631
+    }
+  ],
+  "status": "model nie potwierdził propozycji — do przeglądu",
+  "verification": {
+    "type": "noul",
+    "noul": 0.5779399871826172,
+    "probabilities": {
+      "true": 0.5779399871826172,
+      "false": 0.4220600426197052
+    },
+    "confidence": 0.5779399871826172
+  },
+  "confirmed": false,
+  "proposal": {
+    "zadoscuczynienie": "5000",
+    "pozostale_odszkodowanie": "brak informacji",
+    "suma": "brak informacji",
+    "kwota_nierozdzielona": "brak informacji",
+    "beneficjent": "J. J.",
+    "waluta": "PLN",
+    "evidence": [
+      {
+        "text": "- 5 000 zł z odsetkami ustawowymi za opóźnienie częściowego zadośćuczynienia za doznaną krzywdę wskutek naruszenia dobra osobistego – nietykalności mieszkania, stanowiącego współwłasność powódki, zlokalizowanego w P. oraz – godności osobistej oraz o przeprosiny,",
+        "start": 621,
+        "end": 883,
+        "section": "uzasadnienie",
+        "amount_start": 623,
+        "amount_end": 631
+      }
+    ],
+    "status": "propozycja z kontekstów kwot — do kontroli"
+  },
+  "amount_decisions": [
+    {
+      "text": "II. zasądza od powódki J. J. na rzecz pozwanej A. P. 1.637,00 zł (tysiąc sześćset trzydzieści siedem złotych 00/100) kosztów procesu.",
+      "start": 400,
+      "end": 533,
+      "kwota": "1637.00",
+      "amount_start": 453,
+      "amount_end": 464,
+      "marked": "II. zasądza od powódki J. J. na rzecz pozwanej A. P. <KWOTA>1.637,00 zł</KWOTA> (tysiąc sześćset trzydzieści siedem złotych 00/100) kosztów procesu.",
+      "section": "sentencja",
+      "category": "nieustalone",
+      "confidence": 0.8355880379676819,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.0254265945404768,
+          "pozostale_odszkodowanie": 0.022294338792562485,
+          "suma": 0.05561763048171997,
+          "pomin": 0.061073366552591324,
+          "nieustalone": 0.8355880379676819
+        },
+        "confidence": 0.8355880379676819
+      }
+    },
+    {
+      "text": "- 5 000 zł z odsetkami ustawowymi za opóźnienie częściowego zadośćuczynienia za doznaną krzywdę wskutek naruszenia dobra osobistego – nietykalności mieszkania, stanowiącego współwłasność powódki, zlokalizowanego w P. oraz – godności osobistej oraz o przeprosiny,",
+      "start": 621,
+      "end": 883,
+      "kwota": "5000",
+      "amount_start": 623,
+      "amount_end": 631,
+      "marked": "- <KWOTA>5 000 zł</KWOTA> z odsetkami ustawowymi za opóźnienie częściowego zadośćuczynienia za doznaną krzywdę wskutek naruszenia dobra osobistego – nietykalności mieszkania, stanowiącego współwłasność powódki, zlokalizowanego w P. oraz – godności osobistej oraz o przeprosiny,",
+      "section": "uzasadnienie",
+      "category": "zadoscuczynienie",
+      "confidence": 0.7950177192687988,
+      "accepted": true,
+      "decision": {
+        "type": "choice",
+        "choice": "zadoscuczynienie",
+        "probabilities": {
+          "zadoscuczynienie": 0.7950177192687988,
+          "pozostale_odszkodowanie": 0.014403421431779861,
+          "suma": 0.04933324083685875,
+          "pomin": 0.02021856978535652,
+          "nieustalone": 0.12102704495191574
+        },
+        "confidence": 0.7950177192687988
+      }
+    }
+  ]
+}

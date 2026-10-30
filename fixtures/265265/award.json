@@ -1,0 +1,538 @@
+{
+  "zadoscuczynienie": "brak informacji",
+  "pozostale_odszkodowanie": "brak informacji",
+  "suma": "brak informacji",
+  "kwota_nierozdzielona": "brak informacji",
+  "beneficjent": "(...) w W.",
+  "waluta": "PLN",
+  "evidence": [],
+  "status": "brak ustalonego zasądzenia",
+  "confirmed": false,
+  "amount_decisions": [
+    {
+      "text": "b) zasądza od pozwanego na rzecz powoda kwotę 8.200 złotych tytułem zwrotu kosztów procesu;",
+      "start": 816,
+      "end": 907,
+      "kwota": "8200",
+      "amount_start": 862,
+      "amount_end": 875,
+      "marked": "b) zasądza od pozwanego na rzecz powoda kwotę <KWOTA>8.200 złotych</KWOTA> tytułem zwrotu kosztów procesu;",
+      "section": "sentencja",
+      "category": "pomin",
+      "confidence": 0.7027108669281006,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "pomin",
+        "probabilities": {
+          "zadoscuczynienie": 0.024153761565685272,
+          "pozostale_odszkodowanie": 0.03341691941022873,
+          "suma": 0.02355414442718029,
+          "pomin": 0.7027108669281006,
+          "nieustalone": 0.21616430580615997
+        },
+        "confidence": 0.7027108669281006
+      }
+    },
+    {
+      "text": "II. zasądza od pozwanego na rzecz powoda kwotę 6.400 złotych tytułem zwrotu kosztów instancji odwoławczej.",
+      "start": 908,
+      "end": 1014,
+      "kwota": "6400",
+      "amount_start": 955,
+      "amount_end": 968,
+      "marked": "II. zasądza od pozwanego na rzecz powoda kwotę <KWOTA>6.400 złotych</KWOTA> tytułem zwrotu kosztów instancji odwoławczej.",
+      "section": "sentencja",
+      "category": "pomin",
+      "confidence": 0.7326032519340515,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "pomin",
+        "probabilities": {
+          "zadoscuczynienie": 0.01953071542084217,
+          "pozostale_odszkodowanie": 0.02058412879705429,
+          "suma": 0.016132691875100136,
+          "pomin": 0.7326032519340515,
+          "nieustalone": 0.2111492156982422
+        },
+        "confidence": 0.7326032519340515
+      }
+    },
+    {
+      "text": "Powód (...)wniósł o zasądzenie od pozwanego T. K. kwoty 173.473,2 zł (w tym należność główna: 136.090,96 zł, odsetki umowne: 16.186,85 zł naliczone od dnia zawarcia umowy do dnia jej rozwiązania oraz skapitalizowane odsetki za opóźnienie: 21.195,40 zł) wraz z ustawowymi odsetkami od dnia wniesienia pozwu do dnia zapłaty i kosztami procesu.",
+      "start": 1034,
+      "end": 1375,
+      "kwota": "173473.2",
+      "amount_start": 1090,
+      "amount_end": 1102,
+      "marked": "Powód (...)wniósł o zasądzenie od pozwanego T. K. kwoty <KWOTA>173.473,2 zł</KWOTA> (w tym należność główna: 136.090,96 zł, odsetki umowne: 16.186,85 zł naliczone od dnia zawarcia umowy do dnia jej rozwiązania oraz skapitalizowane odsetki za opóźnienie: 21.195,40 zł) wraz z ustawowymi odsetkami od dnia wniesienia pozwu do dnia zapłaty i kosztami procesu.",
+      "section": "uzasadnienie",
+      "category": "suma",
+      "confidence": 0.8289957642555237,
+      "accepted": true,
+      "decision": {
+        "type": "choice",
+        "choice": "suma",
+        "probabilities": {
+          "zadoscuczynienie": 0.015248432755470276,
+          "pozostale_odszkodowanie": 0.018391964957118034,
+          "suma": 0.8289957642555237,
+          "pomin": 0.0460185706615448,
+          "nieustalone": 0.09134535491466522
+        },
+        "confidence": 0.8289957642555237
+      }
+    },
+    {
+      "text": "Powód (...)wniósł o zasądzenie od pozwanego T. K. kwoty 173.473,2 zł (w tym należność główna: 136.090,96 zł, odsetki umowne: 16.186,85 zł naliczone od dnia zawarcia umowy do dnia jej rozwiązania oraz skapitalizowane odsetki za opóźnienie: 21.195,40 zł) wraz z ustawowymi odsetkami od dnia wniesienia pozwu do dnia zapłaty i kosztami procesu.",
+      "start": 1034,
+      "end": 1375,
+      "kwota": "136090.96",
+      "amount_start": 1128,
+      "amount_end": 1141,
+      "marked": "Powód (...)wniósł o zasądzenie od pozwanego T. K. kwoty 173.473,2 zł (w tym należność główna: <KWOTA>136.090,96 zł</KWOTA>, odsetki umowne: 16.186,85 zł naliczone od dnia zawarcia umowy do dnia jej rozwiązania oraz skapitalizowane odsetki za opóźnienie: 21.195,40 zł) wraz z ustawowymi odsetkami od dnia wniesienia pozwu do dnia zapłaty i kosztami procesu.",
+      "section": "uzasadnienie",
+      "category": "suma",
+      "confidence": 0.5647271871566772,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "suma",
+        "probabilities": {
+          "zadoscuczynienie": 0.01563524827361107,
+          "pozostale_odszkodowanie": 0.028595013543963432,
+          "suma": 0.5647271871566772,
+          "pomin": 0.022033322602510452,
+          "nieustalone": 0.3690092861652374
+        },
+        "confidence": 0.5647271871566772
+      }
+    },
+    {
+      "text": "Powód (...)wniósł o zasądzenie od pozwanego T. K. kwoty 173.473,2 zł (w tym należność główna: 136.090,96 zł, odsetki umowne: 16.186,85 zł naliczone od dnia zawarcia umowy do dnia jej rozwiązania oraz skapitalizowane odsetki za opóźnienie: 21.195,40 zł) wraz z ustawowymi odsetkami od dnia wniesienia pozwu do dnia zapłaty i kosztami procesu.",
+      "start": 1034,
+      "end": 1375,
+      "kwota": "16186.85",
+      "amount_start": 1159,
+      "amount_end": 1171,
+      "marked": "Powód (...)wniósł o zasądzenie od pozwanego T. K. kwoty 173.473,2 zł (w tym należność główna: 136.090,96 zł, odsetki umowne: <KWOTA>16.186,85 zł</KWOTA> naliczone od dnia zawarcia umowy do dnia jej rozwiązania oraz skapitalizowane odsetki za opóźnienie: 21.195,40 zł) wraz z ustawowymi odsetkami od dnia wniesienia pozwu do dnia zapłaty i kosztami procesu.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.9377990961074829,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.009888973087072372,
+          "pozostale_odszkodowanie": 0.010501684620976448,
+          "suma": 0.03204546123743057,
+          "pomin": 0.00976485200226307,
+          "nieustalone": 0.9377990961074829
+        },
+        "confidence": 0.9377990961074829
+      }
+    },
+    {
+      "text": "Powód (...)wniósł o zasądzenie od pozwanego T. K. kwoty 173.473,2 zł (w tym należność główna: 136.090,96 zł, odsetki umowne: 16.186,85 zł naliczone od dnia zawarcia umowy do dnia jej rozwiązania oraz skapitalizowane odsetki za opóźnienie: 21.195,40 zł) wraz z ustawowymi odsetkami od dnia wniesienia pozwu do dnia zapłaty i kosztami procesu.",
+      "start": 1034,
+      "end": 1375,
+      "kwota": "21195.40",
+      "amount_start": 1273,
+      "amount_end": 1285,
+      "marked": "Powód (...)wniósł o zasądzenie od pozwanego T. K. kwoty 173.473,2 zł (w tym należność główna: 136.090,96 zł, odsetki umowne: 16.186,85 zł naliczone od dnia zawarcia umowy do dnia jej rozwiązania oraz skapitalizowane odsetki za opóźnienie: <KWOTA>21.195,40 zł</KWOTA>) wraz z ustawowymi odsetkami od dnia wniesienia pozwu do dnia zapłaty i kosztami procesu.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.8845393061637878,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.015379367396235466,
+          "pozostale_odszkodowanie": 0.01844564639031887,
+          "suma": 0.06073174998164177,
+          "pomin": 0.02090388350188732,
+          "nieustalone": 0.8845393061637878
+        },
+        "confidence": 0.8845393061637878
+      }
+    },
+    {
+      "text": "Pozwany zawarł z (...)umowę kredytu nr (...) z 12.07.2012 r. na kwotę 36.000 zł z sumą odsetek 10.833,32 zł na 48 miesięcy oraz umowę kredytu nr (...) z 21.03.2011 r. na kwotę 148.663,10 zł z sumą odsetek 87.489,61 zł na 60 miesięcy.",
+      "start": 2757,
+      "end": 2990,
+      "kwota": "36000",
+      "amount_start": 2827,
+      "amount_end": 2836,
+      "marked": "Pozwany zawarł z (...)umowę kredytu nr (...) z 12.07.2012 r. na kwotę <KWOTA>36.000 zł</KWOTA> z sumą odsetek 10.833,32 zł na 48 miesięcy oraz umowę kredytu nr (...) z 21.03.2011 r. na kwotę 148.663,10 zł z sumą odsetek 87.489,61 zł na 60 miesięcy.",
+      "section": "uzasadnienie",
+      "category": "suma",
+      "confidence": 0.5213018655776978,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "suma",
+        "probabilities": {
+          "zadoscuczynienie": 0.016286395490169525,
+          "pozostale_odszkodowanie": 0.02446095645427704,
+          "suma": 0.5213018655776978,
+          "pomin": 0.016723770648241043,
+          "nieustalone": 0.4212270975112915
+        },
+        "confidence": 0.5213018655776978
+      }
+    },
+    {
+      "text": "Pozwany zawarł z (...)umowę kredytu nr (...) z 12.07.2012 r. na kwotę 36.000 zł z sumą odsetek 10.833,32 zł na 48 miesięcy oraz umowę kredytu nr (...) z 21.03.2011 r. na kwotę 148.663,10 zł z sumą odsetek 87.489,61 zł na 60 miesięcy.",
+      "start": 2757,
+      "end": 2990,
+      "kwota": "10833.32",
+      "amount_start": 2852,
+      "amount_end": 2864,
+      "marked": "Pozwany zawarł z (...)umowę kredytu nr (...) z 12.07.2012 r. na kwotę 36.000 zł z sumą odsetek <KWOTA>10.833,32 zł</KWOTA> na 48 miesięcy oraz umowę kredytu nr (...) z 21.03.2011 r. na kwotę 148.663,10 zł z sumą odsetek 87.489,61 zł na 60 miesięcy.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.9162777662277222,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.011355667375028133,
+          "pozostale_odszkodowanie": 0.012446790933609009,
+          "suma": 0.04663148894906044,
+          "pomin": 0.01328823622316122,
+          "nieustalone": 0.9162777662277222
+        },
+        "confidence": 0.9162777662277222
+      }
+    },
+    {
+      "text": "Pozwany zawarł z (...)umowę kredytu nr (...) z 12.07.2012 r. na kwotę 36.000 zł z sumą odsetek 10.833,32 zł na 48 miesięcy oraz umowę kredytu nr (...) z 21.03.2011 r. na kwotę 148.663,10 zł z sumą odsetek 87.489,61 zł na 60 miesięcy.",
+      "start": 2757,
+      "end": 2990,
+      "kwota": "148663.10",
+      "amount_start": 2933,
+      "amount_end": 2946,
+      "marked": "Pozwany zawarł z (...)umowę kredytu nr (...) z 12.07.2012 r. na kwotę 36.000 zł z sumą odsetek 10.833,32 zł na 48 miesięcy oraz umowę kredytu nr (...) z 21.03.2011 r. na kwotę <KWOTA>148.663,10 zł</KWOTA> z sumą odsetek 87.489,61 zł na 60 miesięcy.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.8686010837554932,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.013206405565142632,
+          "pozostale_odszkodowanie": 0.014986039139330387,
+          "suma": 0.0926591083407402,
+          "pomin": 0.010547410696744919,
+          "nieustalone": 0.8686010837554932
+        },
+        "confidence": 0.8686010837554932
+      }
+    },
+    {
+      "text": "Pozwany zawarł z (...)umowę kredytu nr (...) z 12.07.2012 r. na kwotę 36.000 zł z sumą odsetek 10.833,32 zł na 48 miesięcy oraz umowę kredytu nr (...) z 21.03.2011 r. na kwotę 148.663,10 zł z sumą odsetek 87.489,61 zł na 60 miesięcy.",
+      "start": 2757,
+      "end": 2990,
+      "kwota": "87489.61",
+      "amount_start": 2962,
+      "amount_end": 2974,
+      "marked": "Pozwany zawarł z (...)umowę kredytu nr (...) z 12.07.2012 r. na kwotę 36.000 zł z sumą odsetek 10.833,32 zł na 48 miesięcy oraz umowę kredytu nr (...) z 21.03.2011 r. na kwotę 148.663,10 zł z sumą odsetek <KWOTA>87.489,61 zł</KWOTA> na 60 miesięcy.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.9570676684379578,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.008872396312654018,
+          "pozostale_odszkodowanie": 0.008306572213768959,
+          "suma": 0.019774679094552994,
+          "pomin": 0.005978709552437067,
+          "nieustalone": 0.9570676684379578
+        },
+        "confidence": 0.9570676684379578
+      }
+    },
+    {
+      "text": "Egzekucja z bankowego tytułu egzekucyjnego (...), wydanego na kwotę 34.544,47 zł na dzień 19.11.2014 r. na podstawie pierwszej z ww. umów okazała się bezskuteczna i została umorzona.",
+      "start": 2991,
+      "end": 3173,
+      "kwota": "34544.47",
+      "amount_start": 3059,
+      "amount_end": 3071,
+      "marked": "Egzekucja z bankowego tytułu egzekucyjnego (...), wydanego na kwotę <KWOTA>34.544,47 zł</KWOTA> na dzień 19.11.2014 r. na podstawie pierwszej z ww. umów okazała się bezskuteczna i została umorzona.",
+      "section": "uzasadnienie",
+      "category": "suma",
+      "confidence": 0.5297839045524597,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "suma",
+        "probabilities": {
+          "zadoscuczynienie": 0.01903138868510723,
+          "pozostale_odszkodowanie": 0.025041526183485985,
+          "suma": 0.5297839045524597,
+          "pomin": 0.03856925666332245,
+          "nieustalone": 0.3875739574432373
+        },
+        "confidence": 0.5297839045524597
+      }
+    },
+    {
+      "text": "Jako sumę egzekucji na 8.12.2015 r. wskazano kwotę 36.940,22 zł.",
+      "start": 3174,
+      "end": 3238,
+      "kwota": "36940.22",
+      "amount_start": 3225,
+      "amount_end": 3237,
+      "marked": "Jako sumę egzekucji na 8.12.2015 r. wskazano kwotę <KWOTA>36.940,22 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.7557907700538635,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.01614556275308132,
+          "pozostale_odszkodowanie": 0.020747549831867218,
+          "suma": 0.1671692132949829,
+          "pomin": 0.04014692083001137,
+          "nieustalone": 0.7557907700538635
+        },
+        "confidence": 0.7557907700538635
+      }
+    },
+    {
+      "text": "Egzekucja z bankowego tytułu egzekucyjnego (...), wydanego na kwotę 123.994,06 zł na dzień 20.10.2014 r. na podstawie drugiej z ww. umów, okazała się bezskuteczna i została umorzona.",
+      "start": 3239,
+      "end": 3421,
+      "kwota": "123994.06",
+      "amount_start": 3307,
+      "amount_end": 3320,
+      "marked": "Egzekucja z bankowego tytułu egzekucyjnego (...), wydanego na kwotę <KWOTA>123.994,06 zł</KWOTA> na dzień 20.10.2014 r. na podstawie drugiej z ww. umów, okazała się bezskuteczna i została umorzona.",
+      "section": "uzasadnienie",
+      "category": "suma",
+      "confidence": 0.5965532064437866,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "suma",
+        "probabilities": {
+          "zadoscuczynienie": 0.018823854625225067,
+          "pozostale_odszkodowanie": 0.025724373757839203,
+          "suma": 0.5965532064437866,
+          "pomin": 0.0291176475584507,
+          "nieustalone": 0.3297809362411499
+        },
+        "confidence": 0.5965532064437866
+      }
+    },
+    {
+      "text": "Jako sumę egzekucji na 8.12.2015 r. wskazano kwotę 133.208,09 zł.",
+      "start": 3422,
+      "end": 3487,
+      "kwota": "133208.09",
+      "amount_start": 3473,
+      "amount_end": 3486,
+      "marked": "Jako sumę egzekucji na 8.12.2015 r. wskazano kwotę <KWOTA>133.208,09 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.6673635244369507,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.015760434791445732,
+          "pozostale_odszkodowanie": 0.025094620883464813,
+          "suma": 0.26084277033805847,
+          "pomin": 0.030938660725951195,
+          "nieustalone": 0.6673635244369507
+        },
+        "confidence": 0.6673635244369507
+      }
+    },
+    {
+      "text": "Daje to sumę 170.148,31 zł.",
+      "start": 3918,
+      "end": 3945,
+      "kwota": "170148.31",
+      "amount_start": 3931,
+      "amount_end": 3944,
+      "marked": "Daje to sumę <KWOTA>170.148,31 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "suma",
+      "confidence": 0.7316659688949585,
+      "accepted": true,
+      "decision": {
+        "type": "choice",
+        "choice": "suma",
+        "probabilities": {
+          "zadoscuczynienie": 0.010815146379172802,
+          "pozostale_odszkodowanie": 0.016173778101801872,
+          "suma": 0.7316659688949585,
+          "pomin": 0.029209628701210022,
+          "nieustalone": 0.21213550865650177
+        },
+        "confidence": 0.7316659688949585
+      }
+    },
+    {
+      "text": "W pozostałej części skapitalizowane przez powoda odsetki (do sumy 173.473,21 zł) Sąd uznał za niewykazane.",
+      "start": 3946,
+      "end": 4052,
+      "kwota": "173473.21",
+      "amount_start": 4012,
+      "amount_end": 4025,
+      "marked": "W pozostałej części skapitalizowane przez powoda odsetki (do sumy <KWOTA>173.473,21 zł</KWOTA>) Sąd uznał za niewykazane.",
+      "section": "uzasadnienie",
+      "category": "suma",
+      "confidence": 0.6838388442993164,
+      "accepted": true,
+      "decision": {
+        "type": "choice",
+        "choice": "suma",
+        "probabilities": {
+          "zadoscuczynienie": 0.02444273605942726,
+          "pozostale_odszkodowanie": 0.02732938714325428,
+          "suma": 0.6838388442993164,
+          "pomin": 0.038825299590826035,
+          "nieustalone": 0.22556376457214355
+        },
+        "confidence": 0.6838388442993164
+      }
+    },
+    {
+      "text": "W ocenie Sądu za wykazane w tej kwestii można uznać jedynie to, że (...)w dniu 31.08.2015 r. jako komandytariusz wniósł aportem do (...) sp. z o.o. s.k. wkład niepieniężny – wymagalne wierzytelności z tytułu kredytów i pożyczek o łącznej wartości 283.767.050,45 zł.",
+      "start": 6376,
+      "end": 6641,
+      "kwota": "283767050.45",
+      "amount_start": 6623,
+      "amount_end": 6640,
+      "marked": "W ocenie Sądu za wykazane w tej kwestii można uznać jedynie to, że (...)w dniu 31.08.2015 r. jako komandytariusz wniósł aportem do (...) sp. z o.o. s.k. wkład niepieniężny – wymagalne wierzytelności z tytułu kredytów i pożyczek o łącznej wartości <KWOTA>283.767.050,45 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.7950152158737183,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.0188963133841753,
+          "pozostale_odszkodowanie": 0.0281926691532135,
+          "suma": 0.11546698957681656,
+          "pomin": 0.04242872819304466,
+          "nieustalone": 0.7950152158737183
+        },
+        "confidence": 0.7950152158737183
+      }
+    },
+    {
+      "text": "Jak wskazał Sąd pierwszej instancji wysokość zadłużenia, wynikająca z treści prawomocnych postanowień o umorzeniu egzekucji, wynosi kwotę 170 148, 31 zł.",
+      "start": 19590,
+      "end": 19743,
+      "kwota": "31",
+      "amount_start": 19737,
+      "amount_end": 19742,
+      "marked": "Jak wskazał Sąd pierwszej instancji wysokość zadłużenia, wynikająca z treści prawomocnych postanowień o umorzeniu egzekucji, wynosi kwotę 170 148, <KWOTA>31 zł</KWOTA>.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.8898506760597229,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.01400742121040821,
+          "pozostale_odszkodowanie": 0.015315063297748566,
+          "suma": 0.0584816075861454,
+          "pomin": 0.02234521321952343,
+          "nieustalone": 0.8898506760597229
+        },
+        "confidence": 0.8898506760597229
+      }
+    },
+    {
+      "text": "Dochodzona przez powoda kwota 173 473, 21 zł zawiera odsetki za dalsze opóźnienie, powstałe już po umorzeniu egzekucji, a naliczone zgodnie z treścią bankowych tytułów egzekucyjnych i ich punktów drugich zatytułowanych (...) (art. 482 § 1 k.c.).",
+      "start": 19744,
+      "end": 19989,
+      "kwota": "21",
+      "amount_start": 19783,
+      "amount_end": 19788,
+      "marked": "Dochodzona przez powoda kwota 173 473, <KWOTA>21 zł</KWOTA> zawiera odsetki za dalsze opóźnienie, powstałe już po umorzeniu egzekucji, a naliczone zgodnie z treścią bankowych tytułów egzekucyjnych i ich punktów drugich zatytułowanych (...) (art. 482 § 1 k.c.).",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.5188415050506592,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.02037454955279827,
+          "pozostale_odszkodowanie": 0.021741539239883423,
+          "suma": 0.40484270453453064,
+          "pomin": 0.03419966623187065,
+          "nieustalone": 0.5188415050506592
+        },
+        "confidence": 0.5188415050506592
+      }
+    },
+    {
+      "text": "Na koszty te składa się opłata od pozwu (1000 zł) oraz koszt zastępstwa prawnego ustalony w oparciu o § 2 pkt 6 rozporządzenia Ministra Sprawiedliwości w sprawie opłat za czynności adwokackie z dnia 22 października 2015r. (Dz.U. 2015 r., poz. 1800) w wersji obowiązującej do dnia 26 października 2016r.",
+      "start": 20479,
+      "end": 20781,
+      "kwota": "1000",
+      "amount_start": 20520,
+      "amount_end": 20527,
+      "marked": "Na koszty te składa się opłata od pozwu (<KWOTA>1000 zł</KWOTA>) oraz koszt zastępstwa prawnego ustalony w oparciu o § 2 pkt 6 rozporządzenia Ministra Sprawiedliwości w sprawie opłat za czynności adwokackie z dnia 22 października 2015r. (Dz.U. 2015 r., poz. 1800) w wersji obowiązującej do dnia 26 października 2016r.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.8606312274932861,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.01674395427107811,
+          "pozostale_odszkodowanie": 0.021720249205827713,
+          "suma": 0.0466700941324234,
+          "pomin": 0.054234523326158524,
+          "nieustalone": 0.8606312274932861
+        },
+        "confidence": 0.8606312274932861
+      }
+    },
+    {
+      "text": "Pozwany przegrał postępowanie apelacyjne i powinien ponieść jego koszt na który składa się opłata od apelacji (1000 zł) oraz koszt zastępstwa procesowego ustalony na podstawie § 2 pkt 6 w zw. z § 10 ust. 2 ww. rozporządzenia w wersji obowiązującej do dnia 26 października 2016 r. Zgodnie bowiem z treścią § 2 pkt 6 rozporządzenia Ministra Sprawiedliwości zmieniającego rozporządzenie w sprawie opłat za czynności adwokackie z dnia 3 października 2016r. (Dz.U. 2016 r., poz. 1668) do spraw wszczętych i niezakończonych przed dniem wejścia wżycie rozporządzenia stosuje się przepisy dotychczasowe do czasu zakończenia postępowania w danej instancji.",
+      "start": 20997,
+      "end": 21644,
+      "kwota": "1000",
+      "amount_start": 21108,
+      "amount_end": 21115,
+      "marked": "Pozwany przegrał postępowanie apelacyjne i powinien ponieść jego koszt na który składa się opłata od apelacji (<KWOTA>1000 zł</KWOTA>) oraz koszt zastępstwa procesowego ustalony na podstawie § 2 pkt 6 w zw. z § 10 ust. 2 ww. rozporządzenia w wersji obowiązującej do dnia 26 października 2016 r. Zgodnie bowiem z treścią § 2 pkt 6 rozporządzenia Ministra Sprawiedliwości zmieniającego rozporządzenie w sprawie opłat za czynności adwokackie z dnia 3 października 2016r. (Dz.U. 2016 r., poz. 1668) do spraw wszczętych i niezakończonych przed dniem wejścia wżycie rozporządzenia stosuje się przepisy dotychczasowe do czasu zakończenia postępowania w danej instancji.",
+      "section": "uzasadnienie",
+      "category": "nieustalone",
+      "confidence": 0.7773462533950806,
+      "accepted": false,
+      "decision": {
+        "type": "choice",
+        "choice": "nieustalone",
+        "probabilities": {
+          "zadoscuczynienie": 0.023251278325915337,
+          "pozostale_odszkodowanie": 0.0253398846834898,
+          "suma": 0.050620634108781815,
+          "pomin": 0.12344203144311905,
+          "nieustalone": 0.7773462533950806
+        },
+        "confidence": 0.7773462533950806
+      }
+    }
+  ]
+}

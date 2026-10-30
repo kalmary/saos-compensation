@@ -1,6 +1,7 @@
 """Lokalna próba polskiego modelu decyzyjnego: uv run --extra extraction notebooks/03_system_one_polish.py."""
 
 import asyncio
+import copy
 import hashlib
 import importlib
 import json
@@ -11,13 +12,103 @@ import time
 from datetime import datetime, timezone
 from collections import Counter
 from pathlib import Path
+from contextvars import ContextVar
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("HF_HOME", str(ROOT / "tmp" / "huggingface"))
 REQUEST_COUNTS = {"cached": 0, "computed": 0}
+MODEL_CALLS = ContextVar("model_calls", default=None)
 
+
+DEFAULTS = {'version': 'saos-extraction-4',
+ 'chunk_characters': 1200,
+ 'context_characters': 600,
+ 'feature_source': 'semantic_paragraphs',
+ 'system_one': {'model': 'Remek/basal-2.0-4.5B',
+                'revision': 'e5ba9149760d99b73b1963d8e0ccf948b58afacb',
+                'mode': 'mps',
+                'device': 'mps',
+                'template_prefix': 'off',
+                'context_overflow': 'refuse'},
+ 'language': 'pl',
+ 'questions': {'section': {'instructions': 'Jaka jest funkcja wyłącznie ocenianego fragmentu? Poprzedni i '
+                                           'następny tekst służą tylko ustaleniu kontekstu i autora twierdzenia. '
+                                           'Nie przypisuj ich treści ocenianemu fragmentowi. Opis faktów może '
+                                           'znajdować się w UZASADNIENIU bez własnego nagłówka. Odróżnij co się '
+                                           'wydarzyło od dlaczego sąd wydał taki wyrok lub przyznał taką kwotę. '
+                                           'Jeśli treści są połączone, wybierz mieszany; jeśli brak podstaw do '
+                                           'decyzji, niejednoznaczny.',
+                           'criteria': {'fakty': 'Opis ustalonych faktów tej sprawy: zdarzenia, krzywdy, osoby '
+                                                 'lub jej sytuacji i następstw. Bez żądań i bez oceny prawnej.',
+                                        'stanowiska': 'Żądania, zarzuty lub twierdzenia stron, bez potwierdzenia '
+                                                      'ich przez sąd.',
+                                        'rozstrzygniecie': 'Sentencja: co sąd zasądził, oddalił lub nakazał.',
+                                        'rozwazania': 'Rozważania prawne, precedensy lub uzasadnienie '
+                                                      'rozstrzygnięcia.',
+                                        'mieszany': 'W jednym fragmencie połączono opis faktów z oceną prawną, '
+                                                    'uzasadnieniem kwoty lub niepotwierdzonymi twierdzeniami '
+                                                    'strony.',
+                                        'niejednoznaczny': 'Nie można rozstrzygnąć, czy to ustalenia sądu, '
+                                                           'twierdzenia strony czy rozważania; niewystarczający '
+                                                           'kontekst.',
+                                        'inne': 'Nagłówek, metadane, podpis, sygnatura lub sama lista dowodów.'}},
+               'leakage': {'instructions': 'Oceń wyłącznie oceniany fragment, nie jego sąsiadów. Czy ujawnia '
+                                           'kwotę żądaną, zasądzoną lub wcześniej wypłaconą, wynik postępowania, '
+                                           'albo wyjaśnia wybór wysokości świadczenia? Także bez podania liczby. '
+                                           'Sam opis urazu i jego skutków nie jest uzasadnieniem wysokości.'},
+               'amount': {'instructions': 'Czego dotyczy wyłącznie kwota oznaczona <KWOTA>? Przeczytaj jej '
+                                          'otoczenie i sentencję. Wybierz zasądzone świadczenie tylko dla tego '
+                                          'wyroku i wskazanego poszkodowanego. Nie pomyl żądania ani '
+                                          'wcześniejszej wypłaty z zasądzeniem. Jeżeli sąd uznaje za odpowiednie '
+                                          '7000 zł, ale po odjęciu wypłaty zasądza 6300 zł, targetem jest 6300 '
+                                          'zł. Zwrot kosztów instancji odwoławczej jest kosztem postępowania, '
+                                          'nigdy pozostałym odszkodowaniem. Kwota główna z odsetkami nadal może '
+                                          'być targetem; same odsetki nim nie są. Nie przenoś kategorii '
+                                          'sąsiedniej liczby na oznaczoną kwotę.',
+                          'criteria': {'zadoscuczynienie': 'Oznaczona kwota to zadośćuczynienie zasądzone temu '
+                                                           'poszkodowanemu w analizowanym wyroku.',
+                                       'pozostale_odszkodowanie': 'Oznaczona kwota to zasądzone temu '
+                                                                  'poszkodowanemu jednorazowe odszkodowanie za '
+                                                                  'szkodę majątkową, np. zwrot leczenia lub '
+                                                                  'utraconych zarobków.',
+                                       'suma': 'Oznaczona kwota jest zasądzoną sumą świadczeń głównych dla tego '
+                                               'poszkodowanego, której nie można tutaj przypisać do jednego '
+                                               'składnika.',
+                                       'pomin': 'Kwota żądana, wcześniej wypłacona, z innego wyroku, dla innego '
+                                                'odbiorcy, koszty procesu/sądowe/instancji '
+                                                'odwoławczej/zastępstwa, odsetki lub renta; poza targetami.',
+                                       'nieustalone': 'Nie ma podstaw do przypisania oznaczonej kwoty do '
+                                                      'zasądzonego świadczenia.'}},
+               'award_check': {'instructions': 'Czy propozycja jest zgodna z sentencją analizowanego wyroku i '
+                                               'dowodami? Odbiorcą ma być wskazany poszkodowany, nie fundacja ani '
+                                               'inna osoba. Kwoty muszą być zasądzone w tym wyroku, nie tylko '
+                                               'żądane, wcześniej wypłacone lub cytowane. Koszty procesu i '
+                                               'sądowe, koszty instancji odwoławczej, odsetki oraz renta są '
+                                               'wyłączone. Nieustalenie jednego składnika nie unieważnia '
+                                               'drugiego. Nie traktuj zgodności sumy jako jedynego dowodu.'},
+               'extraction': {'instructions': 'Wyodrębnij treść pól opisu sprawy zgodnie ze schematem. Zachowaj negacje, osobę '
+                                              'i czas. Nie dopisuj ocen, nie używaj kwot ani uzasadnienia ich '
+                                              'wysokości. Jeśli nie ma informacji dla pola, wybierz not stated.',
+                              'field_suffix': ' Konkretny opis dotyczący poszkodowanego.'},
+               'instance': {'instructions': 'W której instancji zapadł ten wyrok? Wymagaj informacji o etapie '
+                                            'postępowania. Nie wnioskuj wyłącznie z poziomu ani nazwy sądu. Przy '
+                                            'braku dowodu wybierz nieustalona.',
+                            'criteria': {'pierwsza': 'Pierwsza instancja.',
+                                         'druga': 'Druga instancja: rozpoznanie apelacji.',
+                                         'nieustalona': 'Brak jednoznacznej informacji o instancji.'}}}}
+FEATURE_DESCRIPTIONS = {'zdarzenie_i_okolicznosci': 'Zdarzenie będące przyczyną krzywdy i jego okoliczności.',
+ 'rodzaj_doznanej_krzywdy': 'Konkretny rodzaj krzywdy poszkodowanego, np. obrażenie ciała, śmierć bliskiego albo '
+                            'naruszenie dobrego imienia.',
+ 'przebieg_nasilenie_i_czas_trwania': 'Przebieg dolegliwości, ich nasilenie, czas trwania oraz ustąpienie lub '
+                                      'utrzymywanie się.',
+ 'konsekwencje_dla_zycia': 'Co zmieniło się w funkcjonowaniu, pracy, relacjach lub samodzielności i jakie skutki '
+                           'pozostały?',
+ 'indywidualne_okolicznosci_poszkodowanego': 'Wiek, zawód, wcześniejsza sytuacja osobista i zdrowie '
+                                             'poszkodowanego albo relacja ze zmarłym.',
+ 'podjete_dzialania_i_potrzebna_pomoc': 'Jak łagodzono skutki i jakiego leczenia, wsparcia lub innej pomocy '
+                                        'potrzebował poszkodowany?'}
 
 def read_config(path):
     value = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -31,40 +122,21 @@ def load_config(path=None):
     settings = read_config(path)
     basal = read_config(path.parent / settings["basal"])
     api = read_config(path.parent / settings["api"])
-    config = {**settings, **basal, "api": api, "judgment_ids": api["judgment_ids"]}
-    if not isinstance(config, dict) or not isinstance(config.get("fields"), dict) or not config["fields"]:
-        raise ValueError("Konfiguracja wymaga niepustej listy pól")
-    if not all(isinstance(k, str) and isinstance(v, str) and v.strip() for k, v in config["fields"].items()):
-        raise ValueError("Pola muszą mieć nazwy i pytania tekstowe")
-    if not 0 < config["system_one"]["minimum_probability"] < 1:
-        raise ValueError("Próg decyzji musi należeć do (0, 1)")
-    if not 0 <= config["system_one"]["maximum_leak_probability"] < 0.5:
-        raise ValueError("Nieprawidłowy próg ryzyka wycieku")
-    if not 0 < config["system_one"]["amount_minimum_probability"] < 1:
-        raise ValueError("Nieprawidłowy próg potwierdzenia zasądzenia")
-    if type(config["chunk_characters"]) is not int or config["chunk_characters"] < 100:
-        raise ValueError("Nieprawidłowy rozmiar fragmentu")
-    if config["feature_source"] not in {"semantic_paragraphs", "full_document", "factual_section"}:
-        raise ValueError("Nieznany zakres tekstu dla cech")
-    if type(config["context_characters"]) is not int or config["context_characters"] < 0:
-        raise ValueError("Nieprawidłowy rozmiar sąsiedniego kontekstu")
-    if not isinstance(config.get("questions"), dict):
-        raise ValueError("Brak pytań modelu")
-    for name in ("section", "leakage", "amount", "award_check", "extraction", "instance"):
-        question = config["questions"].get(name)
-        if not isinstance(question, dict) or not isinstance(question.get("instructions"), str) or not question["instructions"].strip():
-            raise ValueError(f"Brak instrukcji: {name}")
-        if name in {"section", "amount", "instance"}:
-            criteria = question.get("criteria")
-            if not isinstance(criteria, dict) or not criteria or not all(isinstance(k, str) and isinstance(v, str) and v.strip() for k, v in criteria.items()):
-                raise ValueError(f"Nieprawidłowe kategorie: {name}")
-    if not isinstance(config["language"], str) or not config["language"].strip():
-        raise ValueError("Brak języka pytań")
-    if not isinstance(config["questions"]["extraction"].get("field_suffix"), str):
-        raise ValueError("Brak instrukcji opisu pola")
-    for name in ("model", "revision", "mode", "device", "template_prefix", "context_overflow"):
-        if not isinstance(config["system_one"].get(name), str) or not config["system_one"][name].strip():
-            raise ValueError(f"Nieprawidłowy parametr modelu: {name}")
+    required = {"feature_fields", "target_fields", "minimum_probability", "maximum_leak_probability", "amount_minimum_probability"}
+    if set(basal) != required:
+        raise ValueError("basal.yaml wymaga tylko nazw pól i trzech progów pewności")
+    for key, allowed in (("feature_fields", {*FEATURE_DESCRIPTIONS, "rok_wyroku", "instancja", "miejscowosc_sadu", "wielkość miejscowości"}), ("target_fields", AWARD_FIELDS)):
+        fields = basal[key]
+        if not isinstance(fields, list) or not fields or not all(isinstance(field, str) and field in allowed for field in fields) or len(fields) != len(set(fields)):
+            raise ValueError(f"Nieprawidłowe nazwy pól: {key}")
+    for key in ("minimum_probability", "maximum_leak_probability", "amount_minimum_probability"):
+        value = basal[key]
+        if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:
+            raise ValueError(f"Nieprawidłowy próg: {key}")
+    config = {**settings, **copy.deepcopy(DEFAULTS), "api": api,
+              "fields": {key: FEATURE_DESCRIPTIONS[key] for key in basal["feature_fields"] if key in FEATURE_DESCRIPTIONS},
+              "target_fields": basal["target_fields"]}
+    config["system_one"].update({key: basal[key] for key in ("minimum_probability", "maximum_leak_probability", "amount_minimum_probability")})
     return config
 
 
@@ -164,6 +236,8 @@ async def ask(server, state, questions, config):
         path.write_text(json.dumps({"request": request, "response": response,
             "model": config["system_one"], "created_at": datetime.now(timezone.utc).isoformat()},
             ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if MODEL_CALLS.get() is not None:
+        MODEL_CALLS.get().append({"request": request, "response": response})
     return check_decision(response, questions, state)
 
 
@@ -327,8 +401,9 @@ def award_state(text, row, context_characters=600):
             "poprzedzajacy_kontekst": text[max(0, row["start"] - context_characters):row["start"]]}
 
 
-def propose_award(text, decisions):
-    result = {field: "brak informacji" for field in (*AWARD_FIELDS, "suma", "kwota_nierozdzielona")}
+def propose_award(text, decisions, target_fields=None):
+    target_fields = AWARD_FIELDS if target_fields is None else target_fields
+    result = {field: "brak informacji" for field in (*target_fields, "suma", "kwota_nierozdzielona")}
     result.update(beneficjent="brak informacji", waluta="PLN", evidence=[], status="brak ustalonego zasądzenia")
     api = importlib.import_module("01_saos_feasibility")
     heading = list(api.REASONS.finditer(text))
@@ -342,7 +417,7 @@ def propose_award(text, decisions):
         return result
     result["beneficjent"] = plaintiff[1].strip()
     selected = {}
-    for field in ("suma", *AWARD_FIELDS):
+    for field in ("suma", *target_fields):
         rows = [row for row in decisions if row["accepted"] and row["category"] == field]
         direct = [row for row in rows if row["section"] == "sentencja"]
         # Nie sumujemy wystąpień. Konflikt kilku wartości w jednej kategorii wymaga przeglądu.
@@ -358,12 +433,12 @@ def propose_award(text, decisions):
         if len(values) == 1:
             value = values.pop()
             selected[field] = next(row for row in candidates if api.Decimal(row["kwota"]) == value)
-    for field in AWARD_FIELDS:
+    for field in target_fields:
         if field in selected:
             result[field] = selected[field]["kwota"]
     if "suma" in selected:
         result["kwota_nierozdzielona"] = selected["suma"]["kwota"]
-    if all(field in selected for field in AWARD_FIELDS):
+    if set(AWARD_FIELDS) <= set(target_fields) and all(field in selected for field in AWARD_FIELDS):
         total = sum(api.Decimal(result[field]) for field in AWARD_FIELDS)
         if "suma" in selected and total != api.Decimal(selected["suma"]["kwota"]):
             result["status"] = "składniki nie zgadzają się z sumą — do przeglądu"
@@ -382,7 +457,7 @@ def finish_award(proposal, accepted, decision):
     result = {**proposal, "verification": decision, "confirmed": accepted}
     if not accepted:
         result["proposal"] = proposal
-        result.update({field: "brak informacji" for field in (*AWARD_FIELDS, "suma", "kwota_nierozdzielona")})
+        result.update({field: "brak informacji" for field in (*AWARD_FIELDS, "suma", "kwota_nierozdzielona") if field in result})
         result["status"] = "model nie potwierdził propozycji — do przeglądu"
     return result
 
@@ -395,7 +470,7 @@ async def extract_award(server, text, diagnostics, config):
         decisions.append({**row, "category": answer["choice"], "confidence": answer["confidence"],
                           "accepted": answer["confidence"] >= threshold and answer["choice"] in {*AWARD_FIELDS, "suma"},
                           "decision": answer})
-    proposal = propose_award(text, decisions)
+    proposal = propose_award(text, decisions, config.get("target_fields", AWARD_FIELDS))
     if not proposal["evidence"] or "conflict" in proposal:
         return {**proposal, "confirmed": False, "amount_decisions": decisions}
     state = {"propozycja": {key: value for key, value in proposal.items() if key != "evidence"},
@@ -473,13 +548,19 @@ async def extract(server, text, config, identifier):
             "text_sha256": hashlib.sha256(text.encode()).hexdigest()}
 
 
-def write_paragraphs(result, directory, threshold):
+def write_paragraphs(result, directory, threshold, debug=False):
     # Rozdzielone oryginalne teksty do ręcznego porównania. Offsety i wszystkie
     # decyzje, w tym stanowiska stron, pozostają w pełnym results.json.
     directory.mkdir(parents=True, exist_ok=True)
     if "award" in result:
-        (directory / "award.json").write_text(json.dumps(result["award"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        award = result["award"] if debug else {k: v for k, v in result["award"].items() if k not in {"evidence", "amount_decisions", "proposal", "verification"}}
+        (directory / "award.json").write_text(json.dumps(award, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (directory / "record.json").write_text(json.dumps(result["features"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if not debug:
+        return
+    (directory / "analysis.json").write_text(json.dumps({k: v for k, v in result.items() if k != "model_calls"}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if "model_calls" in result:
+        (directory / "model_calls.json").write_text(json.dumps(result["model_calls"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     diagnostics = result["diagnostics"]
     groups = {
         "facts.txt": [row for row in diagnostics if row["accepted"]],
@@ -521,9 +602,16 @@ async def run(texts=None, config=None):
         if texts is None:
             api = importlib.import_module("01_saos_feasibility")
             api.OUTPUT.mkdir(parents=True, exist_ok=True)
-            texts = {identifier: api.extract_text(api.fetch_json(f"{api.BASE_URL}/judgments/{identifier}")["data"]["textContent"])
-                     for identifier in config["judgment_ids"]}
-        results = {identifier: await extract(server, text, config, identifier) for identifier, text in texts.items()}
+            texts = api.judgment_texts(config["api"])
+        results = {}
+        for identifier, text in texts.items():
+            token = MODEL_CALLS.set([] if config["api"]["debug"] else None)
+            try:
+                results[identifier] = await extract(server, text, config, identifier)
+                if config["api"]["debug"]:
+                    results[identifier]["model_calls"] = MODEL_CALLS.get()
+            finally:
+                MODEL_CALLS.reset(token)
         output = {"config": config, "engine_version": "2.4.1", "engine_arguments": vars(args),
                   "created_at": datetime.now(timezone.utc).isoformat(), "requests": REQUEST_COUNTS.copy(),
                   "evaluation": evaluation, "judgments": results,
@@ -532,7 +620,14 @@ async def run(texts=None, config=None):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         for identifier, result in results.items():
-            write_paragraphs(result, path.parent / str(identifier), config["system_one"]["minimum_probability"])
+            directory = path.parent / str(identifier)
+            write_paragraphs(result, directory, config["system_one"]["minimum_probability"], config["api"]["debug"])
+            if config["api"]["debug"]:
+                (directory / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                (directory / "source.txt").write_text(texts[identifier] + "\n", encoding="utf-8")
+                source = ROOT / "tmp" / "saos_feasibility" / str(identifier) / "judgment.json"
+                if source.exists():
+                    (directory / "judgment.json").write_bytes(source.read_bytes())
         for identifier, result in results.items():
             print(f"\nID {identifier}")
             print(json.dumps(result["features"], ensure_ascii=False, indent=2))
@@ -550,4 +645,10 @@ async def run(texts=None, config=None):
 
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fixtures", action="store_true", help="Przetwórz foldery fixtures/ bez pobierania SAOS")
+    options = parser.parse_args()
+    texts = importlib.import_module("01_saos_feasibility").fixture_texts() if options.fixtures else None
+    asyncio.run(run(texts))

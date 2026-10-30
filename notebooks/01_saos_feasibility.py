@@ -29,7 +29,6 @@ import asyncio
 import hashlib
 import importlib
 import json
-import random
 import re
 import sqlite3
 import time
@@ -45,7 +44,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "tmp" / "saos_feasibility"
 CONFIG = importlib.import_module("03_system_one_polish").load_config()
-BASE_URL = CONFIG["api"]["base_url"].rstrip("/")
+BASE_URL = "https://www.saos.org.pl/api"
 
 # %% 2. Pobieranie i HTML: zachowujemy surowy JSON oraz pochodzenie danych.
 # Cache pozwala eksperymentować bez ponownego pobierania tych samych wyroków.
@@ -99,46 +98,83 @@ def fetch_json(url):
             time.sleep(2**attempt)
 
 
+def save_source(payload, directory=None):
+    data = payload["data"]
+    if type(data.get("id")) is not int or data["id"] <= 0 or not isinstance(data.get("textContent"), str):
+        raise ValueError("Nieprawidłowy wyrok do zapisu")
+    directory = Path(directory) if directory is not None else OUTPUT / str(data["id"])
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "judgment.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (directory / "source.txt").write_text(extract_text(data["textContent"]) + "\n", encoding="utf-8")
+
+
+def fixture_texts(directory=None):
+    directory = Path(directory) if directory is not None else ROOT / "fixtures"
+    texts = {}
+    for path in sorted(directory.glob("*/judgment.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))["data"]
+        if type(data.get("id")) is not int or data["id"] in texts or not isinstance(data.get("textContent"), str):
+            raise ValueError(f"Nieprawidłowa lub powtórzona fixtura: {path}")
+        text = extract_text(data["textContent"])
+        if not text:
+            raise ValueError(f"Pusty tekst fixtury: {path}")
+        texts[data["id"]] = text
+    if not texts:
+        raise ValueError(f"Brak fixtur: {directory}")
+    return texts
+
+
 def search_settings(config, today=None):
-    end = date.fromisoformat(str(config["date_range"]["to"])) if config["date_range"]["to"] else today or date.today()
-    lower = config["date_range"]["from"]
-    years = config["date_range"]["years"]
-    if type(years) is not int or years <= 0:
-        raise ValueError("Liczba lat musi być dodatnią liczbą całkowitą")
-    start = date.fromisoformat(str(lower)) if lower else end.replace(
-        year=end.year - years, day=min(end.day, monthrange(end.year - years, end.month)[1]))
-    if start > end:
-        raise ValueError("Początek zakresu dat jest późniejszy niż koniec")
-    request = config["request"]
-    if type(request["pageSize"]) is not int or not 10 <= request["pageSize"] <= 100:
-        raise ValueError("pageSize musi należeć do 10..100")
-    if type(request["pageNumber"]) is not int or request["pageNumber"] < 0:
-        raise ValueError("pageNumber musi być nieujemną liczbą całkowitą")
-    if not isinstance(request.get("all"), str) or not request["all"].strip():
-        raise ValueError("Brak zawężającej frazy wyszukiwania")
-    sampling = config["sampling"]
-    if not sampling["court_levels"] or any(level not in {"DISTRICT", "REGIONAL", "APPEAL"} for level in sampling["court_levels"]):
-        raise ValueError("Nieprawidłowe poziomy sądów w próbce")
-    if type(sampling["seed"]) is not int or type(sampling["examples_per_query"]) is not int or not 0 <= sampling["examples_per_query"] <= request["pageSize"]:
-        raise ValueError("Nieprawidłowy dobór próbki")
-    for key in ("additional_judgment_ids", "judgment_ids"):
-        if not isinstance(config[key], list) or any(type(value) is not int or value <= 0 for value in config[key]):
-            raise ValueError(f"Nieprawidłowe ID: {key}")
-    params = {**request, "judgmentDateFrom": start.isoformat(), "judgmentDateTo": end.isoformat()}
-    if not isinstance(config["queries"], dict) or not config["queries"] or not all(isinstance(v, dict) for v in config["queries"].values()):
-        raise ValueError("Warianty zapytań muszą być niepustą mapą filtrów")
-    queries = {name: {**params, **overrides} for name, overrides in config["queries"].items()}
-    return start, end, params, queries
+    if set(config) - {"download_path", "download_only", "timeout"} != {"max_age_years", "max_pages", "debug"}:
+        raise ValueError("api.yaml wymaga max_age_years, max_pages i debug")
+    if type(config["debug"]) is not bool:
+        raise ValueError("debug musi być wartością true albo false")
+    years, limit = config["max_age_years"], config["max_pages"]
+    if type(years) is not int or years <= 0 or type(limit) is not int or limit < 0:
+        raise ValueError("max_age_years musi być dodatnie, a max_pages nieujemne")
+    end = today or date.today()
+    start = end.replace(year=end.year - years, day=min(end.day, monthrange(end.year - years, end.month)[1]))
+    params = {"all": "zadośćuczynienie zł", "courtType": "COMMON", "judgmentTypes": "SENTENCE",
+              "pageSize": 100, "pageNumber": 0, "sortingField": "DATABASE_ID", "sortingDirection": "ASC",
+              "judgmentDateFrom": start.isoformat(), "judgmentDateTo": end.isoformat()}
+    return start, end, params
 
 
-def yearly_ranges(start, end):
-    lower, index = start, 1
-    while lower <= end:
-        year = start.year + index
-        boundary = start.replace(year=year, day=min(start.day, monthrange(year, start.month)[1]))
-        upper = end if boundary >= end else boundary - timedelta(days=1)
-        yield lower, upper
-        lower, index = upper + timedelta(days=1), index + 1
+def search_pages(config, today=None):
+    _, _, params = search_settings(config, today)
+    page = 0
+    while config["max_pages"] == 0 or page < config["max_pages"]:
+        result = search_judgments({**params, "pageNumber": page})
+        total = result["info"]["totalResults"]
+        if not result["items"] and page * params["pageSize"] < total:
+            raise ValueError("API zwróciło pustą stronę przed końcem wyników")
+        yield page, result
+        if (page + 1) * params["pageSize"] >= total:
+            break
+        page += 1
+
+
+def judgment_texts(config):
+    start, end, _ = search_settings(config)
+    texts = {}
+    for _, page in search_pages(config):
+        for item in page["items"]:
+            identifier = item["id"]
+            if identifier in texts:
+                continue
+            payload = fetch_json(f"{BASE_URL}/judgments/{identifier}")
+            data = payload["data"]
+            if data["id"] != identifier or not start <= date.fromisoformat(data["judgmentDate"]) <= end:
+                raise ValueError(f"Nieprawidłowy wyrok: {identifier}")
+            if not isinstance(data["textContent"], str):
+                raise ValueError(f"Brak tekstu: {identifier}")
+            text = extract_text(data["textContent"])
+            if not text:
+                raise ValueError(f"Pusty tekst: {identifier}")
+            if config["debug"]:
+                save_source(payload)
+            texts[identifier] = text
+    return texts
 
 
 def search_judgments(params):
@@ -383,16 +419,8 @@ assert split_sections("WYROK\noddala powództwo")["fakty"] == ""
 assert split_sections("WYROK\nUZASADNIENIE\nSąd ustalił:\nUraz.\nSąd zważył:\nOcena.")["fakty"] == "Uraz."
 
 
-# %% 7. Eksperyment wyszukiwania: parametry mają jawny cel, a nie są domysłem.
-# all: temat; COMMON: sądy powszechne; SENTENCE: wyroki, nie postanowienia.
-# SENTENCE nie gwarantuje uzasadnienia; bywa ono osobnym rekordem REASONS.
-# pageSize=10: mała próbka, nie pobranie korpusu; pageNumber=0: pierwsza strona.
-# DATABASE_ID + ASC: łatwo powtórzyć kolejność, nie jest to chronologia.
-# Dla większej próby losujemy strony w rocznych przedziałach i poziomach sądu.
-# „zadośćuczynienie zasądza zł” zawęża tekst, ale może trafić w żądania i koszty.
-# keywords zawęża metadane, lecz może zgubić wyroki bez poprawnego tagu.
-# Nie wybieramy legalBase=445 na stałe: wykluczyłoby to inne podstawy roszczeń.
-# Parametry są lokalnym warsztatem badawczym, nie interfejsem eksperymentu ML.
+# %% 7. Stałe wyszukiwanie: wyroki sądów powszechnych o zadośćuczynieniu z kwotą.
+# API konfiguruje tylko wiek danych i liczbę stron. Zero stron oznacza brak limitu.
 if __name__ == "__main__":
     import argparse
 
@@ -404,63 +432,19 @@ if __name__ == "__main__":
     OUTPUT.mkdir(parents=True, exist_ok=True)
     localities, locality_source = load_localities()
     morphology, courts = morfeusz2.Morfeusz(), {}
-    start_date, today, params, queries = search_settings(CONFIG["api"])
-    sampling = CONFIG["api"]["sampling"]
-    report = ["# Badanie SAOS: zadośćuczynienie, kwoty i cechy", "", "## 1. Co i jak wyszukujemy?", ""]
-    report.append(f"Zakres dat orzeczenia: {start_date}–{today} (według configs/dataset/api.yaml).")
+    start_date, today, params = search_settings(CONFIG["api"])
+    report = ["# Badanie SAOS: zadośćuczynienie, kwoty i cechy", "", "## 1. Co i jak wyszukujemy?", "",
+              f"Zakres dat orzeczenia: {start_date}–{today}.",
+              f"Parametry zapytania: {json.dumps(params, ensure_ascii=False)}.",
+              f"Limit stron: {CONFIG['api']['max_pages']} (0 = wszystkie)."]
     sample, sources = {}, {}
-    for name, query in queries.items():
-        print(f"Zapytanie: {name}", flush=True)
-        result = search_judgments(query)
-        url = requests.Request("GET", BASE_URL + "/search/judgments", params=query).prepare().url
-        metadata = json.loads((OUTPUT / f"{hashlib.sha256(url.encode()).hexdigest()}.meta.json").read_text())
-        report.append(f"- {name}: {result['info']['totalResults']} trafień; all={query['all']!r}; pobrano {metadata['acquired_at']}.")
-        # Każde zapytanie wnosi dwa przykłady, ale deduplikujemy po SAOS ID.
-        for item in result["items"][:sampling["examples_per_query"]]:
+    for page, result in search_pages(CONFIG["api"], today):
+        print(f"Strona {page}: {len(result['items'])} wyników z {result['info']['totalResults']}", flush=True)
+        report.append(f"- Strona {page}: {len(result['items'])} wyników.")
+        for item in result["items"]:
             sample[item["id"]] = item
-            sources.setdefault(item["id"], []).append(name)
-    report += [
-        "", f"Parametry bazowe: {json.dumps(params, ensure_ascii=False)}.",
-        "To filtry tematu, nie potwierdzenie zasądzenia. Liczby nakładają się i NIE oznaczają użytecznych etykiet.",
-        "Sprawdzono zastosowanie parametrów w queryTemplate odpowiedzi. Brak filtra semantycznego dla naszego targetu.",
-    ]
-    # Około 300 wyroków: 10 rocznych przedziałów x 3 poziomy sądu x 10 wyników.
-    # W każdej warstwie losujemy jedną PEŁNĄ stronę, z ustalonym ziarnem.
-    # To próba grupowa: wyniki na stronie mogą pochodzić z jednego sądu.
-    # Nie nadaje się do prostego szacowania udziału użytecznych wyroków w SAOS.
-    # Roczne przedziały są rozłączne; ostatni obejmuje również dzisiejszą datę.
-    # Poziom sądu nie jest gwarancją pierwszej instancji; apelację ustala się z tekstu.
-    random_pages = random.Random(sampling["seed"])
-    strata = []
-    print("Próbka ostatnich 10 lat: roczne przedziały, wszystkie trzy poziomy sądów...", flush=True)
-    for lower, upper in yearly_ranges(start_date, today):
-        for level in sampling["court_levels"]:
-            query = {**params, **sampling["query"], "ccCourtType": level,
-                     "judgmentDateFrom": lower.isoformat(), "judgmentDateTo": upper.isoformat()}
-            result = search_judgments(query)
-            total = result["info"]["totalResults"]
-            page = random_pages.randrange(max(1, total // query["pageSize"]))
-            if page:
-                query = {**query, "pageNumber": page}
-                result = search_judgments(query)
-            strata.append((lower, upper, level, total, page, len(result["items"])))
-            print(f"  {lower}–{upper} {level}: {total} trafień, strona {page}", flush=True)
-            for item in result["items"]:
-                sample[item["id"]] = item
-                sources.setdefault(item["id"], []).append(f"{lower}–{upper}/{level}/strona {page}")
+            sources.setdefault(item["id"], []).append(f"strona {page}")
     study_ids = set(sample)
-    report += ["", "### Pobierana próbka a wszystkie trafienia", "",
-               "Wyszukiwanie liczy wszystkie trafienia. Pobieramy tylko próbkę pełnych dokumentów.",
-               "Jedna losowa pełna strona na warstwę; ostatnia niepełna strona może być pominięta.",
-               "| Od | Do | Poziom sądu | Trafienia API | Wylosowana strona | Pobrane ID |",
-               "|---|---|---|---:|---:|---:|"]
-    for lower, upper, level, total, page, count in strata:
-        report.append(f"| {lower} | {upper} | {level} | {total} | {page} | {count} |")
-    # Osobny zestaw przykładów do ręcznego objaśnienia, również z ostatnich 10 lat.
-    # Przykłady dobrane ręcznie NIE wchodzą do statystyk losowanej próbki.
-    for identifier in CONFIG["api"]["additional_judgment_ids"]:
-        sample[identifier] = None
-        sources.setdefault(identifier, []).append("ręczny przykład; poza statystyką, jeśli nie wylosowany")
 
     # %% 8. Pełny tekst: search.items.textContent to tylko wycinek z trafieniem.
     # Detail.data.textContent zawiera dokument HTML; target i cechy wyprowadzamy
@@ -468,7 +452,8 @@ if __name__ == "__main__":
     analyses, failures = {}, {}
     for identifier in sample:
         print(f"Pełny wyrok {identifier} ({len(analyses) + len(failures) + 1}/{len(sample)})", flush=True)
-        record = fetch_json(f"{BASE_URL}/judgments/{identifier}").get("data")
+        payload = fetch_json(f"{BASE_URL}/judgments/{identifier}")
+        record = payload.get("data")
         try:
             if not isinstance(record, dict) or type(record.get("id")) is not int or record["id"] != identifier:
                 raise ValueError("brak danych lub niezgodne ID")
@@ -488,6 +473,8 @@ if __name__ == "__main__":
         if not text:
             failures[identifier] = "brak tekstu po usunięciu HTML"
             continue
+        if CONFIG["api"]["debug"]:
+            save_source(payload)
         sections = split_sections(text)
         # Gdy nie ma UZASADNIENIA, badamy kwoty w całym tekście, lecz nie nadajemy
         # im roli „zasądzona” na podstawie niepotwierdzonych granic sentencji.
@@ -506,15 +493,10 @@ if __name__ == "__main__":
     study = {identifier: a for identifier, a in analyses.items() if identifier in study_ids}
     if not study:
         raise ValueError("Brak poprawnych dokumentów z losowanej próbki")
-    # Próba modelu jest oddzielona od pobrania 300 dokumentów. Wybrane ID są
-    # jawne w YAML; nie przedstawiamy ich jako oceny całego zbioru.
+    # Model przetwarza wszystkie poprawne dokumenty z pobranych stron.
     model_run = None
     if not options.metadata_only:
-        selected = {}
-        for identifier in CONFIG["judgment_ids"]:
-            if identifier not in analyses:
-                raise ValueError(f"Brak wyroku {identifier} wskazanego w konfiguracji modelu")
-            selected[identifier] = analyses[identifier]["text"]
+        selected = {identifier: analysis["text"] for identifier, analysis in analyses.items()}
         backend = CONFIG["backend"]
         if backend not in {"system_one", "gemma"}:
             raise ValueError("Nieznany backend ekstrakcji")
@@ -555,8 +537,8 @@ if __name__ == "__main__":
 
     report += ["", "## 2. Jaka jest struktura wyroków?", "",
                f"Próbka dekady: {len(study_ids)} różnych ID; poprawne strukturalnie: {len(study)}; błędy: {failures or 'brak'}.",
-               f"Łącznie przeanalizowano {len(analyses)} dokumentów, w tym dodatkowe przykłady ręczne.",
-               "Losowanie stron w rocznych warstwach grupuje sądy; to nie jest prosta próba losowa korpusu.",
+               f"Łącznie przeanalizowano {len(analyses)} pobranych dokumentów.",
+               "Strony pobierane są kolejno według ID. Ograniczenie stron nie tworzy próby losowej.",
                "Nagłówek/sentencja -> UZASADNIENIE -> stanowiska stron -> ustalenia -> rozważania.",
                "Porównawczy podział według nagłówków wymaga jednej pary jawnych granic. Model akapitowy nie ma tego warunku.", "",
                "| ID | Znaki | Uzasadnienie | Granice faktów/rozważań | Kwoty PLN |",
@@ -651,7 +633,7 @@ if __name__ == "__main__":
         report.append(f"| {field} | {count}/{len(processed)} |")
     if model_run:
         evaluation = model_run.get("evaluation", [])
-        report += ["", f"Próba modelu: {CONFIG['backend']}; ID: {CONFIG['judgment_ids']}.",
+        report += ["", f"Backend: {CONFIG['backend']}; przetworzono modelem {len(model_run['judgments'])} wyroków.",
                    f"Poprawne decyzje sekcji w jawnej próbie kontrolnej: {sum(r['correct_section'] for r in evaluation)}/{len(evaluation)}.",
                    f"Poprawne decyzje o wycieku: {sum(r['correct_leak'] for r in evaluation)}/{len(evaluation)}.",
                    "To próba diagnostyczna, nie niezależny pomiar jakości na zbiorze SAOS.",
@@ -712,7 +694,7 @@ if __name__ == "__main__":
                f"3. Target: {len(confirmed)} ręcznie odczytane przykłady potwierdzono cytatami; automatyczne propozycje podziału są oddzielone od wzmiankowanych liczb i nadal wymagają oceny.",
                f"4. Cechy: model analizował {model_document_count} dokumentów; do oceny pól dopuszczono fragmenty z {len(processed)}. Metadane i klasy siedzib obliczono dla całej poprawnej próbki. Nie dowiedziono skuteczności predykcji.",
                "5. Wyciek: sam podział sekcji NIE wystarcza. Nie powstaje tutaj zbiór uznany za bezpieczny do treningu.",
-               "", "Próbka stron jest warstwowa/grupowa; nie wyliczamy z niej odsetka użytecznych danych w całym SAOS.",
+               "", "Pobieranie ograniczone liczbą stron nie daje próby losowej; nie wyliczamy odsetka użytecznych danych w całym SAOS.",
                "Pełne propozycje targetów, cech i cytaty do własnego przeglądu: analysis.json (nie zbiór treningowy).",
                "Snapshoty i daty pobrania: sąsiednie pliki *.meta.json. Zapisane odpowiedzi są ponownie używane.",
                "Źródła: oficjalna dokumentacja SAOS podana na początku skryptu; odnośniki do konkretnych wyroków powyżej."]

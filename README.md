@@ -25,48 +25,88 @@ The `dev` group is currently empty. The `test` group includes `dev` and currentl
 uv sync --group test
 ```
 
-## Data feasibility
+## Dataset acquisition and filtering
 
-Run acquisition, court metadata, and GUGiK locality matching:
-
-```bash
-uv run notebooks/01_saos_feasibility.py --metadata-only
-```
-
-The script samples approximately 300 judgments from the last ten years and saves its report to `tmp/saos_feasibility/report.md`. Raw responses, acquisition metadata, and detailed results are cached under `tmp/`. The GUGiK BDOT10k locality layer supplies population classes; its object version does not establish the population measurement year. Ambiguous locality matches remain unresolved.
-
-Run the full prototype, including local Polish semantic extraction:
+The entrypoint is [src/dataset/get_data.py](src/dataset/get_data.py). It reads full judgments from the official [SAOS bulk-download API](https://www.saos.org.pl/help/index.php/dokumentacja-api/api-pobierania-danych), joins court/division metadata from `/api/dump/commonCourts`, and separates factual features from monetary targets using Basal.
 
 ```bash
-uv run --extra extraction notebooks/01_saos_feasibility.py
+uv run src/dataset/get_data.py --help
+uv run src/dataset/get_data.py --download-only --max-pages 1 --no-debug
+uv run --extra extraction src/dataset/get_data.py --max-pages 1
 ```
 
-Run only the local model experiment:
+[configs/dataset/api.yaml](configs/dataset/api.yaml) supplies the default values. Every key has a matching CLI argument; only explicitly supplied arguments override YAML:
+
+| YAML | CLI | Meaning |
+|---|---|---|
+| `max_age_years` | `--max-age-years 10` | Judgment date range ending today |
+| `max_pages` | `--max-pages 1` | Maximum dump pages; 0 means all pages |
+| `download_path` | `--download-path tmp/experiment` | Output directory relative to the project root |
+| `debug` | `--debug` / `--no-debug` | Save diagnostic evidence and intermediate results |
+| `download_only` | `--download-only` / `--no-download-only` | Save source records without running the model |
+| `timeout` | `--timeout 30` | HTTP connection/read timeout in seconds |
+
+`--config-dir` selects another directory containing `api.yaml` and `basal.yaml`. Paths in YAML resolve from the project root; a relative `--config-dir` resolves from the current working directory. The download-only mode still validates both configuration files, but does not load model weights or GUGiK.
+
+Dump pages contain up to 100 full judgments. SAOS applies `judgmentStartDate` and `judgmentEndDate`. The dump API has no documented text/court filter: the pipeline locally selects common-court sentences mentioning zadośćuczynienie and a numeric PLN amount. This scans more judgments than the earlier search-plus-detail prototype. A page limit is not a random or representative sample. Pagination follows the presence of `next`; the live dump response does not provide a total count.
+
+One shared HTTP session reuses connections. Each request is made once with an explicit timeout; failures stop the run and are reported. Source responses are fetched afresh on reruns, so updates under an existing SAOS ID are visible. Duplicate IDs within a run are processed once. Records are replaced atomically by ID. Existing files from previous runs are retained; use a separate `download_path` for separate datasets and run only one process per output directory.
+
+Normal extraction writes one primary record per judgment directly under `download_path`:
+
+```text
+<download_path>/
+  <SAOS_ID>/
+    record.json
+```
+
+`record.json` contains `id`, the configured `features`, configured `targets`, the derived `total`, `confirmed`, and review statuses. Missing values remain `brak informacji`, never an assumed zero. These are extraction candidates requiring review, including records where `confirmed` is true. `--download-only` instead writes `<SAOS_ID>/source.json` with the normalized text and metadata as its primary output; it does not produce feature/target records.
+
+With `debug: false`, extraction writes only these primary records. It does not save raw responses, normalized source exports, model-call caches, quotes, scores or intermediate decisions. Runtime model weights remain in the project model cache. Existing diagnostic files are not deleted when debug is disabled.
+
+With `debug: true`, additional artifacts explain how each result was produced:
+
+```text
+<download_path>/
+  debug/
+    <UTC_RUN_TIMESTAMP>/
+      raw/                 # original HTTP bytes, URLs, acquisition times, hashes
+      acquisition.json     # request, counts, rejections, errors, completion
+    decisions/             # exact model requests and validated responses
+    gugik/                 # official locality snapshot and source metadata
+    filtering.json         # effective configuration, model identity, run outcome
+  <SAOS_ID>/
+    record.json
+    debug/
+      judgment.json        # original dump item
+      metadata.json        # normalized source and joined court metadata
+      source.txt
+      config.json
+      analysis.json        # source offsets, scores, discarded candidates, metadata provenance
+      model_calls.json     # exact requests/responses, including reused model decisions
+      facts.txt
+      reasoning.txt
+      review.txt
+      record.json          # extracted feature values
+      award.json           # monetary candidates, evidence and final verification
+```
+
+Acquisition summaries and failures are also printed to the console. Diagnostic scores describe model decisions; they are not causal explanations of a future compensation regressor. Model-call caching is enabled only in debug mode and is keyed by the request and pinned model identity. Cached answers are validated before use.
+
+[configs/dataset/basal.yaml](configs/dataset/basal.yaml) chooses supported features, targets and three confidence thresholds. Prompts, the pinned Polish model revision and MPS execution remain fixed in code. `rok_wyroku` comes from the judgment date; `instancja` requires a confidence-checked procedural-stage decision rather than inference from court level. `wielkość miejscowości` matches the court seat against official GUGiK BDOT10k using Morfeusz inflection analysis and maps its population to a size class. Ambiguous matches remain missing. This is a current snapshot with no population measurement year, not historical population at judgment time; its provenance is available in debug mode. `miejscowosc_sadu` remains an optional supported source-form seat name.
+
+Numeric PLN amounts support decimal commas, ordinary/nonbreaking thousands separators, `tys.`, `mln`, `mld` and their full Polish unit names. Decimal arithmetic preserves source offsets and handles descending compound units such as `4 mln 250 tys. zł`. Entirely written-out amounts remain unsupported.
+
+The exploratory scripts in `notebooks/` retain their separate research outputs under `tmp/saos_feasibility`, `tmp/system_one` and `tmp/gemma`; the source pipeline does not import them.
+
+Development cases live in [fixtures/](fixtures/). Each folder contains `judgment.json` plus the input text and model outputs. Cases are discovered from the files, not an ID list in config. Tests replay saved model responses offline. These are development snapshots, not independently labeled ground truth.
+
+To run the actual model on those fixture inputs without SAOS acquisition:
 
 ```bash
-uv run --extra extraction notebooks/03_system_one_polish.py
+uv run --extra extraction notebooks/03_system_one_polish.py --fixtures
 ```
 
-Dataset configuration lives in two files:
+Basal selects factual passages, extracts the configured descriptions, and separately interprets sentences containing monetary amounts. Targets are awarded compensation and other one-off damages; process/court costs, interest and rent are excluded. Ambiguous outputs remain for review. PostgreSQL ingestion, vectorization and regression training are not implemented.
 
-- [configs/dataset/basal.yaml](configs/dataset/basal.yaml): model revision, runtime settings, thresholds, input sizes, feature fields, instructions and decision categories.
-- [configs/dataset/api.yaml](configs/dataset/api.yaml): SAOS endpoint, request filters, date range, search variants, sampling seed/court levels and development judgment IDs. A null end date means today; a null start date uses the configured number of years. Explicit dates use `YYYY-MM-DD`.
-
-`additional_judgment_ids` adds manually selected examples outside sampling statistics. `judgment_ids` limits which documents Basal processes in the prototype; it is not a SAOS search filter.
-
-[notebooks/preprocessing.yaml](notebooks/preprocessing.yaml) references both files and retains the prototype backend, Gemma fallback and GUGiK source. References resolve relative to that file, independently of the working directory. The pinned basal model runs locally on Apple Silicon; its first run downloads weights. Model inference covers the explicitly configured judgment IDs, not the whole acquisition sample. First, it classifies every paragraph with neighbouring context as facts, party statements, legal reasoning, operative ruling, mixed, ambiguous, or other. Mixed paragraphs are reconsidered sentence by sentence. Second, native basal `extract` fills six broad description fields from a JSON schema, using short batches of accepted factual sentences. Candidate sentences are checked separately for factual content and leakage before selecting one per field for the final record. The displayed descriptions retain the complete source sentence around the selected span, including negations. Section headings are not required. Awards are extracted separately. A numeric PLN match selects a whole source sentence or list item, with only the analyzed amount marked. Basal receives that sentence, up to `context_characters` preceding characters (currently 600), its section, and the operative ruling. One joint choice assigns the marked amount to awarded compensation, other awarded one-off damages, an unallocated principal, exclusion, or uncertainty. No wording pattern such as “tytułem …” is required. Repeated values are consolidated; each target can be retained independently. The ruling has priority when reasoning mentions conflicting values, and a final decision checks the assembled proposal. Uncertain decisions and rejected evidence are recorded separately from the field value `brak informacji`.
-
-Read descriptions in `tmp/system_one/<ID>/record.json` and the separate award proposal in `award.json`. Unknown allocations retain an unallocated amount; missing components are not guessed or filled with zero. Conflicting component values and ambiguous or multiple beneficiaries require review. Process/court costs, interest and periodic rent are excluded. Review the separated source texts in `tmp/system_one/<ID>/facts.txt`, `reasoning.txt`, and `review.txt`; all decisions and offsets remain in `tmp/system_one/results.json`. The old heading-based selection is retained only as a comparison setting (`feature_source: factual_section`); the default is `semantic_paragraphs`.
-
-The configured paragraph threshold is 0.6 and the maximum leakage probability is 0.2. Descriptions with low extraction confidence are retained and flagged for review. Joint assignments of monetary sentences and confirmation of the complete award proposal use a separate threshold, also 0.6; this does not approve them as regression labels. Reports start with actual field values; coverage and probabilities are auxiliary diagnostics. Outputs are candidates for manual review, not training-ready records.
-
-The fallback [notebooks/04_gemma.py](notebooks/04_gemma.py) asks one question per category through the optional `ollama` package. Use it only after evaluating basal, with Ollama running and Gemma installed locally:
-
-```bash
-uv run --extra gemma notebooks/04_gemma.py
-```
-
-Set `gemma.model` when multiple Gemma models are installed. The script does not download models or use cloud inference. Set `backend: gemma` in the preprocessing configuration only when choosing that fallback for the full prototype.
-
-Research requirements are recorded in [notebooks/wymagania.md](notebooks/wymagania.md). No database ingestion or regression training is performed by these prototypes.
-
+The optional local Gemma fallback remains in `notebooks/04_gemma.py`; it does not download models. Research requirements are in [notebooks/wymagania.md](notebooks/wymagania.md).

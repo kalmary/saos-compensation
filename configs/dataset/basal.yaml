@@ -1,84 +1,27 @@
-version: saos-extraction-4
-chunk_characters: 1200
-context_characters: 600
-feature_source: semantic_paragraphs
-system_one:
-  model: Remek/basal-2.0-4.5B
-  revision: e5ba9149760d99b73b1963d8e0ccf948b58afacb
-  mode: mps
-  device: mps
-  minimum_probability: 0.6
-  maximum_leak_probability: 0.2
-  amount_minimum_probability: 0.6
-  template_prefix: 'off'
-  context_overflow: refuse
-fields:
-  zdarzenie_i_okolicznosci: Zdarzenie będące przyczyną krzywdy i jego okoliczności.
-  rodzaj_doznanej_krzywdy: Konkretny rodzaj krzywdy poszkodowanego, np. obrażenie ciała, śmierć bliskiego
-    albo naruszenie dobrego imienia.
-  przebieg_nasilenie_i_czas_trwania: Przebieg dolegliwości, ich nasilenie, czas trwania oraz ustąpienie
-    lub utrzymywanie się.
-  konsekwencje_dla_zycia: Co zmieniło się w funkcjonowaniu, pracy, relacjach lub samodzielności i jakie
-    skutki pozostały?
-  indywidualne_okolicznosci_poszkodowanego: Wiek, zawód, wcześniejsza sytuacja osobista i zdrowie poszkodowanego
-    albo relacja ze zmarłym.
-  podjete_dzialania_i_potrzebna_pomoc: Jak łagodzono skutki i jakiego leczenia, wsparcia lub innej pomocy
-    potrzebował poszkodowany?
-language: pl
-questions:
-  section:
-    instructions: Jaka jest funkcja wyłącznie ocenianego fragmentu? Poprzedni i następny tekst służą tylko
-      ustaleniu kontekstu i autora twierdzenia. Nie przypisuj ich treści ocenianemu fragmentowi. Opis
-      faktów może znajdować się w UZASADNIENIU bez własnego nagłówka. Odróżnij co się wydarzyło od dlaczego
-      sąd wydał taki wyrok lub przyznał taką kwotę. Jeśli treści są połączone, wybierz mieszany; jeśli
-      brak podstaw do decyzji, niejednoznaczny.
-    criteria:
-      fakty: 'Opis ustalonych faktów tej sprawy: zdarzenia, krzywdy, osoby lub jej sytuacji i następstw.
-        Bez żądań i bez oceny prawnej.'
-      stanowiska: Żądania, zarzuty lub twierdzenia stron, bez potwierdzenia ich przez sąd.
-      rozstrzygniecie: 'Sentencja: co sąd zasądził, oddalił lub nakazał.'
-      rozwazania: Rozważania prawne, precedensy lub uzasadnienie rozstrzygnięcia.
-      mieszany: W jednym fragmencie połączono opis faktów z oceną prawną, uzasadnieniem kwoty lub niepotwierdzonymi
-        twierdzeniami strony.
-      niejednoznaczny: Nie można rozstrzygnąć, czy to ustalenia sądu, twierdzenia strony czy rozważania;
-        niewystarczający kontekst.
-      inne: Nagłówek, metadane, podpis, sygnatura lub sama lista dowodów.
-  leakage:
-    instructions: Oceń wyłącznie oceniany fragment, nie jego sąsiadów. Czy ujawnia kwotę żądaną, zasądzoną
-      lub wcześniej wypłaconą, wynik postępowania, albo wyjaśnia wybór wysokości świadczenia? Także bez
-      podania liczby. Sam opis urazu i jego skutków nie jest uzasadnieniem wysokości.
-  amount:
-    instructions: Czego dotyczy wyłącznie kwota oznaczona <KWOTA>? Przeczytaj jej otoczenie i sentencję.
-      Wybierz zasądzone świadczenie tylko dla tego wyroku i wskazanego poszkodowanego. Nie pomyl żądania
-      ani wcześniejszej wypłaty z zasądzeniem. Jeżeli sąd uznaje za odpowiednie 7000 zł, ale po odjęciu
-      wypłaty zasądza 6300 zł, targetem jest 6300 zł. Zwrot kosztów instancji odwoławczej jest kosztem
-      postępowania, nigdy pozostałym odszkodowaniem. Kwota główna z odsetkami nadal może być targetem;
-      same odsetki nim nie są. Nie przenoś kategorii sąsiedniej liczby na oznaczoną kwotę.
-    criteria:
-      zadoscuczynienie: Oznaczona kwota to zadośćuczynienie zasądzone temu poszkodowanemu w analizowanym
-        wyroku.
-      pozostale_odszkodowanie: Oznaczona kwota to zasądzone temu poszkodowanemu jednorazowe odszkodowanie
-        za szkodę majątkową, np. zwrot leczenia lub utraconych zarobków.
-      suma: Oznaczona kwota jest zasądzoną sumą świadczeń głównych dla tego poszkodowanego, której nie
-        można tutaj przypisać do jednego składnika.
-      pomin: Kwota żądana, wcześniej wypłacona, z innego wyroku, dla innego odbiorcy, koszty procesu/sądowe/instancji
-        odwoławczej/zastępstwa, odsetki lub renta; poza targetami.
-      nieustalone: Nie ma podstaw do przypisania oznaczonej kwoty do zasądzonego świadczenia.
-  award_check:
-    instructions: Czy propozycja jest zgodna z sentencją analizowanego wyroku i dowodami? Odbiorcą ma
-      być wskazany poszkodowany, nie fundacja ani inna osoba. Kwoty muszą być zasądzone w tym wyroku,
-      nie tylko żądane, wcześniej wypłacone lub cytowane. Koszty procesu i sądowe, koszty instancji odwoławczej,
-      odsetki oraz renta są wyłączone. Nieustalenie jednego składnika nie unieważnia drugiego. Nie traktuj
-      zgodności sumy jako jedynego dowodu.
-  extraction:
-    instructions: Wyodrębnij treść sześciu pól opisu sprawy. Zachowaj negacje, osobę i czas. Nie dopisuj
-      ocen, nie używaj kwot ani uzasadnienia ich wysokości. Jeśli nie ma informacji dla pola, wybierz
-      not stated.
-    field_suffix: ' Konkretny opis dotyczący poszkodowanego.'
-  instance:
-    instructions: W której instancji zapadł ten wyrok? Wymagaj informacji o etapie postępowania. Nie wnioskuj
-      wyłącznie z poziomu ani nazwy sądu. Przy braku dowodu wybierz nieustalona.
-    criteria:
-      pierwsza: Pierwsza instancja.
-      druga: 'Druga instancja: rozpoznanie apelacji.'
-      nieustalona: Brak jednoznacznej informacji o instancji.
+feature_fields:
+- rok_wyroku
+- instancja
+- wielkość miejscowości # to musi być odrazu połączone z gugik. sprawdzamy miasto/ miejscowość: przypisujemy label oparty o populacji, np. miasto powyzej 500 tys mieszkancow
+- zdarzenie_i_okolicznosci
+- rodzaj_doznanej_krzywdy
+- przebieg_nasilenie_i_czas_trwania
+- konsekwencje_dla_zycia
+- indywidualne_okolicznosci_poszkodowanego
+- podjete_dzialania_i_potrzebna_pomoc
+target_fields:
+- zadoscuczynienie
+- pozostale_odszkodowanie
+minimum_probability: 0.6
+maximum_leak_probability: 0.2
+amount_minimum_probability: 0.6
+
+# AVAILABLE FIELDS, ABOVE CHOSEN
+# - rok_wyroku
+# - instancja
+# - wielkość miejscowości # to musi być odrazu połączone z gugik. sprawdzamy miasto/ miejscowość: przypisujemy label oparty o populacji, np. miasto powyzej 500 tys mieszkancow
+# - zdarzenie_i_okolicznosci
+# - rodzaj_doznanej_krzywdy
+# - przebieg_nasilenie_i_czas_trwania
+# - konsekwencje_dla_zycia
+# - indywidualne_okolicznosci_poszkodowanego
+# - podjete_dzialania_i_potrzebna_pomoc

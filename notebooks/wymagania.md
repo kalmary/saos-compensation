@@ -18,7 +18,7 @@ Celem jest ocena, czy orzeczenia SAOS pozwalają zbudować zbiór do regresji kw
 - Skrypt może mieć formę kolejnych sekcji badawczych; nie wymaga architektury aplikacji produkcyjnej.
 - Dodawać komentarze wyjaśniające cel funkcjonalny sekcji, badane pytanie i ograniczenia zastosowanych reguł.
 - Stosować możliwie prosty kod i istniejące zależności.
-- Zachowanie Basala (model, progi, fragmenty, pola i instrukcje) konfigurować w `configs/dataset/basal.yaml`. Pobieranie SAOS (zapytania, daty, próbkę i ID przykładów) konfigurować w `configs/dataset/api.yaml`. `notebooks/preprocessing.yaml` jawnie wskazuje oba pliki i zachowuje ustawienia wariantu awaryjnego oraz źródła GUGiK. Odczyt nie może zależeć od bieżącego katalogu roboczego.
+- W `configs/dataset/basal.yaml` konfigurować wyłącznie nazwy wybieranych cech, nazwy targetów i trzy progi pewności. Model, instrukcje i sposób cięcia tekstu są stałe w kodzie. `configs/dataset/api.yaml` zawiera tylko `max_age_years`, `max_pages` i `debug`; zero stron oznacza wszystkie wyniki. Manifest notebooków wskazuje oba pliki niezależnie od katalogu roboczego.
 - Pełną próbę uruchamiać przez `uv run --extra extraction notebooks/01_saos_feasibility.py`; wariant bez modeli przez `uv run notebooks/01_saos_feasibility.py --metadata-only`.
 - Surowe odpowiedzi, metadane pobrania i wyniki zapisywać w projektowym `tmp/`.
 - Nie zastępować wyników analizy założonymi z góry odpowiedziami. Ręcznie opracowane przykłady oznaczać osobno.
@@ -34,21 +34,14 @@ Celem jest ocena, czy orzeczenia SAOS pozwalają zbudować zbiór do regresji kw
 
 Odpowiedzi mają być jasne, poparte krótkimi cytatami i identyfikatorami wyroków. Gdy dowody są niewystarczające, wynik ma to wskazywać wprost.
 
-## 4. Wyszukiwanie i dobór próbki
+## 4. Wyszukiwanie i zakres pobierania
 
-- Przed implementacją i zmianami parametrów sprawdzać dokumentację oraz rzeczywisty schemat odpowiedzi API.
-- Wyjaśnić rolę każdego parametru: tematu, rodzaju organu, typu orzeczenia, dat, rozmiaru strony, numeru strony i sortowania.
-- Stosować zawężone zapytania po stronie SAOS; nie pobierać całego korpusu do lokalnego filtrowania.
-- Porównać zapytanie tematyczne z wariantami zawierającymi wzmianki o walucie lub zasądzeniu oraz z filtrem słów kluczowych.
-- Nie zakładać, że słowa „zadośćuczynienie”, „zasądza” i „zł” występują w odniesieniu do tego samego roszczenia.
-- Nie utrwalać jednej podstawy prawnej jako filtra całego zbioru bez oceny, jakie sprawy wyklucza.
-- Sprawdzać w `queryTemplate`, czy API zastosowało przekazane parametry.
-- Rozróżniać liczbę trafień API, liczbę pobranych dokumentów i liczbę przykładów z wiarygodnym targetem.
-- Próbka nie może ograniczać się do kilkunastu pierwszych wyników. W prototypie przyjąć około 300 dokumentów, z pokryciem rocznych przedziałów oraz trzech poziomów sądów.
-- Zachować odtwarzalność doboru: parametry, ziarno losowania, wybrane strony i identyfikatory.
-- Opisać ograniczenia losowania stron: grupowanie wyników według sądu, nierówne liczebności warstw i ewentualne pomijanie niepełnych stron.
-- Nie wyprowadzać szacunku jakości całego korpusu z próby, której dobór tego nie uzasadnia.
-- Przykłady dobrane ręcznie oznaczać i oddzielać od statystyk próbki.
+- Stosować jedno stałe zapytanie SAOS: sądy powszechne, wyroki, fraza „zadośćuczynienie zł”, sortowanie rosnące po ID, 100 wyników na stronę.
+- Konfigurować tylko maksymalny wiek danych (`max_age_years`) oraz limit stron (`max_pages`). Zero stron oznacza pobieranie do końca wyników.
+- Pobierać strony kolejno; nie losować warstw ani nie dodawać ręcznych ID. Przetwarzać modelem wszystkie poprawne dokumenty z pobranych stron.
+- Sprawdzać zastosowane parametry i paginację, zachowywać czas i pełną odpowiedź API. Trafienie zapytania nie potwierdza poprawnego targetu.
+- `debug: true` zachowuje dane źródłowe i dodatkowe wyniki pośrednie w folderze danego wyroku. `debug: false` pozostawia podstawowy eksport cech i targetów; istniejących plików diagnostycznych nie usuwać.
+- Przypadki rozwojowe trzymać w folderach `fixtures/`; wykrywać je po plikach, bez listy ID w konfiguracji. Zachować oryginalny wyrok, tekst wejściowy, wyniki i dokładne żądania/odpowiedzi modelu. Zapisany wynik modelu nie jest automatycznie ręcznie potwierdzoną etykietą.
 
 ## 5. Pobieranie i jakość danych
 
