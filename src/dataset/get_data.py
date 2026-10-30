@@ -130,7 +130,8 @@ def search_judgments(params, directory=None, session=None, timeout=30):
     if not isinstance(template, dict):
         raise ValueError("Dump response is missing queryTemplate")
     for key, value in params.items():
-        if template.get(key, {}).get("value") != value:
+        applied = template.get(key)
+        if not isinstance(applied, dict) or applied.get("value") != value:
             raise ValueError(f"API did not apply {key}")
     ids = [
         item.get("id") if isinstance(item, dict) else None for item in result["items"]
@@ -168,12 +169,18 @@ def load_divisions(session, directory=None, timeout=30):
             raise ValueError("Invalid common-court dump")
         for court in payload["items"]:
             if (
-                type(court.get("id")) is not int
+                not isinstance(court, dict)
+                or type(court.get("id")) is not int
+                or court["id"] <= 0
                 or not isinstance(court.get("name"), str)
+                or not court["name"].strip()
+                or not isinstance(court.get("divisions"), list)
                 or court.get("type") not in {"DISTRICT", "REGIONAL", "APPEAL"}
             ):
                 raise ValueError("Invalid court in dump")
             for division in court["divisions"]:
+                if not isinstance(division, dict):
+                    raise ValueError("Invalid division in court dump")
                 identifier = division.get("id")
                 if (
                     type(identifier) is not int
@@ -186,6 +193,8 @@ def load_divisions(session, directory=None, timeout=30):
                     **division,
                     "court": {key: court[key] for key in ("id", "name", "type")},
                 }
+        if any(not isinstance(link, dict) for link in payload["links"]):
+            raise ValueError("Invalid court pagination link")
         if not any(link.get("rel") == "next" for link in payload["links"]):
             return divisions
         if not payload["items"]:
@@ -209,7 +218,7 @@ def validate_judgment(payload, identifier, start, end):
         or type(data.get("id")) is not int
         or data["id"] != identifier
     ):
-        raise ValueError("Judgment ID does not match the search result")
+        raise ValueError("Judgment ID does not match the dump item")
     try:
         judgment_date = date.fromisoformat(data["judgmentDate"])
     except (KeyError, TypeError, ValueError) as error:
@@ -302,14 +311,18 @@ def download(config):
                     ):
                         manifest["filtered"] += 1
                         continue
+                    division = item.get("division")
+                    division_id = (
+                        division.get("id") if isinstance(division, dict) else None
+                    )
+                    if type(division_id) is not int or division_id <= 0:
+                        manifest["rejected"].append(
+                            {"id": identifier, "reason": "Invalid division ID"}
+                        )
+                        continue
                     if divisions is None:
                         divisions = load_divisions(session, raw, config["timeout"])
-                    data = {
-                        **item,
-                        "division": divisions.get(
-                            (item.get("division") or {}).get("id"), {}
-                        ),
-                    }
+                    data = {**item, "division": divisions.get(division_id, {})}
                     try:
                         data, text = validate_judgment(
                             {"data": data}, identifier, start, end
@@ -437,7 +450,8 @@ async def run(config, download_only=None):
         from src.dataset.localities import load_localities
 
         rows, metadata = load_localities(
-            directory / "debug" / "gugik" if config["api"]["debug"] else None
+            directory / "debug" / "gugik" if config["api"]["debug"] else None,
+            timeout=config["api"]["timeout"],
         )
         localities = rows, morfeusz2.Morfeusz(), metadata
     os.environ.setdefault("HF_HOME", str(ROOT / "tmp" / "huggingface"))

@@ -31,7 +31,7 @@ def locality_class(kind, population):
     return "miasto_co_najmniej_500_tys"
 
 
-def load_localities(directory=None):
+def load_localities(directory=None, timeout=30):
     """Load the official snapshot; keep it on disk only in debug mode."""
     with tempfile.TemporaryDirectory() as temporary:
         path = (
@@ -49,7 +49,7 @@ def load_localities(directory=None):
             ):
                 raise ValueError("Niezgodny snapshot GUGiK")
         else:
-            with requests.get(SOURCE, timeout=60) as response:
+            with requests.get(SOURCE, timeout=timeout) as response:
                 response.raise_for_status()
                 content = response.content
             path.write_bytes(content)

@@ -691,3 +691,66 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
     assert rows[0]["NAZWA"] == "Pisz"
     assert metadata["population_year"] is None
     assert directory.exists() == debug
+
+
+def test_court_dump_joins_divisions_across_pages(monkeypatch):
+    pages = []
+
+    def fetch(url, directory, session, timeout):
+        from urllib.parse import parse_qs, urlparse
+
+        page = int(parse_qs(urlparse(url).query)["pageNumber"][0])
+        pages.append(page)
+        assert timeout == 7
+        return {
+            "items": [
+                {
+                    "id": page + 1,
+                    "name": f"Sąd {page}",
+                    "type": "REGIONAL",
+                    "divisions": [{"id": 10 + page, "name": "Cywilny"}],
+                }
+            ],
+            "links": [{"rel": "next"}] if page == 0 else [],
+        }
+
+    monkeypatch.setattr(get_data, "fetch_json", fetch)
+    divisions = get_data.load_divisions(object(), timeout=7)
+    assert pages == [0, 1]
+    assert divisions[11]["court"] == {"id": 2, "name": "Sąd 1", "type": "REGIONAL"}
+
+
+def test_court_dump_rejects_duplicate_divisions(monkeypatch):
+    payload = {
+        "items": [
+            {
+                "id": 1,
+                "name": "Sąd",
+                "type": "REGIONAL",
+                "divisions": [
+                    {"id": 10, "name": "Cywilny"},
+                    {"id": 10, "name": "Karny"},
+                ],
+            }
+        ],
+        "links": [],
+    }
+    monkeypatch.setattr(get_data, "fetch_json", lambda *args: payload)
+    with pytest.raises(ValueError, match="duplicate division"):
+        get_data.load_divisions(object())
+
+
+@pytest.mark.parametrize(
+    "court",
+    [
+        None,
+        {"id": 1, "name": "Sąd", "type": "REGIONAL"},
+        {"id": True, "name": "Sąd", "type": "REGIONAL", "divisions": []},
+    ],
+)
+def test_malformed_court_dump_is_rejected(monkeypatch, court):
+    monkeypatch.setattr(
+        get_data, "fetch_json", lambda *args: {"items": [court], "links": []}
+    )
+    with pytest.raises(ValueError, match="Invalid court"):
+        get_data.load_divisions(object())
