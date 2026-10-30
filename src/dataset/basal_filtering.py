@@ -28,8 +28,8 @@ DEFAULTS = {
     "system_one": {
         "model": "Remek/basal-2.0-4.5B",
         "revision": "e5ba9149760d99b73b1963d8e0ccf948b58afacb",
-        "mode": "mps",
-        "device": "mps",
+        "mode": "eager",
+        "device": "cpu",
         "template_prefix": "off",
         "context_overflow": "refuse",
     },
@@ -134,17 +134,17 @@ FEATURE_DESCRIPTIONS = {
     "potrzebował poszkodowany?",
 }
 METADATA_FIELDS = (
-    "rok_wyroku",
-    "instancja",
-    "miejscowosc_sadu",
-    "wielkość miejscowości",
+    "judgment_year",
+    "instance",
+    "court_seat",
+    "court_locality_size",
 )
 
 
 def read_config(path):
     value = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise ValueError(f"Konfiguracja musi być mapą: {path}")
+        raise ValueError(f"Configuration must be a mapping: {path}")
     return value
 
 
@@ -157,6 +157,7 @@ def load_config(directory=None, overrides=None):
     api.update(overrides or {})
     search_settings(api)
     required = {
+        "device",
         "feature_fields",
         "target_fields",
         "minimum_probability",
@@ -164,7 +165,11 @@ def load_config(directory=None, overrides=None):
         "amount_minimum_probability",
     }
     if set(basal) != required:
-        raise ValueError("basal.yaml wymaga tylko nazw pól i trzech progów pewności")
+        raise ValueError(
+            "basal.yaml requires device, feature/target selections and three probability thresholds"
+        )
+    if basal["device"] not in ("cpu", "cuda", "mps"):
+        raise ValueError("device must be cpu, cuda or mps")
     for key, allowed in (
         ("feature_fields", {*FEATURE_DESCRIPTIONS, *METADATA_FIELDS}),
         ("target_fields", AWARD_FIELDS),
@@ -176,7 +181,7 @@ def load_config(directory=None, overrides=None):
             or not all(isinstance(field, str) and field in allowed for field in fields)
             or len(fields) != len(set(fields))
         ):
-            raise ValueError(f"Nieprawidłowe nazwy pól: {key}")
+            raise ValueError(f"Invalid field names: {key}")
     for key in (
         "minimum_probability",
         "maximum_leak_probability",
@@ -188,7 +193,7 @@ def load_config(directory=None, overrides=None):
             or not math.isfinite(value)
             or not 0 <= value <= 1
         ):
-            raise ValueError(f"Nieprawidłowy próg: {key}")
+            raise ValueError(f"Invalid probability threshold: {key}")
     config = {
         **copy.deepcopy(DEFAULTS),
         "api": api,
@@ -202,6 +207,8 @@ def load_config(directory=None, overrides=None):
         ],
         "target_fields": basal["target_fields"],
     }
+    config["system_one"]["mode"] = "mps" if basal["device"] == "mps" else "eager"
+    config["system_one"]["device"] = basal["device"]
     config["system_one"].update(
         {
             key: basal[key]
@@ -215,11 +222,9 @@ def load_config(directory=None, overrides=None):
     return config
 
 
-# Extract wypełnia pola fragmentami źródła; choice i noul służą kontroli wejścia.
-# Prawdopodobieństwa nie dowodzą poprawności.
+# Extract fills fields from source spans; choice and noul check inputs. Scores do not establish accuracy.
 def fragments(text, limit):
-    # Podział techniczny po akapitach i odstępach; znaczenie ocenia model.
-    # Każdy znak niebędący odstępem ma fragment i offset w pełnym tekście.
+    # Split at paragraphs and spaces while preserving source offsets; the model determines meaning.
     for line in re.finditer(r"[^\n]+", text):
         start = line.start()
         while start < line.end():
@@ -239,17 +244,17 @@ def feature_input(text, config):
         "text": text,
         "start": 0,
         "end": len(text),
-        "status": "semantyczny podział wszystkich akapitów z kontekstem",
+        "status": "semantic classification of all paragraphs with context",
     }
 
 
 def check_decision(response, questions, state=None):
-    # Walidacja odpowiedzi silnika: nie akceptujemy ucięcia ani wadliwego rozkładu.
+    # Reject truncated inputs, incomplete answers and invalid probability distributions.
     if response.get("truncated"):
-        raise ValueError("Silnik uciął kontekst")
+        raise ValueError("The inference engine truncated its input")
     answers = response.get("answers")
     if not isinstance(answers, dict) or set(answers) != set(questions):
-        raise ValueError("Niekompletny zestaw odpowiedzi")
+        raise ValueError("Incomplete answer set")
     for key, question in questions.items():
         answer = answers[key]
         if question["type"] == "extract":
@@ -259,7 +264,7 @@ def check_decision(response, questions, state=None):
                 or set(answer.get("data", {})) != expected
                 or set(answer.get("fields", {})) != expected
             ):
-                raise ValueError("Niekompletny rekord ekstrakcji")
+                raise ValueError("Incomplete extraction record")
             for field, value in answer["data"].items():
                 detail = answer["fields"][field]
                 probability = detail.get("confidence")
@@ -268,7 +273,7 @@ def check_decision(response, questions, state=None):
                     or not math.isfinite(probability)
                     or not 0 <= probability <= 1
                 ):
-                    raise ValueError(f"Nieprawidłowa pewność pola {field}")
+                    raise ValueError(f"Invalid field confidence: {field}")
                 if value is None:
                     continue
                 start, end = detail.get("start"), detail.get("end")
@@ -280,27 +285,25 @@ def check_decision(response, questions, state=None):
                     or not 0 <= start < end <= len(state)
                     or state[start:end] != value
                 ):
-                    raise ValueError(
-                        f"Pole {field} nie odpowiada fragmentowi źródłowemu"
-                    )
+                    raise ValueError(f"Field {field} does not match its source span")
             continue
         probabilities = answer.get("probabilities", {})
         if not probabilities or any(
             type(p) not in (int, float) or not math.isfinite(p) or not 0 <= p <= 1
             for p in probabilities.values()
         ):
-            raise ValueError("Nieprawidłowe prawdopodobieństwa")
+            raise ValueError("Invalid probabilities")
         if abs(sum(probabilities.values()) - 1) > 0.01:
-            raise ValueError("Rozkład nie sumuje się do 1")
+            raise ValueError("Probabilities do not sum to one")
         expected = (
             set(question["criteria"])
             if question["type"] == "choice"
             else {"true", "false"}
         )
         if set(probabilities) != expected:
-            raise ValueError("Odpowiedź zawiera inne opcje niż pytanie")
+            raise ValueError("Answer options do not match the question")
         if question["type"] == "choice" and answer.get("choice") not in expected:
-            raise ValueError("Wybrana opcja nie należy do przestrzeni odpowiedzi")
+            raise ValueError("Selected option is outside the answer space")
         selected = answer["choice"] if question["type"] == "choice" else "true"
         probability = (
             answer.get("confidence")
@@ -312,13 +315,13 @@ def check_decision(response, questions, state=None):
             or not math.isfinite(probability)
             or abs(probability - probabilities[selected]) > 0.01
         ):
-            raise ValueError("Wynik nie jest zgodny z rozkładem")
+            raise ValueError("Answer score does not match its probability distribution")
     return answers
 
 
 async def ask(server, state, questions, config):
     request = {"state": state, "lang": config["language"], "questions": questions}
-    # Progi selekcji nie zmieniają odpowiedzi modelu, więc nie unieważniają cache.
+    # Selection thresholds do not change model answers, so they do not invalidate the cache.
     identity = {
         "version": config["version"],
         "engine_version": "2.4.1",
@@ -372,8 +375,7 @@ def choices(question, criteria):
 
 
 def sentence_fragments(chunk):
-    # Podział techniczny akapitu mieszanego. Reguła nie przypisuje roli zdania.
-    # Inicjały osób i liczby z groszami nie powinny wyznaczać granicy.
+    # Split mixed paragraphs into sentences without treating initials or decimal amounts as boundaries.
     boundaries = [
         0,
         *[
@@ -432,7 +434,9 @@ async def classify_paragraphs(server, text, config, identifier):
         return row
 
     for i, chunk in enumerate(chunks):
-        print(f"ID {identifier}: podział akapitu {i + 1}/{len(chunks)}", flush=True)
+        print(
+            f"ID {identifier}: classifying paragraph {i + 1}/{len(chunks)}", flush=True
+        )
         row = await classify(chunk, "paragraph")
         decision = row["answers"]["sekcja"]
         if (
@@ -461,8 +465,7 @@ def select_facts(diagnostics, threshold, maximum_leak):
 
 
 def extraction_source(text, passages):
-    # Każda linia wejścia extract jest zdaniem z dokładnym miejscem w wyroku.
-    # Ułatwia to krótki opis i zachowuje negację oraz podmiot wypowiedzi.
+    # Each extraction input line maps to a complete source sentence, preserving negation and subject.
     sentences = {}
     for passage in passages:
         for sentence in sentence_fragments(passage):
@@ -493,7 +496,7 @@ def describe_record(answer, mapping, fields, threshold):
             values[field], evidence[field], statuses[field] = (
                 "brak informacji",
                 [],
-                "model nie wyekstrahował opisu",
+                "no description extracted",
             )
             continue
         rows = [
@@ -502,8 +505,8 @@ def describe_record(answer, mapping, fields, threshold):
             if row["input_start"] < detail["end"] and row["input_end"] > detail["start"]
         ]
         if not rows:
-            raise ValueError(f"Nie można odtworzyć źródła pola {field}")
-        # Do opisu włączamy całe wybrane zdanie, nie wyrwany wyraz bez negacji.
+            raise ValueError(f"Cannot recover the source of field: {field}")
+        # Keep the complete selected sentence rather than a phrase stripped of its negation.
         rows = rows[:2]
         values[field] = " ".join(row["text"] for row in rows)
         evidence[field] = [
@@ -511,9 +514,9 @@ def describe_record(answer, mapping, fields, threshold):
         ]
         uncertain = confidence[field] is not None and confidence[field] < threshold
         statuses[field] = (
-            "opis o niskiej pewności — zachowany do przeglądu"
+            "low-confidence description retained for review"
             if uncertain
-            else "wyekstrahowano opis do przeglądu"
+            else "description extracted for review"
         )
     return values, evidence, statuses, confidence
 
@@ -537,7 +540,7 @@ AWARD_FIELDS = ("zadoscuczynienie", "pozostale_odszkodowanie")
 def amount_contexts(text):
     heading = list(api.REASONS.finditer(text))
     boundary = heading[0].start() if len(heading) == 1 else None
-    # Całe zdanie lub punkt listy, bez okna słów i bez regexów znaczenia świadczenia.
+    # Use the complete sentence or list item; let the model determine the monetary role.
     for paragraph in fragments(text, max(1, len(text))):
         for sentence in sentence_fragments(paragraph):
             for match in api.MONEY.finditer(sentence["text"]):
@@ -593,16 +596,16 @@ def propose_award(text, decisions, target_fields=None):
         beneficjent="brak informacji",
         waluta="PLN",
         evidence=[],
-        status="brak ustalonego zasądzenia",
+        status="no established award",
     )
     heading = list(api.REASONS.finditer(text))
     if len(heading) != 1:
-        result["status"] = "brak jednoznacznej granicy sentencji — do przeglądu"
+        result["status"] = "no unique ruling boundary; review required"
         return result
-    # To metadane odbiorcy, nie reguła znaczenia kwoty. Nie dzielimy wspólnego zasądzenia między osoby.
+    # Identify the beneficiary without distributing a joint award across multiple people.
     plaintiff = re.search(r"z powództwa\s+([^\n]+)", text[: heading[0].start()], re.I)
     if not plaintiff or re.search(r",|\boraz\b|\s+i\s+", plaintiff[1]):
-        result["status"] = "nieustalony lub wieloosobowy beneficjent — do przeglądu"
+        result["status"] = "unknown or multiple beneficiaries; review required"
         return result
     result["beneficjent"] = plaintiff[1].strip()
     selected = {}
@@ -611,13 +614,11 @@ def propose_award(text, decisions, target_fields=None):
             row for row in decisions if row["accepted"] and row["category"] == field
         ]
         direct = [row for row in rows if row["section"] == "sentencja"]
-        # Nie sumujemy wystąpień. Konflikt kilku wartości w jednej kategorii wymaga przeglądu.
-        # Suma zasądzona musi mieć dowód w sentencji, nie w opisie żądań.
+        # Do not sum repeated mentions; conflicting component values require review. Total evidence must come from the ruling.
         candidates = direct if field == "suma" else direct or rows
         if field in AWARD_FIELDS and not direct and "suma" in selected:
             total = Decimal(selected["suma"]["kwota"])
-            # Najpierw jawnie przypisany składnik równy całemu zasądzeniu.
-            # Nie podstawiamy kwoty za model: wybieramy spośród jego przypisań.
+            # Prefer an explicitly assigned component equal to the total, selecting only among model assignments.
             exact = [row for row in candidates if Decimal(row["kwota"]) == total]
             candidates = exact or [
                 row for row in candidates if Decimal(row["kwota"]) < total
@@ -638,7 +639,7 @@ def propose_award(text, decisions, target_fields=None):
     ):
         total = sum(Decimal(result[field]) for field in AWARD_FIELDS)
         if "suma" in selected and total != Decimal(selected["suma"]["kwota"]):
-            result["status"] = "składniki nie zgadzają się z sumą — do przeglądu"
+            result["status"] = "components do not match the total; review required"
             result["conflict"] = {field: result[field] for field in AWARD_FIELDS}
             result.update({field: "brak informacji" for field in AWARD_FIELDS})
         else:
@@ -651,10 +652,10 @@ def propose_award(text, decisions, target_fields=None):
         for row in selected.values()
     ]
     if (
-        result["status"] != "składniki nie zgadzają się z sumą — do przeglądu"
+        result["status"] != "components do not match the total; review required"
         and selected
     ):
-        result["status"] = "propozycja z kontekstów kwot — do kontroli"
+        result["status"] = "proposal from monetary contexts; review required"
     return result
 
 
@@ -669,7 +670,7 @@ def finish_award(proposal, accepted, decision):
                 if field in result
             }
         )
-        result["status"] = "model nie potwierdził propozycji — do przeglądu"
+        result["status"] = "model did not confirm the proposal; review required"
     return result
 
 
@@ -705,6 +706,8 @@ async def extract_award(server, text, diagnostics, config):
         "sentencja": award_state(text, decisions[0])["sentencja"],
         "dowody": proposal["evidence"],
     }
+    # Keep the pinned model's Polish proposal wording unchanged.
+    state["propozycja"]["status"] = "propozycja z kontekstów kwot — do kontroli"
     answer = (
         await ask(
             server,
@@ -731,7 +734,7 @@ async def extract(server, text, config, identifier):
         config,
     )
     instance = instance["instancja"]
-    # Etap 1: semantyczne oddzielenie opisu sprawy od rozważań i innych treści.
+    # Separate factual passages from reasoning and other content before feature extraction.
     if fields:
         selected, diagnostics = await classify_paragraphs(
             server, text, config, identifier
@@ -744,9 +747,9 @@ async def extract(server, text, config, identifier):
     descriptions = {field: "brak informacji" for field in fields}
     evidence = {field: [] for field in fields}
     field_status = {
-        field: "brak wyodrębnionego opisu sprawy"
+        field: "no accepted factual passages"
         if not passages
-        else "model nie wyekstrahował opisu"
+        else "no description extracted"
         for field in fields
     }
     confidence = {field: None for field in fields}
@@ -762,8 +765,7 @@ async def extract(server, text, config, identifier):
             for field, question in fields.items()
         },
     }
-    # Krótkie porcje ograniczają liczbę konkurujących zdań. Extract wypełnia
-    # schemat treścią; wybieramy zdanie najlepiej pasujące do danego pola.
+    # Short batches reduce competition between sentences when extracting source-grounded descriptions.
     for batch, (source, mapping) in enumerate(
         extraction_batches(text, passages, config["chunk_characters"])
         if fields
@@ -771,7 +773,7 @@ async def extract(server, text, config, identifier):
         1,
     ):
         print(
-            f"ID {identifier}: ekstrakcja opisu, porcja {batch} ({len(source)} znaków)",
+            f"ID {identifier}: extracting descriptions, batch {batch} ({len(source)} characters)",
             flush=True,
         )
         answer = (
@@ -795,8 +797,7 @@ async def extract(server, text, config, identifier):
             answer, mapping, fields, threshold
         )
         for field in fields:
-            # Rozwijamy span do zdania, więc ranking dotyczy wyboru zdania,
-            # a nie długości konkretnego ciągu wyrazów wewnątrz tego zdania.
+            # Rank the complete selected sentence rather than the length of a phrase within it.
             score = answer["fields"][field].get("line_probability", 0)
             if quotes[field]:
                 candidates[field].append(
@@ -808,7 +809,7 @@ async def extract(server, text, config, identifier):
                         probabilities[field],
                     )
                 )
-    # Wybrane zdanie sprawdzamy osobno: akapit mógł mieszać fakty i ocenę sądu.
+    # Check selected sentences independently because a paragraph can mix facts and reasoning.
     reviews = {}
     for field, options in candidates.items():
         for score, value, quotes, status, probability in sorted(
@@ -841,7 +842,7 @@ async def extract(server, text, config, identifier):
                 field_status[field], confidence[field] = status, probability
                 break
             field_status[field] = (
-                "odrzucone źródło opisu — poza faktami lub sygnał wycieku"
+                "description rejected: non-factual source or leakage signal"
             )
     award = await extract_award(server, text, diagnostics, config)
     return {
@@ -869,7 +870,7 @@ async def extract(server, text, config, identifier):
             else "brak informacji",
             "decision": instance,
             "source": header,
-            "status": "do weryfikacji",
+            "status": "review required",
         },
         "feature_input": {
             key: value for key, value in selected.items() if key != "text"
@@ -879,14 +880,13 @@ async def extract(server, text, config, identifier):
             "classified": len(selected["text"]),
             "features": sum(len(row["text"]) for row in diagnostics if row["accepted"]),
         },
-        "status": "kandydaci do weryfikacji; nie dopuszczono do treningu",
+        "status": "candidates for review; not approved for training",
         "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
     }
 
 
 def write_paragraphs(result, directory, threshold, debug=False):
-    # Rozdzielone oryginalne teksty do ręcznego porównania. Offsety i wszystkie
-    # decyzje, w tym stanowiska stron, pozostają w analysis.json.
+    # Export original passages for review; full decisions and source offsets remain in the analysis JSON.
     directory.mkdir(parents=True, exist_ok=True)
     if "award" in result:
         award = (

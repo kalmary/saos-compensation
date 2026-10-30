@@ -1,8 +1,12 @@
+# Judgment date range in years before today.
 max_age_years: 10
-# 0 = wszystkie strony; dodatnia liczba ogranicza pobieranie.
+# Maximum dump pages (100 judgments each); 0 reads all pages.
 max_pages: 0
+# Save sources, evidence and model decisions; false writes only primary records.
 debug: true
-download_path: "tmp/" # tmp dir in project root
-
+# Output directory relative to the project root.
+download_path: "tmp/"
+# Save source records without extracting features or targets.
 download_only: false
-timeout: 30
+# HTTP connection/read timeout in seconds, not a total download limit.
+timeout: 20

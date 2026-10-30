@@ -32,7 +32,7 @@ The entrypoint is [src/dataset/get_data.py](src/dataset/get_data.py). It reads f
 ```bash
 uv run src/dataset/get_data.py --help
 uv run src/dataset/get_data.py --download-only --max-pages 1 --no-debug
-uv run --extra extraction src/dataset/get_data.py --max-pages 1
+uv run --extra pytorch-macos src/dataset/get_data.py --max-pages 1
 ```
 
 [configs/dataset/api.yaml](configs/dataset/api.yaml) supplies the default values. Every key has a matching CLI argument; only explicitly supplied arguments override YAML:
@@ -60,7 +60,7 @@ Normal extraction writes one primary record per judgment directly under `downloa
     record.json
 ```
 
-`record.json` contains `id`, the configured `features`, configured `targets`, the derived `total`, `confirmed`, and review statuses. Missing values remain `brak informacji`, never an assumed zero. These are extraction candidates requiring review, including records where `confirmed` is true. `--download-only` instead writes `<SAOS_ID>/source.json` with the normalized text and metadata as its primary output; it does not produce feature/target records.
+`record.json` contains `id`, the configured `features`, configured `targets`, the derived `total`, `confirmed`, and review statuses. Missing values remain `not_available`, never an assumed zero. These are extraction candidates requiring review, including records where `confirmed` is true. `--download-only` instead writes `<SAOS_ID>/source.json` with the normalized text and metadata as its primary output; it does not produce feature/target records.
 
 With `debug: false`, extraction writes only these primary records. It does not save raw responses, normalized source exports, model-call caches, quotes, scores or intermediate decisions. Runtime model weights remain in the project model cache. Existing diagnostic files are not deleted when debug is disabled.
 
@@ -93,7 +93,9 @@ With `debug: true`, additional artifacts explain how each result was produced:
 
 Acquisition summaries and failures are also printed to the console. Diagnostic scores describe model decisions; they are not causal explanations of a future compensation regressor. Model-call caching is enabled only in debug mode and is keyed by the request and pinned model identity. Cached answers are validated before use.
 
-[configs/dataset/basal.yaml](configs/dataset/basal.yaml) chooses supported features, targets and three confidence thresholds. Prompts, the pinned Polish model revision and MPS execution remain fixed in code. `rok_wyroku` comes from the judgment date; `instancja` requires a confidence-checked procedural-stage decision rather than inference from court level. `wielkość miejscowości` matches the court seat against official GUGiK BDOT10k using Morfeusz inflection analysis and maps its population to a size class. Ambiguous matches remain missing. This is a current snapshot with no population measurement year, not historical population at judgment time; its provenance is available in debug mode. `miejscowosc_sadu` remains an optional supported source-form seat name.
+Install the platform-specific inference dependencies with `uv sync --extra pytorch-macos` on macOS or `uv sync --extra pytorch-cuda-linux` on Linux with an NVIDIA GPU. Both extras include Basal and PyTorch, with platform markers. The Linux PyPI PyTorch package supplies CUDA runtime libraries; a compatible NVIDIA driver and visible GPU are still required. No separate CUDA toolkit or MLX dependency is needed for these PyTorch backends. The existing `extraction` extra remains available for general CPU use.
+
+[configs/dataset/basal.yaml](configs/dataset/basal.yaml) chooses the device, supported features, targets and three confidence thresholds. The pinned Polish model revision and prompts remain fixed in code. `device: cpu` is the default; `mps` selects the Apple GPU and `cuda` selects an NVIDIA GPU. The requested accelerator must be available; unavailable devices fail before source or model downloads. `judgment_year` comes from the judgment date; `instance` requires a confidence-checked procedural-stage decision rather than inference from court level. `court_locality_size` matches the court seat against official GUGiK BDOT10k using Morfeusz inflection analysis and maps its population to a size class. Ambiguous matches remain missing. This is a current snapshot with no population measurement year, not historical population at judgment time; its provenance is available in debug mode. `court_seat` remains an optional supported source-form seat name.
 
 Numeric PLN amounts support decimal commas, ordinary/nonbreaking thousands separators, `tys.`, `mln`, `mld` and their full Polish unit names. Decimal arithmetic preserves source offsets and handles descending compound units such as `4 mln 250 tys. zł`. Entirely written-out amounts remain unsupported.
 
@@ -104,9 +106,11 @@ Development cases live in [fixtures/](fixtures/). Each folder contains `judgment
 To run the actual model on those fixture inputs without SAOS acquisition:
 
 ```bash
-uv run --extra extraction notebooks/03_system_one_polish.py --fixtures
+uv run --extra pytorch-macos notebooks/03_system_one_polish.py --fixtures
 ```
 
 Basal selects factual passages, extracts the configured descriptions, and separately interprets sentences containing monetary amounts. Targets are awarded compensation and other one-off damages; process/court costs, interest and rent are excluded. Ambiguous outputs remain for review. PostgreSQL ingestion, vectorization and regression training are not implemented.
 
 The optional local Gemma fallback remains in `notebooks/04_gemma.py`; it does not download models. Research requirements are in [notebooks/wymagania.md](notebooks/wymagania.md).
+
+Implementation identifiers, diagnostics and comments use English. Polish remains in Basal prompts, its established field/category identifiers, source evidence and text-matching rules. Source-pipeline missing values use `not_available`; older notebook/fixture snapshots retain their original representation.

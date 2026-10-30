@@ -1,27 +1,23 @@
+# Inference device: cpu (default), mps (Apple GPU), or cuda (NVIDIA GPU).
+device: cpu
+# Output features; Polish identifiers belong to the fixed Basal schema.
 feature_fields:
-- rok_wyroku
-- instancja
-- wielkość miejscowości # to musi być odrazu połączone z gugik. sprawdzamy miasto/ miejscowość: przypisujemy label oparty o populacji, np. miasto powyzej 500 tys mieszkancow
-- zdarzenie_i_okolicznosci
-- rodzaj_doznanej_krzywdy
-- przebieg_nasilenie_i_czas_trwania
-- konsekwencje_dla_zycia
-- indywidualne_okolicznosci_poszkodowanego
-- podjete_dzialania_i_potrzebna_pomoc
+- judgment_year # Year of the judgment.
+- instance # Procedural instance based on evidence.
+- court_locality_size # Court-seat population class from GUGiK.
+- zdarzenie_i_okolicznosci # Event and circumstances.
+- rodzaj_doznanej_krzywdy # Nature of the harm.
+- przebieg_nasilenie_i_czas_trwania # Severity, progression and duration.
+- konsekwencje_dla_zycia # Effects on daily life.
+- indywidualne_okolicznosci_poszkodowanego # Personal circumstances.
+- podjete_dzialania_i_potrzebna_pomoc # Treatment and assistance.
+# Awarded principal components, excluding costs, interest and periodic rent.
 target_fields:
-- zadoscuczynienie
-- pozostale_odszkodowanie
+- zadoscuczynienie # Compensation for non-material harm.
+- pozostale_odszkodowanie # One-off damages for material loss.
+# Minimum probability for factual passages and procedural instance.
 minimum_probability: 0.6
+# Maximum leakage probability; lower values are stricter.
 maximum_leak_probability: 0.2
+# Minimum probability for amount assignment and final award confirmation.
 amount_minimum_probability: 0.6
-
-# AVAILABLE FIELDS, ABOVE CHOSEN
-# - rok_wyroku
-# - instancja
-# - wielkość miejscowości # to musi być odrazu połączone z gugik. sprawdzamy miasto/ miejscowość: przypisujemy label oparty o populacji, np. miasto powyzej 500 tys mieszkancow
-# - zdarzenie_i_okolicznosci
-# - rodzaj_doznanej_krzywdy
-# - przebieg_nasilenie_i_czas_trwania
-# - konsekwencje_dla_zycia
-# - indywidualne_okolicznosci_poszkodowanego
-# - podjete_dzialania_i_potrzebna_pomoc

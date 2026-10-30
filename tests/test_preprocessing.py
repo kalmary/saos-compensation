@@ -356,7 +356,7 @@ def test_dataset_configs_expose_only_requested_controls():
     basal = extraction.read_config(root / 'configs/dataset/basal.yaml')
     api = extraction.read_config(root / 'configs/dataset/api.yaml')
     assert set(api) == {'max_age_years', 'max_pages', 'debug', 'download_path', 'download_only', 'timeout'}
-    assert set(basal) == {'feature_fields', 'target_fields', 'minimum_probability', 'maximum_leak_probability', 'amount_minimum_probability'}
+    assert set(basal) == {'device', 'feature_fields', 'target_fields', 'minimum_probability', 'maximum_leak_probability', 'amount_minimum_probability'}
     assert api['max_pages'] == 0
 
 

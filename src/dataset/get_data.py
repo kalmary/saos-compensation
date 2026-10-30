@@ -1,4 +1,4 @@
-"""Download and filter judgments: uv run --extra extraction src/dataset/get_data.py."""
+"""Download and filter judgments"""
 
 import argparse
 import asyncio
@@ -65,19 +65,19 @@ def search_settings(config, today=None):
         "timeout",
     }:
         raise ValueError(
-            "api.yaml wymaga max_age_years, max_pages, debug, download_path, download_only i timeout"
+            "api.yaml requires max_age_years, max_pages, debug, download_path, download_only and timeout"
         )
     if type(config["download_only"]) is not bool:
-        raise ValueError("download_only musi być wartością true albo false")
+        raise ValueError("download_only must be true or false")
     if type(config["timeout"]) not in (int, float) or not 0 < config["timeout"] < float(
         "inf"
     ):
-        raise ValueError("timeout musi być dodatnią, skończoną liczbą")
+        raise ValueError("timeout must be a positive finite number")
     if type(config["debug"]) is not bool:
-        raise ValueError("debug musi być wartością true albo false")
+        raise ValueError("debug must be true or false")
     years, limit = config["max_age_years"], config["max_pages"]
     if type(years) is not int or years <= 0 or type(limit) is not int or limit < 0:
-        raise ValueError("max_age_years musi być dodatnie, a max_pages nieujemne")
+        raise ValueError("max_age_years must be positive and max_pages nonnegative")
     path = config["download_path"]
     if (
         not isinstance(path, str)
@@ -85,10 +85,10 @@ def search_settings(config, today=None):
         or Path(path).is_absolute()
         or ".." in Path(path).parts
     ):
-        raise ValueError("download_path musi być względną ścieżką w katalogu projektu")
+        raise ValueError("download_path must be relative to the project root")
     end = today or date.today()
     if years >= end.year:
-        raise ValueError("max_age_years wykracza poza obsługiwane daty")
+        raise ValueError("max_age_years exceeds the supported date range")
     start = end.replace(
         year=end.year - years,
         day=min(end.day, monthrange(end.year - years, end.month)[1]),
@@ -362,27 +362,29 @@ def add_metadata_features(result, record, fields, localities=None):
     court = record["division"]["court"]
     locality = re.search(r"\b(?:w|we)\s+(.+)$", court["name"])
     values = {
-        "rok_wyroku": date.fromisoformat(record["judgmentDate"]).year,
-        "instancja": result["instance"]["value"],
-        "miejscowosc_sadu": locality[1].strip() if locality else "brak informacji",
+        "judgment_year": date.fromisoformat(record["judgmentDate"]).year,
+        "instance": "not_available"
+        if result["instance"]["value"] == "brak informacji"
+        else result["instance"]["value"],
+        "court_seat": locality[1].strip() if locality else "not_available",
     }
-    if "wielkość miejscowości" in fields:
+    if "court_locality_size" in fields:
         from src.dataset.localities import locality_class, match_locality
 
         rows, morphology, metadata = localities
         matched, reason = match_locality(court["name"], rows, morphology)
-        values["wielkość miejscowości"] = (
+        values["court_locality_size"] = (
             locality_class(matched["RODZAJ"], matched["LICZBAMIESZKANCOW"])
             if matched
-            else "brak informacji"
+            else "not_available"
         )
     sources = {
-        "rok_wyroku": {"field": "judgmentDate", "value": record["judgmentDate"]},
-        "instancja": result["instance"],
-        "miejscowosc_sadu": {"field": "division.court", "value": court},
+        "judgment_year": {"field": "judgmentDate", "value": record["judgmentDate"]},
+        "instance": result["instance"],
+        "court_seat": {"field": "division.court", "value": court},
     }
-    if "wielkość miejscowości" in fields:
-        sources["wielkość miejscowości"] = {
+    if "court_locality_size" in fields:
+        sources["court_locality_size"] = {
             "locality": matched,
             "matching": reason,
             "source": metadata,
@@ -393,17 +395,17 @@ def add_metadata_features(result, record, fields, localities=None):
         result["evidence"][field] = []
         result["confidence"][field] = (
             result["instance"]["decision"]["confidence"]
-            if field == "instancja"
+            if field == "instance"
             else None
         )
         result["field_status"][field] = (
-            "brak informacji"
-            if values[field] == "brak informacji"
-            else "do weryfikacji"
-            if field == "instancja"
-            else "dopasowano do bieżącego snapshotu GUGiK; brak roku pomiaru ludności"
-            if field == "wielkość miejscowości"
-            else "odczytano z metadanych SAOS"
+            "not_available"
+            if values[field] == "not_available"
+            else "review required"
+            if field == "instance"
+            else "matched to the current GUGiK snapshot; population year unknown"
+            if field == "court_locality_size"
+            else "read from SAOS metadata"
         )
 
 
@@ -413,12 +415,22 @@ def write_result(result, directory, config):
         directory / "record.json",
         {
             "id": result["id"],
-            "features": result["features"],
-            "targets": {field: award[field] for field in config["target_fields"]},
-            "total": award.get("suma", "brak informacji"),
+            "features": {
+                field: "not_available" if value == "brak informacji" else value
+                for field, value in result["features"].items()
+            },
+            "targets": {
+                field: "not_available"
+                if award[field] == "brak informacji"
+                else award[field]
+                for field in config["target_fields"]
+            },
+            "total": "not_available"
+            if award.get("suma", "brak informacji") == "brak informacji"
+            else award["suma"],
             "confirmed": award.get("confirmed", False),
             "status": result["status"],
-            "target_status": award.get("status", "brak informacji"),
+            "target_status": award.get("status", "not_available"),
         },
     )
     if config["api"]["debug"]:
@@ -429,6 +441,28 @@ def write_result(result, directory, config):
             result, debug, config["system_one"]["minimum_probability"], True
         )
         write_json(debug / "config.json", config)
+
+
+def check_device(device):
+    try:
+        import torch
+    except (ImportError, OSError) as error:
+        raise RuntimeError(
+            "PyTorch could not be loaded. Install --extra pytorch-macos on macOS or --extra extraction for CPU "
+            "or --extra pytorch-cuda-linux for CUDA on Linux."
+        ) from error
+    if device == "cuda" and (
+        torch.version.cuda is None or not torch.cuda.is_available()
+    ):
+        raise RuntimeError(
+            "CUDA was requested but is unavailable. On Linux, install --extra pytorch-cuda-linux "
+            "and check the NVIDIA driver and GPU visibility, or set device: cpu."
+        )
+
+    if device == "mps" and not torch.backends.mps.is_available():
+        raise RuntimeError(
+            "MPS was requested but is unavailable. Install --extra pytorch-macos on Apple Silicon, or set device: cpu."
+        )
 
 
 async def run(config, download_only=None):
@@ -444,8 +478,9 @@ async def run(config, download_only=None):
             print(f"Downloaded judgment {record['id']}", flush=True)
         return
 
+    check_device(config["system_one"]["device"])
     localities = None
-    if "wielkość miejscowości" in config["metadata_fields"]:
+    if "court_locality_size" in config["metadata_fields"]:
         import morfeusz2
         from src.dataset.localities import load_localities
 
@@ -536,21 +571,25 @@ async def run(config, download_only=None):
 
 
 def parse_arguments(arguments=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Explicit CLI options override api.yaml; model settings are in basal.yaml.",
+    )
     parser.add_argument(
-        "--config-dir", help="Directory containing api.yaml and basal.yaml"
+        "--config-dir",
+        help="Directory with api.yaml and basal.yaml (default: configs/dataset)",
     )
     parser.add_argument(
         "--max-age-years",
         type=int,
         default=argparse.SUPPRESS,
-        help="Maximum judgment age in years",
+        help="Judgment date range in years before today",
     )
     parser.add_argument(
         "--max-pages",
         type=int,
         default=argparse.SUPPRESS,
-        help="Maximum dump pages; 0 means all pages",
+        help="Maximum dump pages (100 judgments each); 0 reads all pages",
     )
     parser.add_argument(
         "--download-path",
@@ -561,7 +600,7 @@ def parse_arguments(arguments=None):
         "--timeout",
         type=float,
         default=argparse.SUPPRESS,
-        help="HTTP connect/read timeout in seconds",
+        help="HTTP connection/read timeout in seconds, not a total download limit",
     )
     parser.add_argument(
         "--debug",
@@ -573,7 +612,7 @@ def parse_arguments(arguments=None):
         "--download-only",
         action=argparse.BooleanOptionalAction,
         default=argparse.SUPPRESS,
-        help="Save source records without running Basal",
+        help="Save source records without extracting features or targets",
     )
     return parser.parse_args(arguments)
 

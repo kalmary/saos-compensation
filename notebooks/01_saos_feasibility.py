@@ -5,25 +5,16 @@ To badanie wykonalności, nie gotowy ekstraktor etykiet ani zbiór do treningu.
 Zmiany badawcze pozostają w tym pliku; odpowiedzi API i raport trafiają do tmp/.
 """
 
-# %% 1. Czego szukamy i dlaczego właśnie tak?
-# Szukamy WYROKÓW zawierających zasądzone zadośćuczynienie z kwotą w PLN.
-# Samo słowo + kwota nie wystarcza: kwota może być żądana, odrzucona,
-# wcześniej wypłacona, dotyczyć innej osoby, kosztów procesu lub precedensu.
-# Badamy osobno zadośćuczynienie, pozostałe odszkodowanie i ich sumę.
-# Suma dotyczy jednego poszkodowanego i jednego rozstrzygnięcia;
-# nie obejmuje odsetek, kosztów procesu/sądowych ani rent okresowych.
-# Pozostałe odszkodowanie może obejmować leczenie, opiekę, utracony dochód itd.
-# Docelowo trzeba też zdecydować, czy chodzi o dopłatę czy całe świadczenie
-# razem z wcześniejszymi wypłatami. Tutaj przykłady dotyczą kwot z tego wyroku.
-#
-# Parametry wynikają z dokumentacji i są sprawdzane z żywym queryTemplate:
+# %% 1. Scope and acquisition rationale.
+# Search for compensation judgments mentioning PLN amounts, distinguishing awards from requests,
+# prior payments, costs and references to other cases. Track non-material and material damages
+# separately; exclude interest, litigation costs and periodic rent. Examples concern this judgment.
+# Request parameters are checked against the live queryTemplate:
 # https://www.saos.org.pl/help/index.php/dokumentacja-api/api-przeszukiwania-danych
 # https://www.saos.org.pl/help/index.php/search-query-language
 # https://www.saos.org.pl/help/index.php/dokumentacja-api/api-przegladania-danych
-# W dokumentacji courtType miesza rodzaj organu z poziomem sądu;
-# odpowiedź API rozróżnia courtType=COMMON i ccCourtType=DISTRICT/REGIONAL/APPEAL.
-# Nie ma udokumentowanego filtra „zasądzone zadośćuczynienie w PLN”.
-# Dlatego porównujemy zapytania, a znaczenie kwot sprawdzamy w pełnym tekście.
+# courtType=COMMON identifies the court family; ccCourtType identifies its level.
+# Search matches alone cannot establish the monetary target.
 
 import asyncio
 import hashlib
@@ -46,12 +37,10 @@ OUTPUT = ROOT / "tmp" / "saos_feasibility"
 CONFIG = importlib.import_module("03_system_one_polish").load_config()
 BASE_URL = "https://www.saos.org.pl/api"
 
-# %% 2. Pobieranie i HTML: zachowujemy surowy JSON oraz pochodzenie danych.
-# Cache pozwala eksperymentować bez ponownego pobierania tych samych wyroków.
-# Daty pobrania są w *.meta.json; różne zapytania mogą mieć różne daty snapshotu.
-# Aby odświeżyć badanie, przenieś tmp/saos_feasibility/ w inne miejsce.
-# Błędy HTTP/JSON i niezgodne parametry zatrzymują badanie, nie znikają po cichu.
-# Z HTML usuwamy znaczniki, zachowując akapity i nagłówki do podziału tekstu.
+# %% 2. Preserve original JSON and acquisition provenance.
+# Cached responses support repeated experiments. Snapshot times may differ between queries.
+# Move tmp/saos_feasibility/ to refresh the study. HTTP, JSON and query mismatches stop the run.
+# HTML normalization preserves paragraph and heading boundaries.
 
 def fetch_json(url):
     """Preserve the response bytes and request metadata; reuse cached responses."""
@@ -216,7 +205,7 @@ class JudgmentText(HTMLParser):
             self.parts.append("\n")
 
     def handle_data(self, data):
-        # Łamanie linii w źródle HTML nie tworzy akapitu wewnątrz <p>/<span>.
+        # HTML source line breaks do not create paragraphs inside inline elements.
         self.parts.append(re.sub(r"\s+", " ", data))
 
 
@@ -227,10 +216,9 @@ def extract_text(html):
     return "\n".join(line for line in lines if line)
 
 
-# %% Metadane sądu i miejscowości: dane urzędowe, bez zgadywania wielkości miasta.
-# GPKG jest bazą SQLite, więc do jej odczytu nie potrzeba biblioteki GIS.
-# WERSJA opisuje wersję obiektu BDOT10k, NIE rok pomiaru ludności.
-# shortcut: używamy jednego snapshotu GUGiK, do badań historycznych potrzebne są stany z lat wyroków.
+# %% Official court and locality metadata.
+# Read the GeoPackage with SQLite; WERSJA is an object version, not the population measurement year.
+# shortcut: a single GUGiK snapshot is used; historical analysis needs snapshots from judgment years.
 def locality_class(kind, population):
     if kind == "wieś":
         return "wies"
@@ -280,9 +268,7 @@ def load_localities():
 
 
 def match_locality(court_name, rows, morphology):
-    # Nazwa sądu jest zwykle w miejscowniku („w Piszu”). Morfeusz rozpoznaje
-    # odmianę nazw, a kandydaci nadal pochodzą wyłącznie z urzędowej bazy.
-    # Wieloznaczne dopasowanie zostaje brakiem; nie wybieramy największej miejscowości.
+    # Use Morfeusz to match inflected court-seat names against official localities; ambiguous matches remain missing.
     location = re.search(r"\b(?:w|we)\s+([^\n]+)$", court_name)
     if not location:
         return None, "brak nazwy siedziby w nazwie sądu"
@@ -344,13 +330,10 @@ def court_metadata(record, rows, morphology, courts):
 
 
 
-# %% 3. Gdzie w wyroku szukać kwoty, faktów i rozważań prawnych?
-# Typowy układ: nagłówek -> sentencja -> UZASADNIENIE -> stanowiska stron
-# -> ustalenia faktyczne -> rozważania prawne. Nie jest to gwarantowany format.
-# „UZASADNIENIE” obejmuje często ZARÓWNO opis sprawy, JAK I ocenę wysokości.
-# Szukamy jawnych granic „Sąd ... ustalił:” oraz „Sąd ... zważył:”.
-# Gdy granic nie ma lub są wielokrotne, nie zgadujemy bezpiecznej części.
-# shortcut: rozpoznajemy wybrane jawne nagłówki, rozszerzyć po ręcznej ocenie pominiętych układów.
+# %% 3. Compare explicit document-section boundaries.
+# A reasoning heading can include both facts and award justification. This comparison requires
+# one explicit fact/reasoning boundary pair; it does not establish that the resulting text is safe.
+# shortcut: selected explicit headings are recognized; extend after reviewing missed layouts.
 REASONS = re.compile(r"(?im)^UZASADNIENIE\s*$")
 FACTS = re.compile(
     r"(?im)^(?:Sąd[^\n:]{0,60}\bustalił[^\n:]{0,80}:|"
@@ -375,9 +358,9 @@ def split_sections(text):
     }
 
 
-# %% 4. Liczbowe wzmianki PLN: wyłącznie badanie dostępności tekstu.
-# Wykaz nie jest tabelą targetów. Rozstrzygnięcie odczytuje osobno moduł 03.
-# shortcut: zapis słowny, skróty typu „4 mln zł” i inne waluty wymagają przeglądu.
+# %% 4. Numeric PLN mentions measure text availability, not target coverage.
+# Module 03 determines awards separately.
+# shortcut: written-out amounts, scaled abbreviations and foreign currencies need review here.
 MONEY = re.compile(
     r"(?<![\w.,])(?P<amount>(?:\d{1,3}(?:[ .]\d{3})+|\d+)(?:,\d{1,2})?)"
     r"\s*(?:zł(?:ot(?:ych|e|y))?|PLN)\b", re.I
@@ -390,11 +373,7 @@ def amounts(text, section):
             for match in MONEY.finditer(text)]
 
 
-# %% 5. Cechy: sześć szerokich pól z konfiguracji, wypełnianych treścią źródła.
-# Nie przypisujemy objawów do pól słownikami regex. Model w 03 wybiera
-# oryginalne fragmenty i zachowuje ich offsety oraz prawdopodobieństwa.
-# Brak wykonanej analizy nie oznacza braku informacji w źródle:
-# status przetworzenia przechowujemy osobno od wartości pola.
+# %% 5. Extract six broad descriptions with source offsets and scores; missing extraction is not missing source evidence.
 FEATURES = CONFIG["fields"]
 LEAKAGE = re.compile(
     r"zadośćuczyn|odszkodowan|zasądz|żądan|domaga|wypłac|odset|"
@@ -410,8 +389,7 @@ def quote(text, pattern, width=300):
     return re.sub(r"\s+", " ", text[start:end]).strip()
 
 
-# %% 6. Małe sprawdzenia reguł, bez pobierania danych i bez dodatkowych plików.
-# Ważne przypadki: grosze, zera, brak sekcji, żądanie vs wynik, brak != nie.
+# %% 6. Offline rule checks cover decimals, zero, missing sections, requests and missing information.
 assert extract_text("<p>A <span>B</span>.</p><p>Żółć&nbsp;123</p>") == "A B.\nŻółć 123"
 assert [row["kwota"] for row in amounts("15.000,50 zł; 2 000 PLN; 2000zł; 0 zł", "fakty")] == ["15000.50", "2000", "2000", "0"]
 assert not amounts("4 mln zł; 15 EUR; 20.10.2020", "fakty")
@@ -419,8 +397,7 @@ assert split_sections("WYROK\noddala powództwo")["fakty"] == ""
 assert split_sections("WYROK\nUZASADNIENIE\nSąd ustalił:\nUraz.\nSąd zważył:\nOcena.")["fakty"] == "Uraz."
 
 
-# %% 7. Stałe wyszukiwanie: wyroki sądów powszechnych o zadośćuczynieniu z kwotą.
-# API konfiguruje tylko wiek danych i liczbę stron. Zero stron oznacza brak limitu.
+# %% 7. Fixed compensation search with configurable age/page limits; zero pages means unlimited.
 if __name__ == "__main__":
     import argparse
 
@@ -446,9 +423,7 @@ if __name__ == "__main__":
             sources.setdefault(item["id"], []).append(f"strona {page}")
     study_ids = set(sample)
 
-    # %% 8. Pełny tekst: search.items.textContent to tylko wycinek z trafieniem.
-    # Detail.data.textContent zawiera dokument HTML; target i cechy wyprowadzamy
-    # osobno. Puste metadane decision/summary nie zastępują analizy dokumentu.
+    # %% 8. Fetch full judgment text; search snippets and empty decision/summary metadata cannot replace it.
     analyses, failures = {}, {}
     for identifier in sample:
         print(f"Pełny wyrok {identifier} ({len(analyses) + len(failures) + 1}/{len(sample)})", flush=True)
@@ -476,8 +451,7 @@ if __name__ == "__main__":
         if CONFIG["api"]["debug"]:
             save_source(payload)
         sections = split_sections(text)
-        # Gdy nie ma UZASADNIENIA, badamy kwoty w całym tekście, lecz nie nadajemy
-        # im roli „zasądzona” na podstawie niepotwierdzonych granic sentencji.
+        # Without a unique reasoning boundary, scan all amounts but do not infer a ruling-based award role.
         parts = {key: sections[key] for key in ("sentencja", "uzasadnienie")}
         if not sections["uzasadnienie"]:
             parts = {"nieustalona": text}
@@ -510,7 +484,7 @@ if __name__ == "__main__":
             if result.get("instance", {}).get("value", "brak informacji") != "brak informacji":
                 analysis["metadata"]["instancja"] = result["instance"]["value"]
                 analysis["metadata"]["instancja_status"] = "model: do weryfikacji"
-    # Pełne wyniki do własnego przeglądu, bez nadawania im statusu danych treningowych.
+    # Retain full results for review without treating them as approved training data.
     (OUTPUT / "analysis.json").write_text(json.dumps({
         "status": "kandydaci do ręcznej weryfikacji", "od": str(start_date), "do": str(today), "api_config": CONFIG["api"],
         "próbka": sorted(study_ids), "błędy": failures, "gugik": locality_source,
@@ -520,7 +494,7 @@ if __name__ == "__main__":
                     "dobór": sources[identifier]} for identifier, a in analyses.items()},
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    # Najpierw pokazujemy faktyczny wynik ekstrakcji, dopiero potem diagnostykę.
+    # Show actual extraction results before diagnostics.
     records = ["# Rekordy opisu sprawy", "",
                "Opisy ekstrakcyjne wybierają fragmenty źródła; wariant Basala zachowuje całe wybrane zdanie, w tym negację.",
                "Brak informacji oznacza brak wydobytej treści; pewność i przyczyny pozostają osobno w analysis.json."]
@@ -557,10 +531,7 @@ if __name__ == "__main__":
     for label, count in sorted(classes.items()):
         report.append(f"| {label} | {count} |")
 
-    # %% 9. Czy można znaleźć target? Kandydaci to jeszcze nie etykiety.
-    # Raport pokazuje kilka przykładów; propozycje targetów i cytaty w analysis.json.
-    # Nie wybieramy pierwszej/najwyższej kwoty jako targetu.
-    # Dwa ręcznie odczytane przykłady dalej pokażą, kiedy target ma uzasadnienie.
+    # %% 9. Report target candidates and source quotes without choosing the first or largest amount.
     report += ["", "## 3. Czy można znaleźć kwotę i rozdzielić świadczenia?", "",
                "Dwa targety: zadośćuczynienie i łączne pozostałe odszkodowanie. Suma jest wyliczana.",
                "Reguła wykrywa liczby; model ocenia całe zdanie z oznaczoną kwotą oraz kontekstem sentencji. Potem łączymy zgodne przypisania i sprawdzamy propozycję.",
@@ -581,9 +552,7 @@ if __name__ == "__main__":
         if re.search(r"odset", analysis["text"], re.I):
             report.append("Odsetki: są wzmianki; nie wyliczamy ich kwoty.")
 
-    # Ręczna interpretacja jest jawna i oddzielona od wyników regexów.
-    # Cytaty są wyszukiwane w odpowiedniej sekcji i sprawdzane przy każdym runie.
-    # To przykłady wykonalności, nie pomiar dokładności automatycznej ekstrakcji.
+    # Keep reviewed interpretations separate from regex results and verify their quotes on each run; these are not accuracy estimates.
     reviewed = {
         554194: {
             "zadośćuczynienie": "15000", "pozostałe_odszkodowanie": "2176", "suma": "17176",
@@ -610,14 +579,12 @@ if __name__ == "__main__":
                    f"- Sentencja: {quote(analysis['sections']['sentencja'], re.escape(review['sentencja']), 150)}",
                    f"- Powiązanie z zadośćuczynieniem: {quote(analysis['sections']['rozważania'], re.escape(review['rozważania']), 180)}",
                    f"- Fakt: {quote(analysis['sections']['fakty'], re.escape(review['fakt']), 120)}"]
-    # Negatywny przykład: kwota na cel społeczny nie jest świadczeniem dla powoda.
+    # A payment to a charity is not compensation awarded to the claimant.
     if 553925 in analyses:
         report += ["", "ID 553925 — pułapka beneficjenta: " + quote(analyses[553925]["text"], r"20.000 złotych", 100),
                    "Rozważania wskazują Fundację jako odbiorcę. Nie przypisujemy tej kwoty powodowi jako jego zadośćuczynienia."]
 
-    # %% 10. Czy jest opis pozwalający wnioskować o kwocie / dodatkowych kosztach?
-    # Raportujemy każdą kategorię, w tym brak. To cytaty-kandydaci, nie embeddingi.
-    # Dla przejrzystości szczegóły dwóch spraw; liczby dostępności dla całej próbki.
+    # %% 10. Report case descriptions and missing fields with source evidence; these are not embeddings or proven predictors.
     report += ["", "## 4. Czy są opis sprawy i osobne kategorie cech?", "",
                "Wartość poniżej to cytat do weryfikacji albo dokładnie 'brak informacji'.",
                "Brak informacji = brak dowodu w wyodrębnionych, przefiltrowanych faktach; nie dowodzi braku zjawiska w sprawie.",
@@ -667,10 +634,7 @@ if __name__ == "__main__":
         for field, evidence in analyses[identifier]["features"].items():
             report.append(f"- {field}: {evidence[:500]}")
 
-    # %% 11. Czy opis sprawy można oddzielić od uzasadnienia kwoty? Test wycieku.
-    # Oddzielenie sekcji jest dopiero początkiem. Również ustalenia faktyczne mogą
-    # zawierać wypłaty, żądania i inne kwoty. Z kolei rozważania powtarzają fakty.
-    # Dowód: liczymy skażone akapity i pokazujemy odrzucony fragment dla przykładu.
+    # %% 11. Review leakage beyond section headings: factual passages can disclose payments, requests and outcomes.
     report += ["", "## 5. Czy rozdzielenie opisu i uzasadnienia chroni przed wyciekiem?", "",
                "CZĘŚCIOWO. Podział semantyczny pomaga, ale nie zapewnia bezpieczeństwa. Poniżej diagnostyka porównawczego wariantu nagłówków.",
                "Kwoty/ocena świadczenia są zakazane na wejściu. Sama zamiana kwot na maskę jest niewystarczająca.", "",

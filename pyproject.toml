@@ -16,6 +16,14 @@ dependencies = [
 extraction = [
     "basal",
 ]
+pytorch-macos = [
+    "basal; sys_platform == 'darwin'",
+    "torch>=2.11; sys_platform == 'darwin'",
+]
+pytorch-cuda-linux = [
+    "basal; sys_platform == 'linux'",
+    "torch>=2.11; sys_platform == 'linux'",
+]
 gemma = [
     "ollama>=0.6.3",
 ]

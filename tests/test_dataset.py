@@ -123,7 +123,7 @@ def test_invalid_amounts_do_not_produce_partial_matches(text):
 
 @pytest.mark.parametrize("text", ["1 tys. 2 mln zł", "1 mln 2 mln zł"])
 def test_compound_amounts_require_descending_units(text):
-    with pytest.raises(ValueError, match="od największej do najmniejszej"):
+    with pytest.raises(ValueError, match="largest to smallest"):
         amount_in_pln(MONEY.fullmatch(text))
 
 
@@ -401,7 +401,8 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
 
     config = basal.load_config()
     config["api"]["debug"] = debug
-    config["metadata_fields"] = ["rok_wyroku", "instancja", "miejscowosc_sadu"]
+    config["metadata_fields"] = ["judgment_year", "instance", "court_seat"]
+    monkeypatch.setattr(pipeline, "check_device", lambda device: None)
     stopped = []
 
     class Server:
@@ -448,8 +449,8 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
             "evidence": {},
             "award": {
                 "confirmed": False,
-                "zadoscuczynienie": "brak informacji",
-                "pozostale_odszkodowanie": "brak informacji",
+                "zadoscuczynienie": "not_available",
+                "pozostale_odszkodowanie": "not_available",
             },
             "field_status": {},
             "confidence": {},
@@ -466,13 +467,13 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     record = json.loads((path / "record.json").read_text())
     assert record["features"] == {
         "opis": "Opis.",
-        "rok_wyroku": 2020,
-        "instancja": "pierwsza",
-        "miejscowosc_sadu": "Płocku",
+        "judgment_year": 2020,
+        "instance": "pierwsza",
+        "court_seat": "Płocku",
     }
     assert record["targets"] == {
-        "zadoscuczynienie": "brak informacji",
-        "pozostale_odszkodowanie": "brak informacji",
+        "zadoscuczynienie": "not_available",
+        "pozostale_odszkodowanie": "not_available",
     }
     assert (path / "debug/analysis.json").exists() == debug
     assert (directory / "debug/filtering.json").exists() == debug
@@ -497,7 +498,7 @@ def test_notebooks_accept_shared_dataset_config():
         ("Sąd Okręgowy w Płocku", "Płocku"),
         ("Sąd Rejonowy dla Warszawy-Mokotowa w Warszawie", "Warszawie"),
         ("Sąd Rejonowy we Wrocławiu", "Wrocławiu"),
-        ("Sąd Rejonowy", "brak informacji"),
+        ("Sąd Rejonowy", "not_available"),
     ],
 )
 def test_metadata_features_use_judgment_date_instance_and_court_seat(
@@ -515,15 +516,15 @@ def test_metadata_features_use_judgment_date_instance_and_court_seat(
         "division": {"court": {"name": court_name, "type": "DISTRICT"}},
     }
     get_data.add_metadata_features(
-        result, record, ["rok_wyroku", "instancja", "miejscowosc_sadu"]
+        result, record, ["judgment_year", "instance", "court_seat"]
     )
     assert result["features"] == {
-        "rok_wyroku": 2019,
-        "instancja": "druga",
-        "miejscowosc_sadu": expected,
+        "judgment_year": 2019,
+        "instance": "druga",
+        "court_seat": expected,
     }
-    assert result["metadata_sources"]["rok_wyroku"]["value"] == "2019-12-31"
-    assert result["confidence"]["instancja"] == 0.8
+    assert result["metadata_sources"]["judgment_year"]["value"] == "2019-12-31"
+    assert result["confidence"]["instance"] == 0.8
 
 
 def test_metadata_selection_and_unknown_instance_do_not_infer_from_court_level():
@@ -532,15 +533,15 @@ def test_metadata_selection_and_unknown_instance_do_not_infer_from_court_level()
         "field_status": {},
         "evidence": {},
         "confidence": {},
-        "instance": {"value": "brak informacji", "decision": {"confidence": 0.4}},
+        "instance": {"value": "not_available", "decision": {"confidence": 0.4}},
     }
     record = {
         "judgmentDate": "2020-01-01",
         "division": {"court": {"name": "Sąd Apelacyjny w Krakowie", "type": "APPEAL"}},
     }
-    get_data.add_metadata_features(result, record, ["instancja"])
-    assert result["features"] == {"instancja": "brak informacji"}
-    assert result["field_status"] == {"instancja": "brak informacji"}
+    get_data.add_metadata_features(result, record, ["instance"])
+    assert result["features"] == {"instance": "not_available"}
+    assert result["field_status"] == {"instance": "not_available"}
 
 
 def test_config_allows_metadata_only_without_adding_it_to_basal_schema(tmp_path):
@@ -643,7 +644,7 @@ def test_population_feature_uses_official_match_and_preserves_provenance():
         "field_status": {},
         "evidence": {},
         "confidence": {},
-        "instance": {"value": "brak informacji", "decision": {"confidence": 0.4}},
+        "instance": {"value": "not_available", "decision": {"confidence": 0.4}},
     }
     record = {
         "judgmentDate": "2020-01-01",
@@ -652,11 +653,11 @@ def test_population_feature_uses_official_match_and_preserves_provenance():
     get_data.add_metadata_features(
         result,
         record,
-        ["wielkość miejscowości"],
+        ["court_locality_size"],
         ([row], morfeusz2.Morfeusz(), {"population_year": None}),
     )
-    assert result["features"] == {"wielkość miejscowości": "miasto_co_najmniej_500_tys"}
-    assert result["metadata_sources"]["wielkość miejscowości"]["locality"] == row
+    assert result["features"] == {"court_locality_size": "city_at_least_500000"}
+    assert result["metadata_sources"]["court_locality_size"]["locality"] == row
 
 
 @pytest.mark.parametrize("debug", [False, True])
@@ -754,3 +755,57 @@ def test_malformed_court_dump_is_rejected(monkeypatch, court):
     )
     with pytest.raises(ValueError, match="Invalid court"):
         get_data.load_divisions(object())
+
+
+@pytest.mark.parametrize(
+    ("device", "cuda", "mps", "mode"),
+    [
+        ("cpu", False, False, "eager"),
+        ("cuda", True, False, "eager"),
+        ("mps", False, True, "mps"),
+    ],
+)
+def test_explicit_device_configuration_and_availability(
+    monkeypatch, tmp_path, device, cuda, mps, mode
+):
+    import types
+    import yaml
+
+    settings = basal.read_config(ROOT / "configs/dataset/basal.yaml")
+    settings["device"] = device
+    (tmp_path / "basal.yaml").write_text(yaml.safe_dump(settings))
+    (tmp_path / "api.yaml").write_text(yaml.safe_dump(CONFIG))
+    config = basal.load_config(tmp_path)
+    assert config["system_one"]["mode"] == mode
+    assert config["system_one"]["device"] == device
+    fake = types.SimpleNamespace(
+        version=types.SimpleNamespace(cuda="13.0" if cuda else None),
+        cuda=types.SimpleNamespace(is_available=lambda: cuda),
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: mps)
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "torch", fake)
+    get_data.check_device(device)
+
+
+@pytest.mark.parametrize("device", ["cuda", "mps"])
+def test_unavailable_accelerator_is_reported(monkeypatch, device):
+    import types
+
+    fake = types.SimpleNamespace(
+        version=types.SimpleNamespace(cuda=None),
+        cuda=types.SimpleNamespace(is_available=lambda: False),
+        backends=types.SimpleNamespace(
+            mps=types.SimpleNamespace(is_available=lambda: False)
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "torch", fake)
+    with pytest.raises(RuntimeError, match="unavailable"):
+        get_data.check_device(device)
+
+
+def test_missing_pytorch_has_installation_guidance(monkeypatch):
+    monkeypatch.setitem(sys.modules, "torch", None)
+    with pytest.raises(RuntimeError, match="pytorch-macos"):
+        get_data.check_device("cpu")

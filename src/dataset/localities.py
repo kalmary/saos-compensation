@@ -15,20 +15,20 @@ SOURCE = "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/OT_ADMS_P.g
 
 def locality_class(kind, population):
     if kind == "wieś":
-        return "wies"
+        return "village"
     if kind != "miasto" or population is None:
-        return "brak informacji"
+        return "not_available"
     if type(population) not in (int, float) or not 0 < population < float("inf"):
-        return "brak informacji"
+        return "not_available"
     for boundary, label in (
-        (20000, "miasto_ponizej_20_tys"),
-        (100000, "miasto_20_do_ponizej_100_tys"),
-        (200000, "miasto_100_do_ponizej_200_tys"),
-        (500000, "miasto_200_do_ponizej_500_tys"),
+        (20000, "city_under_20000"),
+        (100000, "city_20000_to_under_100000"),
+        (200000, "city_100000_to_under_200000"),
+        (500000, "city_200000_to_under_500000"),
     ):
         if population < boundary:
             return label
-    return "miasto_co_najmniej_500_tys"
+    return "city_at_least_500000"
 
 
 def load_localities(directory=None, timeout=30):
@@ -47,7 +47,7 @@ def load_localities(directory=None, timeout=30):
                 metadata["url"] != SOURCE
                 or hashlib.sha256(path.read_bytes()).hexdigest() != metadata["sha256"]
             ):
-                raise ValueError("Niezgodny snapshot GUGiK")
+                raise ValueError("GUGiK snapshot integrity check failed")
         else:
             with requests.get(SOURCE, timeout=timeout) as response:
                 response.raise_for_status()
@@ -64,7 +64,7 @@ def load_localities(directory=None, timeout=30):
             )
         with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as connection:
             if connection.execute("pragma quick_check").fetchone()[0] != "ok":
-                raise ValueError("Niekompletny lub uszkodzony GPKG GUGiK")
+                raise ValueError("Incomplete or damaged GUGiK GeoPackage")
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
                 "select NAZWA, RODZAJ, LICZBAMIESZKANCOW, IDENTYFIKATORSIMC, "
@@ -75,18 +75,16 @@ def load_localities(directory=None, timeout=30):
 
 
 def match_locality(court_name, rows, morphology):
-    # Nazwa sądu jest zwykle w miejscowniku („w Piszu”). Morfeusz rozpoznaje
-    # odmianę nazw, a kandydaci nadal pochodzą wyłącznie z urzędowej bazy.
-    # Wieloznaczne dopasowanie zostaje brakiem; nie wybieramy największej miejscowości.
+    # Use Morfeusz to match inflected court-seat names against official localities; ambiguous matches remain missing.
     location = re.search(r"\b(?:w|we)\s+([^\n]+)$", court_name)
     if not location:
-        return None, "brak nazwy siedziby w nazwie sądu"
+        return None, "court name does not contain a seat"
     name = location[1].strip()
     exact = [row for row in rows if row["NAZWA"].casefold() == name.casefold()]
     if len(exact) == 1:
-        return exact[0], "dokładna nazwa"
+        return exact[0], "exact name"
     if len(exact) > 1:
-        return None, "wiele miejscowości o tej nazwie"
+        return None, "multiple localities with the same name"
     words = name.split()
     lemmas = []
     for word in words:
@@ -104,7 +102,7 @@ def match_locality(court_name, rows, morphology):
         )
     ]
     return (
-        (matches[0], "jednoznaczna odmiana Morfeusz/SIMC")
+        (matches[0], "unique inflection match using Morfeusz/SIMC")
         if len(matches) == 1
-        else (None, f"liczba kandydatów: {len(matches)}")
+        else (None, f"candidate count: {len(matches)}")
     )

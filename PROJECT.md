@@ -6,15 +6,18 @@ Build a reproducible regression pipeline that estimates the compensation awarded
 
 ## Delivery plan
 
-### 1. Acquire and store judgments
+### 1. Acquire judgments and produce reviewable records
 
-1. Inspect the current SAOS API fields and filters.
-2. Define the narrowest query that selects judgments relevant to compensation and save the query parameters with each dataset version.
-3. Download paginated results with restartable ingestion and deduplicate them by SAOS judgment ID.
-4. Validate required metadata and judgment content; reject or quarantine incomplete records.
-5. Store source payloads and normalized fields in PostgreSQL. Enable pgvector in the same database for embeddings.
+1. Read full judgments from the official SAOS `/api/dump/judgments` endpoint with a bounded judgment-date range. Follow dump pagination until the configured page limit or the final page. The dump has no documented text/court filter, so select common-court compensation judgments locally. Join court/division metadata from `/api/dump/commonCourts`.
+2. Use one shared HTTP session, an explicit timeout and one attempt per request. Report HTTP, pagination and validation failures; do not silently retry or discard malformed records. Fetch fresh source data on reruns and deduplicate by stable SAOS ID within each run.
+3. Treat `configs/dataset/api.yaml` as the defaults for acquisition: age range, page limit, download path, debug, download-only and timeout. Expose matching CLI arguments; only explicitly supplied arguments override YAML. `--no-debug` and `--no-download-only` must override true YAML values.
+4. Extract factual features separately from monetary targets. Write one `<download_path>/<SAOS_ID>/record.json` containing the configured features and targets, derived total and review statuses. Missing values are `not_available`, never an assumed zero. In download-only mode, write source.json instead of an extracted record.
+5. Save additional provenance and explanation artifacts only when `debug: true`: original response bytes, request parameters and acquisition timestamps, normalized source text, source quotes/offsets, accepted/rejected passages, scores, exact model requests/responses, configuration and run errors. These support review of how a record was produced. With debug disabled, persist only primary records; do not delete existing diagnostic files.
+6. Keep the device in `configs/dataset/basal.yaml`: CPU by default, with explicit MPS or CUDA selection checked before downloads. Use the `pytorch-macos` dependency extra for local macOS work and `pytorch-cuda-linux` for NVIDIA GPU execution on Linux. Prompts and the pinned model version remain fixed in code; feature/target selection and confidence thresholds are deliberate configuration choices.
+7. Derive judgment year from SAOS metadata, require evidence for procedural instance, and match court-seat population classes against official GUGiK data. Preserve ambiguous/missing results. A current population snapshot does not establish population at judgment time.
+8. Replace records atomically by ID, preserve earlier source/diagnostic artifacts, and use separate download paths for separate datasets. Later database ingestion should use PostgreSQL JSONB and pgvector; it is separate from this local acquisition/extraction stage.
 
-The first milestone is complete when the same request can be rerun without duplicate rows and produces a documented count of downloaded, accepted, and rejected judgments.
+The first milestone is complete when a bounded acquisition produces records with explicit accepted/rejected counts, source validation, deliberate missing-value handling and debug-controlled traceability. A complete run does not establish target accuracy or approval for training.
 
 ### 2. Define the learning dataset
 
@@ -47,23 +50,25 @@ The third milestone is complete when a clean checkout can reproduce preprocessin
 
 ```text
 configs/
-  data.yaml             # SAOS query, validation, database, and split
-  preprocessing.yaml    # target rules, feature fields, leakage rules, encoders
-  train.yaml            # training hyperparameters used by trainable models
+  dataset/
+    api.yaml             # acquisition defaults overridden only by explicit CLI arguments
+    basal.yaml           # device, selected features/targets and extraction thresholds
+  train.yaml             # training controls, when training is implemented
   models/
-    <model-name>.yaml   # model type and model-specific parameters
+    <model-name>.yaml    # model choice and parameters, when regression is implemented
 ```
 
-Configuration files may reference secrets through environment-variable names, but must never contain credentials. `train.yaml` is used for neural-network hyperparameters and any shared training controls; model-specific parameters belong in the selected file under `configs/models/`.
+Expose only values deliberately selected between experiments. Keep model prompts, fixed implementation details and credentials out of experiment controls. Future data access, vectorization and training configuration should be added when implemented, without duplicating values across files. Secrets may be referenced by environment-variable name only.
 
 ## Initial technical decisions
 
 - Runtime: Python 3.12 managed with `uv`.
-- Storage: PostgreSQL with JSONB and pgvector.
+- Current outputs: local per-judgment records; diagnostic artifacts only in debug mode.
+- Planned database: PostgreSQL with JSONB and pgvector.
 - Configuration: YAML.
 - Problem type: supervised regression.
 - First model: a simple baseline chosen after the target distribution is inspected.
-- Polish text model: selected only after evaluation on the labeled extraction sample.
+- Extraction prototype: pinned Basal model with PyTorch; CPU by default, explicit MPS/CUDA when available. Independent labeled evaluation is required before approving extracted training data.
 
 ## Main risks
 

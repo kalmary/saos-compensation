@@ -28,8 +28,8 @@ DEFAULTS = {'version': 'saos-extraction-4',
  'feature_source': 'semantic_paragraphs',
  'system_one': {'model': 'Remek/basal-2.0-4.5B',
                 'revision': 'e5ba9149760d99b73b1963d8e0ccf948b58afacb',
-                'mode': 'mps',
-                'device': 'mps',
+                'mode': 'eager',
+                'device': 'cpu',
                 'template_prefix': 'off',
                 'context_overflow': 'refuse'},
  'language': 'pl',
@@ -122,10 +122,12 @@ def load_config(path=None):
     settings = read_config(path)
     basal = read_config(path.parent / settings["basal"])
     api = read_config(path.parent / settings["api"])
-    required = {"feature_fields", "target_fields", "minimum_probability", "maximum_leak_probability", "amount_minimum_probability"}
+    required = {"device", "feature_fields", "target_fields", "minimum_probability", "maximum_leak_probability", "amount_minimum_probability"}
     if set(basal) != required:
         raise ValueError("basal.yaml wymaga tylko nazw pól i trzech progów pewności")
-    for key, allowed in (("feature_fields", {*FEATURE_DESCRIPTIONS, "rok_wyroku", "instancja", "miejscowosc_sadu", "wielkość miejscowości"}), ("target_fields", AWARD_FIELDS)):
+    if basal["device"] not in ("cpu", "cuda", "mps"):
+        raise ValueError("device must be cpu, cuda or mps")
+    for key, allowed in (("feature_fields", {*FEATURE_DESCRIPTIONS, "judgment_year", "instance", "court_seat", "court_locality_size"}), ("target_fields", AWARD_FIELDS)):
         fields = basal[key]
         if not isinstance(fields, list) or not fields or not all(isinstance(field, str) and field in allowed for field in fields) or len(fields) != len(set(fields)):
             raise ValueError(f"Nieprawidłowe nazwy pól: {key}")
@@ -136,16 +138,15 @@ def load_config(path=None):
     config = {**settings, **copy.deepcopy(DEFAULTS), "api": api,
               "fields": {key: FEATURE_DESCRIPTIONS[key] for key in basal["feature_fields"] if key in FEATURE_DESCRIPTIONS},
               "target_fields": basal["target_fields"]}
+    config["system_one"]["mode"] = "mps" if basal["device"] == "mps" else "eager"
+    config["system_one"]["device"] = basal["device"]
     config["system_one"].update({key: basal[key] for key in ("minimum_probability", "maximum_leak_probability", "amount_minimum_probability")})
     return config
 
 
-# %% Model semantycznie ocenia fragmenty; nie przycinamy kategorii słownikami urazów.
-# Extract wypełnia pola fragmentami źródła; choice i noul służą kontroli wejścia.
-# Prawdopodobieństwa nie dowodzą poprawności.
+# %% Classify passages semantically and extract source-grounded descriptions; scores do not establish accuracy.
 def fragments(text, limit):
-    # Podział techniczny po akapitach i odstępach; znaczenie ocenia model.
-    # Każdy znak niebędący odstępem ma fragment i offset w pełnym tekście.
+    # Split at paragraphs and spaces while preserving source offsets; the model determines meaning.
     for line in re.finditer(r"[^\n]+", text):
         start = line.start()
         while start < line.end():
@@ -161,8 +162,7 @@ def fragments(text, limit):
 
 
 def feature_input(text, config):
-    # Wariant domyślny nie wymaga nagłówków: o roli akapitów decyduje model.
-    # Wycięcie po nagłówkach pozostaje wyłącznie wariantem porównawczym.
+    # Classify all paragraphs by default; explicit headings remain a comparison variant.
     if config["feature_source"] == "semantic_paragraphs":
         return {"text": text, "start": 0, "end": len(text), "status": "semantyczny podział wszystkich akapitów z kontekstem"}
     if config["feature_source"] == "full_document":
@@ -177,7 +177,7 @@ def feature_input(text, config):
 
 
 def check_decision(response, questions, state=None):
-    # Walidacja odpowiedzi silnika: nie akceptujemy ucięcia ani wadliwego rozkładu.
+    # Reject truncated inputs, incomplete answers and invalid probability distributions.
     if response.get("truncated"):
         raise ValueError("Silnik uciął kontekst")
     answers = response.get("answers")
@@ -219,7 +219,7 @@ def check_decision(response, questions, state=None):
 
 async def ask(server, state, questions, config):
     request = {"state": state, "lang": config["language"], "questions": questions}
-    # Progi selekcji nie zmieniają odpowiedzi modelu, więc nie unieważniają cache.
+    # Selection thresholds do not change model answers, so they do not invalidate the cache.
     identity = {"version": config["version"], "engine_version": "2.4.1",
                 "model": {key: value for key, value in config["system_one"].items()
                           if key not in {"minimum_probability", "maximum_leak_probability", "amount_minimum_probability"}}}
@@ -246,8 +246,7 @@ def choices(question, criteria):
 
 
 def sentence_fragments(chunk):
-    # Podział techniczny akapitu mieszanego. Reguła nie przypisuje roli zdania.
-    # Inicjały osób i liczby z groszami nie powinny wyznaczać granicy.
+    # Split mixed paragraphs into sentences without treating initials or decimal amounts as boundaries.
     boundaries = [0, *[m.end() for m in re.finditer(
         r"(?<!\b[A-ZĄĆĘŁŃÓŚŹŻ]\.)(?<!\br\.)(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ])", chunk["text"])], len(chunk["text"])]
     for start, end in zip(boundaries, boundaries[1:]):
@@ -292,7 +291,7 @@ async def classify_paragraphs(server, text, config, identifier):
 
 
 async def evaluate(server, config):
-    # Niewielka jawna próba kontrolna. To diagnostyka, nie benchmark SAOS.
+    # This small diagnostic control is not an independent SAOS benchmark.
     cases = [
         ("Powódka złamała nogę i przez sześć tygodni poruszała się o kulach.", "fakty", False),
         ("Sąd ustalił: poszkodowany przed wypadkiem pracował jako kierowca.", "fakty", False),
@@ -324,8 +323,7 @@ def select_facts(diagnostics, threshold, maximum_leak):
 
 
 def extraction_source(text, passages):
-    # Każda linia wejścia extract jest zdaniem z dokładnym miejscem w wyroku.
-    # Ułatwia to krótki opis i zachowuje negację oraz podmiot wypowiedzi.
+    # Each extraction input line maps to a complete source sentence, preserving negation and subject.
     sentences = {}
     for passage in passages:
         for sentence in sentence_fragments(passage):
@@ -352,7 +350,7 @@ def describe_record(answer, mapping, fields, threshold):
         rows = [row for row in mapping if row["input_start"] < detail["end"] and row["input_end"] > detail["start"]]
         if not rows:
             raise ValueError(f"Nie można odtworzyć źródła pola {field}")
-        # Do opisu włączamy całe wybrane zdanie, nie wyrwany wyraz bez negacji.
+        # Keep the complete selected sentence rather than a phrase stripped of its negation.
         rows = rows[:2]
         values[field] = " ".join(row["text"] for row in rows)
         evidence[field] = [{key: row[key] for key in ("text", "start", "end")} for row in rows]
@@ -374,13 +372,13 @@ def extraction_batches(text, passages, limit):
         yield extraction_source(text, batch)
 
 
-# %% Target: liczby z otoczeniem słownym; znaczenie przypisuje model.
+# %% Detect numeric amount contexts; let the model determine their meaning.
 AWARD_FIELDS = ("zadoscuczynienie", "pozostale_odszkodowanie")
 def amount_contexts(text):
     api = importlib.import_module("01_saos_feasibility")
     heading = list(api.REASONS.finditer(text))
     boundary = heading[0].start() if len(heading) == 1 else None
-    # Całe zdanie lub punkt listy, bez okna słów i bez regexów znaczenia świadczenia.
+    # Use the complete sentence or list item; let the model determine the monetary role.
     for paragraph in fragments(text, max(1, len(text))):
         for sentence in sentence_fragments(paragraph):
             for match in api.MONEY.finditer(sentence["text"]):
@@ -410,7 +408,7 @@ def propose_award(text, decisions, target_fields=None):
     if len(heading) != 1:
         result["status"] = "brak jednoznacznej granicy sentencji — do przeglądu"
         return result
-    # To metadane odbiorcy, nie reguła znaczenia kwoty. Nie dzielimy wspólnego zasądzenia między osoby.
+    # Identify the beneficiary without distributing a joint award across multiple people.
     plaintiff = re.search(r"z powództwa\s+([^\n]+)", text[:heading[0].start()], re.I)
     if not plaintiff or re.search(r",|\boraz\b|\s+i\s+", plaintiff[1]):
         result["status"] = "nieustalony lub wieloosobowy beneficjent — do przeglądu"
@@ -420,13 +418,11 @@ def propose_award(text, decisions, target_fields=None):
     for field in ("suma", *target_fields):
         rows = [row for row in decisions if row["accepted"] and row["category"] == field]
         direct = [row for row in rows if row["section"] == "sentencja"]
-        # Nie sumujemy wystąpień. Konflikt kilku wartości w jednej kategorii wymaga przeglądu.
-        # Suma zasądzona musi mieć dowód w sentencji, nie w opisie żądań.
+        # Do not sum repeated mentions; conflicting component values require review. Total evidence must come from the ruling.
         candidates = direct if field == "suma" else direct or rows
         if field in AWARD_FIELDS and not direct and "suma" in selected:
             total = api.Decimal(selected["suma"]["kwota"])
-            # Najpierw jawnie przypisany składnik równy całemu zasądzeniu.
-            # Nie podstawiamy kwoty za model: wybieramy spośród jego przypisań.
+            # Prefer an explicitly assigned component equal to the total, selecting only among model assignments.
             exact = [row for row in candidates if api.Decimal(row["kwota"]) == total]
             candidates = exact or [row for row in candidates if api.Decimal(row["kwota"]) < total]
         values = {api.Decimal(row["kwota"]) for row in candidates}
@@ -487,7 +483,7 @@ async def extract(server, text, config, identifier):
     header = text[:min(heading.start() if heading else len(text), 4000)]
     instance = await ask(server, header, {"instancja": {"type": "choice", **config["questions"]["instance"]}}, config)
     instance = instance["instancja"]
-    # Etap 1: semantyczne oddzielenie opisu sprawy od rozważań i innych treści.
+    # Separate factual passages from reasoning and other content before feature extraction.
     selected, diagnostics = await classify_paragraphs(server, text, config, identifier)
     passages = select_facts(diagnostics, threshold, config["system_one"]["maximum_leak_probability"])
     descriptions = {field: "brak informacji" for field in fields}
@@ -498,8 +494,7 @@ async def extract(server, text, config, identifier):
     schema = {"type": "object", "properties": {
         field: {"type": "string", "description": question + config["questions"]["extraction"]["field_suffix"]}
         for field, question in fields.items()}}
-    # Krótkie porcje ograniczają liczbę konkurujących zdań. Extract wypełnia
-    # schemat treścią; wybieramy zdanie najlepiej pasujące do danego pola.
+    # Short batches reduce competition between sentences when extracting source-grounded descriptions.
     for batch, (source, mapping) in enumerate(extraction_batches(text, passages, config["chunk_characters"]), 1):
         print(f"ID {identifier}: ekstrakcja opisu, porcja {batch} ({len(source)} znaków)", flush=True)
         answer = (await ask(server, source, {"opis": {"type": "extract", "schema": schema,
@@ -507,12 +502,11 @@ async def extract(server, text, config, identifier):
         native.append({"source": source, "mapping": mapping, "answer": answer})
         values, quotes, statuses, probabilities = describe_record(answer, mapping, fields, threshold)
         for field in fields:
-            # Rozwijamy span do zdania, więc ranking dotyczy wyboru zdania,
-            # a nie długości konkretnego ciągu wyrazów wewnątrz tego zdania.
+            # Rank the complete selected sentence rather than the length of a phrase within it.
             score = answer["fields"][field].get("line_probability", 0)
             if quotes[field]:
                 candidates[field].append((score, values[field], quotes[field], statuses[field], probabilities[field]))
-    # Wybrane zdanie sprawdzamy osobno: akapit mógł mieszać fakty i ocenę sądu.
+    # Check selected sentences independently because a paragraph can mix facts and reasoning.
     reviews = {}
     for field, options in candidates.items():
         for score, value, quotes, status, probability in sorted(options, key=lambda row: row[0], reverse=True):
@@ -549,8 +543,7 @@ async def extract(server, text, config, identifier):
 
 
 def write_paragraphs(result, directory, threshold, debug=False):
-    # Rozdzielone oryginalne teksty do ręcznego porównania. Offsety i wszystkie
-    # decyzje, w tym stanowiska stron, pozostają w pełnym results.json.
+    # Export original passages for review; full decisions and source offsets remain in the analysis JSON.
     directory.mkdir(parents=True, exist_ok=True)
     if "award" in result:
         award = result["award"] if debug else {k: v for k, v in result["award"].items() if k not in {"evidence", "amount_decisions", "proposal", "verification"}}
@@ -575,17 +568,23 @@ def write_paragraphs(result, directory, threshold, debug=False):
 
 
 async def run(texts=None, config=None):
-    # Silnik i wagi są przypięte; opisy to wybrane zdania źródła.
-    # Pierwsze uruchomienie pobiera wagi lokalnie.
+    # Use pinned engine/model versions; the first run downloads weights and descriptions retain source sentences.
     from basal.server import Server, parser
     from huggingface_hub import snapshot_download
 
     config = config or load_config()
     REQUEST_COUNTS.update(cached=0, computed=0)
     model = config["system_one"]
+    import sys
+
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from src.dataset.get_data import check_device
+
+    check_device(model["device"])
     print("Progi: " + ", ".join(f"{key}={model[key]}" for key in (
         "minimum_probability", "maximum_leak_probability", "amount_minimum_probability")), flush=True)
-    # Repozytorium 4.5B zawiera też osobne wagi trybu think; ich nie używamy.
+    # Exclude the separate think weights from the 4.5B repository.
     model_path = snapshot_download(model["model"], revision=model["revision"], ignore_patterns=["think/*"])
     args = parser().parse_args([
         "--model", model_path,

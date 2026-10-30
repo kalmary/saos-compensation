@@ -16,8 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def validate_quotes(payload, source, offset=0):
-    # Wygenerowana parafraza nie jest dowodem. Zachowujemy wyłącznie cytaty
-    # istniejące w źródle, wraz z offsetem; błędy pozostają w diagnostyce.
+    # Generated paraphrases are not evidence; accept exact, uniquely located source quotes and retain rejected candidates.
     if not isinstance(payload, dict) or not isinstance(payload.get("cytaty"), list):
         raise ValueError("Odpowiedź wymaga listy cytatów")
     accepted, rejected = [], []
@@ -68,7 +67,7 @@ async def run(texts=None, config=None):
     api = importlib.import_module("01_saos_feasibility")
     config = config or shared.load_config()
     settings = config["gemma"]
-    # Nie korzystamy z modeli chmurowych ani nie pobieramy brakujących wag.
+    # Use installed local weights without downloading models or calling cloud inference.
     client = AsyncClient(host="http://127.0.0.1:11434", timeout=180)
     installed = (await client.list()).models
     candidates = [m for m in installed if "gemma" in m.model.lower() and "cloud" not in m.model.lower()]
@@ -94,8 +93,7 @@ async def run(texts=None, config=None):
         selected = shared.feature_input(text, config)
         chunks = [{**chunk, "start": chunk["start"] + selected["start"], "end": chunk["end"] + selected["start"]}
                   for chunk in shared.fragments(selected["text"], settings["chunk_characters"])]
-        # Każda kategoria jest osobnym pytaniem; długi dokument jest obsługiwany
-        # w całości przez kolejne fragmenty, bez cichego obcięcia jego końca.
+        # Ask about each category separately and cover every chunk without silently truncating the document.
         for field, question in config["fields"].items():
             for i, chunk in enumerate(chunks):
                 print(f"Gemma ID {identifier}: {field}, fragment {i + 1}/{len(chunks)}", flush=True)

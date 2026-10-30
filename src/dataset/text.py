@@ -19,7 +19,7 @@ class JudgmentText(HTMLParser):
             self.parts.append("\n")
 
     def handle_data(self, data):
-        # Łamanie linii w źródle HTML nie tworzy akapitu wewnątrz <p>/<span>.
+        # HTML source line breaks do not create paragraphs inside inline elements.
         self.parts.append(re.sub(r"\s+", " ", data))
 
 
@@ -50,7 +50,7 @@ AMOUNT_PART = re.compile(
     re.IGNORECASE,
 )
 
-# shortcut: kwoty zapisane w całości słownie wymagają przeglądu; rozszerzyć po ocenie takich przypadków.
+# shortcut: fully written-out amounts require review; extend parsing after evaluating those cases.
 MONEY = re.compile(
     r"""
     (?<![\w.,])
@@ -83,9 +83,7 @@ def amount_in_pln(match):
         else:
             multiplier = 1
         if previous_scale is not None and multiplier >= previous_scale:
-            raise ValueError(
-                "Jednostki kwoty muszą występować od największej do najmniejszej"
-            )
+            raise ValueError("Amount units must be ordered from largest to smallest")
         total += Decimal(number) * multiplier
         previous_scale = multiplier
     value = format(total, "f")
