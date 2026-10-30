@@ -4,7 +4,7 @@ max_age_years: 10
 max_pages: 0
 
 # Total output-directory size in GiB across resumed runs; 0 disables the limit.
-max_gib: 5
+max_gib: 0.5
 # Save sources, evidence and model decisions; false writes records and the resume checkpoint.
 debug: true
 # Output directory relative to the project root.

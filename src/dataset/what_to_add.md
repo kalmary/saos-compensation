@@ -1,0 +1,4 @@
+1. data stratification - rn we download data withour care how balanced dataset is. location can be balanced bu gugik check, where specific court is. rest is harder - think how u could balance our data
+2. if money threshold confidence is below requested confidence then whe shouldnt even save the record nor count it to requested volume/ data size. same for leak prob (if to high then we trash data)
+
+3. in the very end in dataset/ prepare how-it-works.md document. i want full polish text how does model work in our case. whats the input, output, how many passes (mermaid graphs may be helpful), example input and output

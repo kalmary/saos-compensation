@@ -1,7 +1,7 @@
 import asyncio
-from datetime import date
 import importlib
 import sys
+from datetime import date
 from pathlib import Path
 
 import morfeusz2

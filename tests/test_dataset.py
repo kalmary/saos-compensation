@@ -11,10 +11,9 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.dataset.processing import basal_filtering as basal
 from src.dataset import get_data
-from src.dataset.processing.text import extract_text
-from src.dataset.processing.text import CURRENCY, MONEY, amount_in_pln
+from src.dataset.processing import basal_filtering as basal
+from src.dataset.processing.text import CURRENCY, MONEY, amount_in_pln, extract_text
 
 FIELD_NAMES = {
     "zdarzenie_i_okolicznosci": "event_circumstances",
@@ -718,6 +717,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     import argparse
     import sys
     import types
+
     from src.dataset import get_data as pipeline
 
     config = basal.load_config()
@@ -1134,6 +1134,7 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
         None.
     """
     import sqlite3
+
     from src.dataset.processing import localities
 
     source = tmp_path / "source.gpkg"
@@ -1321,6 +1322,7 @@ def test_explicit_device_configuration_and_availability(
         None.
     """
     import types
+
     import yaml
 
     settings = basal.read_config(ROOT / "configs/dataset/basal.yaml")
