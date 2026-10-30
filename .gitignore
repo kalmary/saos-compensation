@@ -43,6 +43,7 @@ htmlcov/
 .idea/
 .vscode/
 /tmp/
+/basal_weights/
 .DS_Store
 Thumbs.db
 

@@ -6,7 +6,6 @@ import hashlib
 import importlib
 import json
 import math
-import os
 import re
 import time
 from datetime import datetime, timezone
@@ -17,7 +16,6 @@ from contextvars import ContextVar
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-os.environ.setdefault("HF_HOME", str(ROOT / "tmp" / "huggingface"))
 REQUEST_COUNTS = {"cached": 0, "computed": 0}
 MODEL_CALLS = ContextVar("model_calls", default=None)
 
@@ -1304,7 +1302,10 @@ async def run(texts=None, config=None):
     )
     # Exclude the separate think weights from the 4.5B repository.
     model_path = snapshot_download(
-        model["model"], revision=model["revision"], ignore_patterns=["think/*"]
+        model["model"],
+        revision=model["revision"],
+        cache_dir=ROOT / "basal_weights",
+        ignore_patterns=["think/*"],
     )
     args = parser().parse_args(
         [

@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import hashlib
 import json
-import os
 import re
 import sys
 from calendar import monthrange
@@ -19,7 +18,12 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.dataset.processing.text import MONEY, extract_text
-from src.dataset.processing.storage import StorageLimitError, output_limit, write_bytes, write_json
+from src.dataset.processing.storage import (
+    StorageLimitError,
+    output_limit,
+    write_bytes,
+    write_json,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_URL = "https://www.saos.org.pl/api"
@@ -765,16 +769,13 @@ async def process(config):
     if checkpoint["complete"] or (limit and checkpoint["page"] >= limit):
         print("No pending judgments within the configured page limit.", flush=True)
         return
-    model_cache = (
-        Path(os.environ.get("HF_HOME", ROOT / "tmp" / "huggingface"))
-        .expanduser()
-        .resolve()
-    )
-    if config["api"]["max_gib"] and model_cache.is_relative_to(directory.resolve()):
+    model_cache = ROOT / "basal_weights"
+    if config["api"]["max_gib"] and model_cache.resolve().is_relative_to(
+        directory.resolve()
+    ):
         raise ValueError(
-            "HF_HOME must be outside download_path when max_gib is enabled; use an output subdirectory such as tmp/dataset"
+            "basal_weights must be outside download_path when max_gib is enabled"
         )
-    os.environ.setdefault("HF_HOME", str(model_cache))
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     check_device(config["system_one"]["device"])
     write_json(directory / "checkpoint.json", checkpoint)
@@ -801,7 +802,10 @@ async def process(config):
 
     model = config["system_one"]
     model_path = snapshot_download(
-        model["model"], revision=model["revision"], ignore_patterns=["think/*"]
+        model["model"],
+        revision=model["revision"],
+        cache_dir=model_cache,
+        ignore_patterns=["think/*"],
     )
     args = parser().parse_args(
         [

@@ -11,6 +11,7 @@ src/
     get_data.py             # dataset CLI entry point
     processing/             # Basal extraction, text, locality and storage modules
   main.py                   # package startup placeholder
+basal_weights/              # ignored per-model weight cache
 notebooks/                  # exploratory scripts
 fixtures/                   # development snapshots, when available
 tests/                     # automated checks
@@ -99,7 +100,7 @@ Targets are awarded compensation for non-material harm and other one-off damages
 
 Restart the same command to resume from the checkpoint. Saved records are recognized without repeating extraction. Dates and extraction settings stay pinned; debug, timeout, size and page limits may change. A completed dataset or different extraction settings require a new output path. Run one process per output directory.
 
-`max_pages: 0` reads all pages; a page limit is not random sampling. `max_gib` caps all files in the output directory across resumes, including diagnostic history; `0` disables it. Keep model weights outside that directory, for example by using `tmp/dataset` as output rather than `tmp`.
+`max_pages: 0` reads all pages; a page limit is not random sampling. `max_gib` caps all files in the output directory across resumes, including diagnostic history; `0` disables it. Model weights are cached separately under the ignored `basal_weights/models--Remek--basal-2.0-4.5B/` directory. Missing files download automatically through Hugging Face when extraction starts; cached weights are reused. This is handled by the model loader, not PyTorch itself.
 
 With `debug: false`, only records and the checkpoint are saved. With `debug: true`, sources, quotes/offsets, scores, accepted/rejected passages, configuration and exact model calls are preserved per run. Existing diagnostics are retained.
 

@@ -761,7 +761,22 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         parse_args=lambda args: argparse.Namespace(model="test")
     )
     hub = types.ModuleType("huggingface_hub")
-    hub.snapshot_download = lambda *args, **kwargs: "test"
+
+    def snapshot_download(*args, **kwargs):
+        """
+        Verify the model cache destination without fetching weights.
+
+        args:
+            args: Model identifier arguments.
+            kwargs: Snapshot download settings.
+
+        returns:
+            Placeholder model directory.
+        """
+        assert kwargs["cache_dir"] == tmp_path / "basal_weights"
+        return "test"
+
+    hub.snapshot_download = snapshot_download
     monkeypatch.setitem(sys.modules, "basal.server", module)
     monkeypatch.setitem(sys.modules, "huggingface_hub", hub)
     monkeypatch.setattr(pipeline, "ROOT", tmp_path)
@@ -1639,7 +1654,11 @@ def test_output_limit_counts_existing_files_and_persists_across_resumes(tmp_path
     returns:
         None.
     """
-    from src.dataset.processing.storage import StorageLimitError, output_limit, write_bytes
+    from src.dataset.processing.storage import (
+        StorageLimitError,
+        output_limit,
+        write_bytes,
+    )
 
     (tmp_path / "existing").write_bytes(b"1234")
     with output_limit(tmp_path, 8 / 1024**3):
@@ -1665,7 +1684,11 @@ def test_output_limit_preserves_existing_record_and_counts_atomic_temporary_file
     returns:
         None.
     """
-    from src.dataset.processing.storage import StorageLimitError, output_limit, write_bytes
+    from src.dataset.processing.storage import (
+        StorageLimitError,
+        output_limit,
+        write_bytes,
+    )
 
     path = tmp_path / "record.json"
     path.write_bytes(b"1234")
