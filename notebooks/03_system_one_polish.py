@@ -232,7 +232,9 @@ def load_config(path=None):
         },
         "target_fields": basal["target_fields"],
     }
-    config["system_one"].update(model=basal["model"], revision=revisions[basal["model"]])
+    config["system_one"].update(
+        model=basal["model"], revision=revisions[basal["model"]]
+    )
     config["system_one"]["mode"] = "mps" if basal["device"] == "mps" else "eager"
     config["system_one"]["device"] = basal["device"]
     config["system_one"].update(
@@ -1308,12 +1310,14 @@ async def run(texts=None, config=None):
         ),
         flush=True,
     )
-    # Exclude the separate think weights from the 4.5B repository.
+    from src.dataset.processing.basal_filtering import MODEL_FILES
+
     model_path = snapshot_download(
         model["model"],
         revision=model["revision"],
         cache_dir=ROOT / "basal_weights",
-        ignore_patterns=["think/*"],
+        allow_patterns=MODEL_FILES,
+        max_workers=1,
     )
     args = parser().parse_args(
         [

@@ -775,6 +775,9 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
             Placeholder model directory.
         """
         assert kwargs["cache_dir"] == tmp_path / "basal_weights"
+        assert kwargs["max_workers"] == 1
+        assert "model*.safetensors" in kwargs["allow_patterns"]
+        assert "README.md" not in kwargs["allow_patterns"]
         return "test"
 
     hub.snapshot_download = snapshot_download

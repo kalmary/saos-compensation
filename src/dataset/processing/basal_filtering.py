@@ -21,6 +21,23 @@ REQUEST_COUNTS = {"cached": 0, "computed": 0}
 MODEL_CALLS = ContextVar("model_calls", default=None)
 
 
+MODEL_FILES = [
+    "model*.safetensors",
+    "model.safetensors.index.json",
+    "config.json",
+    "generation_config.json",
+    "tokenizer*.json",
+    "tokenizer.model",
+    "special_tokens_map.json",
+    "added_tokens.json",
+    "vocab.json",
+    "merges.txt",
+    "chat_template.jinja",
+    "basal.json",
+    "CALIBRATION*.json",
+]
+
+
 DEFAULTS = {
     "version": "saos-extraction-5",
     "chunk_characters": 1200,

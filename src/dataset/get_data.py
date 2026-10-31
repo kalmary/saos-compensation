@@ -803,7 +803,8 @@ async def process(config):
         model["model"],
         revision=model["revision"],
         cache_dir=model_cache,
-        ignore_patterns=["think/*"],
+        allow_patterns=basal.MODEL_FILES,
+        max_workers=1,
     )
     args = parser().parse_args(
         [
