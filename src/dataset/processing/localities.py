@@ -94,7 +94,6 @@ def load_localities(directory=None, timeout=30):
 
 
 def match_locality(court_name, rows, morphology):
-    # Use Morfeusz to match inflected court-seat names against official localities; ambiguous matches remain missing.
     """
     Match an inflected court-location name without guessing ambiguous results.
 
