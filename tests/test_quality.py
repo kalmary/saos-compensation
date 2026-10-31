@@ -28,6 +28,7 @@ def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
             "verification": {"noul": 0.6},
             "zadoscuczynienie": "100",
         },
+        "features": {"harm_type": "Source description"},
         "evidence": {"harm_type": [{"start": 0, "end": 10}]},
         "description_reviews": [
             {
@@ -205,3 +206,34 @@ def test_award_rejection_reports_probability_and_threshold(
     config = {"system_one": {"amount_minimum_probability": 0.6}}
     result = {"award": {"confirmed": confirmed, "verification": verification}}
     assert rejection_reason(result, config) == expected
+
+
+@pytest.mark.parametrize("found", [0, 2, 3, 4, 6])
+def test_text_feature_coverage_requires_strict_majority_and_ignores_metadata(found):
+    """
+    Reject exactly half of six text fields despite populated numeric metadata.
+
+    args:
+        found: Number of source-backed text fields.
+
+    returns:
+        None.
+    """
+    from src.dataset.processing.quality import feature_rejection_reason
+
+    fields = {f"field_{index}": "Description" for index in range(6)}
+    result = {
+        "features": {
+            **{field: "Source text" for field in list(fields)[:found]},
+            "judgment_year": 2020,
+            "prior_payment": 30000,
+        },
+        "evidence": {
+            field: [{"start": 0, "end": 11}] for field in list(fields)[:found]
+        },
+    }
+    reason = feature_rejection_reason(result, {"fields": fields})
+    if found > 3:
+        assert reason is None
+    else:
+        assert reason == f"insufficient text features ({found}/6; required > 50%)"

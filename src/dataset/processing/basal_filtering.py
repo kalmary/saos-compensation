@@ -41,7 +41,7 @@ MODEL_FILES = [
 
 
 DEFAULTS = {
-    "version": "saos-extraction-15",
+    "version": "saos-extraction-16",
     "chunk_characters": 6000,
     "context_characters": 600,
     "system_one": {
@@ -797,15 +797,13 @@ async def extract_prior_payment(server, match, config):
     if amount is None:
         return 0
     return int(
-        Decimal(api.amount_in_pln(amount)).quantize(
-            Decimal(1), rounding=ROUND_HALF_UP
-        )
+        Decimal(api.amount_in_pln(amount)).quantize(Decimal(1), rounding=ROUND_HALF_UP)
     )
 
 
 async def extract_features(server, text, config, identifier):
     """
-    Extract from factual findings first and review field relevance of final candidates.
+    Extract only from factual findings and review field relevance of final candidates.
 
     args:
         server: Local inference server.
@@ -824,129 +822,119 @@ async def extract_features(server, text, config, identifier):
     statuses = {field: "no safe field-relevant description" for field in fields}
     confidence = {field: None for field in fields}
     native, reviews = [], {}
-    primary = [(selected["start"], selected["end"])]
-    fallback = [
-        (selected["body_start"], selected["start"]),
-        (selected["end"], len(text)),
+    passages = [
+        {
+            **block,
+            "start": block["start"] + selected["start"],
+            "end": block["end"] + selected["start"],
+        }
+        for block in source_blocks(selected["text"], config["chunk_characters"])
+        if fields
     ]
-    for stage, ranges in (("facts", primary), ("fallback", fallback)):
-        missing = {
-            field: description
+    candidates = {field: [] for field in fields}
+    schema = {
+        "type": "object",
+        "properties": {
+            field: {
+                "type": "string",
+                "description": description
+                + config["questions"]["extraction"]["field_suffix"],
+            }
             for field, description in fields.items()
-            if descriptions[field] == "brak informacji"
-        }
-        if not missing:
-            break
-        passages = [
-            {**block, "start": block["start"] + start, "end": block["end"] + start}
-            for start, end in ranges
-            if text[start:end].strip()
-            for block in source_blocks(text[start:end], config["chunk_characters"])
-        ]
-        candidates = {field: [] for field in missing}
-        schema = {
-            "type": "object",
-            "properties": {
-                field: {
-                    "type": "string",
-                    "description": description
-                    + config["questions"]["extraction"]["field_suffix"],
-                }
-                for field, description in missing.items()
-            },
-        }
-        for batch, (source, mapping) in enumerate(
-            extraction_batches(text, passages, config["chunk_characters"]), 1
-        ):
-            print(
-                f"ID {identifier}: extracting {stage}, batch {batch} ({len(source)} characters)",
-                flush=True,
+        },
+    }
+    for batch, (source, mapping) in enumerate(
+        extraction_batches(text, passages, config["chunk_characters"]), 1
+    ):
+        print(
+            f"ID {identifier}: extracting facts, batch {batch} ({len(source)} characters)",
+            flush=True,
+        )
+        answer = (
+            await ask(
+                server,
+                source,
+                {
+                    "opis": {
+                        "type": "extract",
+                        "schema": schema,
+                        "instructions": config["questions"]["extraction"][
+                            "instructions"
+                        ],
+                    }
+                },
+                config,
             )
-            answer = (
-                await ask(
-                    server,
-                    source,
-                    {
-                        "opis": {
-                            "type": "extract",
-                            "schema": schema,
-                            "instructions": config["questions"]["extraction"][
-                                "instructions"
-                            ],
-                        }
-                    },
-                    config,
+        )["opis"]
+        native.append({"source": source, "mapping": mapping, "answer": answer})
+        values, quotes, field_status, probabilities = describe_record(
+            answer, mapping, fields, threshold
+        )
+        for field in fields:
+            if quotes[field] and not api.CURRENCY.search(values[field]):
+                candidates[field].append(
+                    (
+                        answer["fields"][field].get("line_probability", 0),
+                        values[field],
+                        quotes[field],
+                        field_status[field],
+                        probabilities[field],
+                    )
                 )
-            )["opis"]
-            native.append({"source": source, "mapping": mapping, "answer": answer})
-            values, quotes, field_status, probabilities = describe_record(
-                answer, mapping, missing, threshold
+    span_fields = {}
+    for field, options in candidates.items():
+        for _, value, quotes, _, _ in options:
+            span_fields.setdefault((quotes[0]["start"], quotes[-1]["end"]), set()).add(
+                field
             )
-            for field in missing:
-                if quotes[field] and not api.CURRENCY.search(values[field]):
-                    candidates[field].append(
-                        (
-                            answer["fields"][field].get("line_probability", 0),
-                            values[field],
-                            quotes[field],
-                            field_status[field],
-                            probabilities[field],
-                        )
-                    )
-        span_fields = {}
-        for field, options in candidates.items():
-            for _, value, quotes, _, _ in options:
-                span_fields.setdefault(
-                    (quotes[0]["start"], quotes[-1]["end"]), set()
-                ).add(field)
-        for field, options in candidates.items():
-            for _, value, quotes, status, probability in sorted(
-                options, key=lambda row: row[0], reverse=True
+    for field, options in candidates.items():
+        for _, value, quotes, status, probability in sorted(
+            options, key=lambda row: row[0], reverse=True
+        ):
+            start, end = quotes[0]["start"], quotes[-1]["end"]
+            if (start, end) not in reviews:
+                context = config["context_characters"]
+                state = {
+                    "oceniany_fragment": value,
+                    "poprzedzajacy_kontekst": text[max(0, start - context) : start],
+                    "nastepujacy_kontekst": text[end : end + context],
+                }
+                questions = {
+                    "sekcja": {"type": "choice", **config["questions"]["section"]},
+                    "wyciek": {"type": "noul", **config["questions"]["leakage"]},
+                    **{
+                        f"fit_{name}": {
+                            "type": "noul",
+                            "instructions": "Czy wyłącznie oceniany fragment zawiera konkretną informację "
+                            "odpowiadającą temu polu: "
+                            + fields[name]
+                            + "? Sama prawdziwość zdania nie wystarcza. Nie dopowiadaj informacji "
+                            "z sąsiedniego kontekstu. Jeśli fragment dotyczy innej kwestii, odpowiedz nie.",
+                        }
+                        for name in sorted(span_fields[start, end])
+                    },
+                }
+                answers = await ask(server, state, questions, config)
+                row = {
+                    "text": value,
+                    "start": start,
+                    "end": end,
+                    "answers": answers,
+                }
+                select_facts(
+                    [row],
+                    threshold,
+                    config["system_one"]["maximum_leak_probability"],
+                )
+                reviews[start, end] = row
+            review = reviews[start, end]
+            if (
+                review["accepted"]
+                and review["answers"][f"fit_{field}"]["noul"] >= threshold
             ):
-                start, end = quotes[0]["start"], quotes[-1]["end"]
-                if (start, end) not in reviews:
-                    context = config["context_characters"]
-                    state = {
-                        "oceniany_fragment": value,
-                        "poprzedzajacy_kontekst": text[max(0, start - context) : start],
-                        "nastepujacy_kontekst": text[end : end + context],
-                    }
-                    questions = {
-                        "sekcja": {"type": "choice", **config["questions"]["section"]},
-                        "wyciek": {"type": "noul", **config["questions"]["leakage"]},
-                        **{
-                            f"fit_{name}": {
-                                "type": "noul",
-                                "instructions": "Czy wyłącznie oceniany fragment zawiera konkretną informację "
-                                "odpowiadającą temu polu: "
-                                + fields[name]
-                                + "? Sama prawdziwość zdania nie wystarcza. Nie dopowiadaj informacji "
-                                "z sąsiedniego kontekstu. Jeśli fragment dotyczy innej kwestii, odpowiedz nie.",
-                            }
-                            for name in sorted(span_fields[start, end])
-                        },
-                    }
-                    answers = await ask(server, state, questions, config)
-                    row = {
-                        "text": value,
-                        "start": start,
-                        "end": end,
-                        "answers": answers,
-                    }
-                    select_facts(
-                        [row],
-                        threshold,
-                        config["system_one"]["maximum_leak_probability"],
-                    )
-                    reviews[start, end] = row
-                review = reviews[start, end]
-                if (
-                    review["accepted"]
-                    and review["answers"][f"fit_{field}"]["noul"] >= threshold
-                ):
-                    descriptions[field], evidence[field] = value, quotes
-                    statuses[field], confidence[field] = status, probability
-                    break
+                descriptions[field], evidence[field] = value, quotes
+                statuses[field], confidence[field] = status, probability
+                break
     return {
         "features": descriptions,
         "evidence": evidence,

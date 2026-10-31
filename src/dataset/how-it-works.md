@@ -33,13 +33,13 @@ flowchart TD
 
 ## Ekstrakcja cech
 
-Ten etap rozpoczyna się dopiero po ekstrakcji i dopuszczeniu targetu. Bez debug brak lub nieprawidłowy target kończy przetwarzanie przed oceną instancji i cech. Z debug zachowujemy każdą zakończoną próbę ekstrakcji, również gdy target jest brakujący, niepotwierdzony lub ma niską pewność. Jeśli nie ma dopasowania judgment, zapisujemy brakujące cechy bez dalszych wywołań Basala. W pozostałych przypadkach cechy nadal przechodzą kontrolę wycieku, a brakujące wartości pozostają not_available.
+Ten etap rozpoczyna się dopiero po ekstrakcji i dopuszczeniu targetu. Bez debug brak lub nieprawidłowy target kończy przetwarzanie przed oceną instancji i cech. Każda sprawa musi mieć zaakceptowane opisy źródłowe dla ponad 50% skonfigurowanych cech tekstowych: obecnie co najmniej 4 z 6. Metadane i prior_payment nie są wliczane. Sprawy poniżej tego progu są całkowicie odrzucane również z debug. Dla spraw spełniających próg debug zachowuje także próby z niepotwierdzonym targetem. Brak dopasowania judgment pomija ekstrakcję cech tekstowych, co przy ich wybraniu powoduje odrzucenie z powodu niedostatecznej liczby opisów. W pozostałych przypadkach cechy nadal przechodzą kontrolę wycieku, a brakujące wartości pozostają not_available.
 
 1. Basal określa instancję na podstawie początku dokumentu. Poziom sądu nie zastępuje informacji o instancji.
 2. Najpierw wybieramy ustalenia faktyczne sądu na podstawie nagłówków, np. „Sąd ustalił, co następuje”. Obsługiwany jest też wspólny nagłówek „Sąd ustalił i zważył”. Bez takiego nagłówka pierwszym źródłem jest treść uzasadnienia przed rozważaniami, jeżeli da się wyznaczyć tę granicę.
 3. Sąsiadujące zdania są łączone w porcje do 6000 znaków, z dokładnym mapowaniem do źródła. Wszystkie wybrane pola są wydobywane razem. Nie klasyfikujemy wcześniej każdego akapitu.
 4. Sprawdzamy wybrane zdania: faktyczność i jej pewność, brak oznaczeń waluty, wyciek targetu oraz dopasowanie do konkretnego pola. Prawdziwe zdanie o leczeniu nie wystarcza jako opis okoliczności wypadku. W jednym żądaniu współdzielimy kontrolę źródła i oceniamy dopasowanie do pól, dla których ten sam cytat jest kandydatem.
-5. Gdy kandydat nie przechodzi kontroli, sprawdzamy kolejnego. Do pozostałej treści wracamy tylko po brakujące pola; zaakceptowanych nie wydobywamy ponownie. Brak bezpiecznego, pasującego opisu pozostaje brakiem informacji.
+5. Gdy kandydat nie przechodzi kontroli, sprawdzamy kolejnego. Nie przeszukujemy ponownie pozostałego tekstu: etap fallback został usunięty. Brak bezpiecznego, pasującego opisu pozostaje brakiem informacji. Po tej jednej ekstrakcji wymagamy ponad 50% zaakceptowanych cech tekstowych.
 
 
 `judgment_year` pochodzi z daty SAOS. `court_locality_size` jest klasą populacji miejscowości, w której znajduje się sąd. Nazwa miejscowości jest dopasowywana do GUGiK przez Morfeusza, a klasa wynika z `LICZBAMIESZKANCOW`. Nie jest to populacja obszaru właściwości sądu ani miejsce zamieszkania powoda. Dopasowania niejednoznaczne pozostają brakujące. Nie znamy roku pomiaru ludności, więc współczesnego źródła nie należy traktować jako zweryfikowanych danych historycznych.

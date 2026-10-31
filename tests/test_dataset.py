@@ -692,8 +692,9 @@ def test_basal_validates_historical_requests_and_responses(monkeypatch, tmp_path
 @pytest.mark.parametrize("debug", [False, True])
 @pytest.mark.parametrize("low_confidence", [False, True])
 @pytest.mark.parametrize("missing_target", [False, True])
+@pytest.mark.parametrize("sparse_features", [False, True])
 def test_pipeline_writes_separate_outputs_and_stops_worker(
-    monkeypatch, tmp_path, debug, low_confidence, missing_target
+    monkeypatch, tmp_path, debug, low_confidence, missing_target, sparse_features
 ):
     """
     Verify pipeline writes separate outputs and stops worker.
@@ -704,6 +705,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         debug: Whether to save diagnostic artifacts.
         low_confidence: Whether target verification falls below the threshold.
         missing_target: Whether no monetary target could be established.
+        sparse_features: Whether insufficient text evidence must discard even debug cases.
 
     returns:
         None.
@@ -718,6 +720,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     config["api"]["debug"] = debug
     config["api"]["max_gib"] = 0
     config["metadata_fields"] = ["judgment_year", "instance", "court_seat"]
+    config["fields"] = {"opis": "Description"}
     monkeypatch.setattr(pipeline, "check_device", lambda device: None)
     stopped = []
 
@@ -810,8 +813,17 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         await asyncio.sleep(0)
         return {
             "id": identifier,
-            "features": {"opis": text},
-            "evidence": {},
+            "features": {"opis": "brak informacji" if sparse_features else text},
+            "evidence": {}
+            if sparse_features
+            else {"opis": [{"start": 0, "end": len(text)}]},
+            "description_reviews": [
+                {
+                    "start": 0,
+                    "end": len(text),
+                    "answers": {"wyciek": {"noul": 0.01}, "fit_opis": {"noul": 0.9}},
+                }
+            ],
             "award": basal.finish_award(
                 {
                     "zadoscuczynienie": "brak informacji" if missing_target else "100",
@@ -832,7 +844,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     asyncio.run(pipeline.run(config))
     directory = tmp_path / "tmp"
     path = directory / "42"
-    if (low_confidence or missing_target) and not debug:
+    if sparse_features or ((low_confidence or missing_target) and not debug):
         assert not path.exists()
         assert stopped == [True]
         return
@@ -1613,6 +1625,7 @@ def test_export_contains_only_features_targets_and_requested_debug_files(
         None.
     """
     config = basal.load_config(overrides={"debug": debug})
+    config["fields"] = {"harm_type": "Injury"}
     result = {
         "id": 42,
         "features": {"harm_type": "source sentence"},

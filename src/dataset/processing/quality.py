@@ -47,6 +47,30 @@ def rejection_reason(result, config):
                     "missing field-relevance review or irrelevant feature description"
                 )
 
+    return feature_rejection_reason(result, config)
+
+
+def feature_rejection_reason(result, config):
+    """
+    Require source-backed values for strictly more than half the selected text features.
+
+    args:
+        result: Extracted feature values and their source evidence.
+        config: Selected text feature fields; metadata is excluded.
+
+    returns:
+        Coverage rejection reason, or None when enough features were found.
+    """
+    fields = config["fields"]
+    found = sum(
+        isinstance(result.get("features", {}).get(field), str)
+        and result["features"][field].strip()
+        not in ("", "brak informacji", "not_available")
+        and bool(result.get("evidence", {}).get(field))
+        for field in fields
+    )
+    if fields and found * 2 <= len(fields):
+        return f"insufficient text features ({found}/{len(fields)}; required > 50%)"
     return None
 
 

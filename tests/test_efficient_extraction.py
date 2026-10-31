@@ -53,9 +53,9 @@ def test_factual_heading_preserves_offsets_and_excludes_party_requests(heading):
 
 
 @pytest.mark.parametrize("treatment_in_findings", [False, True])
-def test_only_missing_fields_use_fallback(monkeypatch, treatment_in_findings):
+def test_missing_fields_do_not_trigger_fallback(monkeypatch, treatment_in_findings):
     """
-    Extract once from findings, abstain on irrelevant fields and use fallback only for gaps.
+    Extract once from findings and leave missing fields unavailable without another pass.
 
     args:
         monkeypatch: Scoped model replacement.
@@ -75,7 +75,7 @@ def test_only_missing_fields_use_fallback(monkeypatch, treatment_in_findings):
 
     async def ask(server, state, questions, config):
         """
-        Supply findings first and support treatment only in the fallback stage.
+        Supply only findings and fail if extraction reaches the reasoning section.
 
         args:
             server: Unused server.
@@ -87,6 +87,7 @@ def test_only_missing_fields_use_fallback(monkeypatch, treatment_in_findings):
             Source spans or factual, safe and field-relevant review answers.
         """
         if "opis" in questions:
+            assert "Sąd zważył" not in state
             fields = questions["opis"]["schema"]["properties"]
             schemas.append(set(fields))
             data, details = {}, {}
@@ -113,14 +114,12 @@ def test_only_missing_fields_use_fallback(monkeypatch, treatment_in_findings):
 
     monkeypatch.setattr(basal, "ask", ask)
     result = asyncio.run(basal.extract_features(None, text, config, 1))
-    assert schemas == (
-        [{"harm_type", "treatment_assistance"}]
-        if treatment_in_findings
-        else [{"harm_type", "treatment_assistance"}, {"treatment_assistance"}]
-    )
+    assert schemas == [{"harm_type", "treatment_assistance"}]
     assert result["features"] == {
         "harm_type": "Powód złamał nogę.",
-        "treatment_assistance": "Wymagał rehabilitacji.",
+        "treatment_assistance": "Wymagał rehabilitacji."
+        if treatment_in_findings
+        else "brak informacji",
     }
     for quotes in result["evidence"].values():
         assert all(text[q["start"] : q["end"]] == q["text"] for q in quotes)

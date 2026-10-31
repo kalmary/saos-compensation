@@ -17,7 +17,7 @@ import requests
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.dataset.processing.quality import rejection_reason
+from src.dataset.processing.quality import feature_rejection_reason, rejection_reason
 from src.dataset.processing.storage import (
     StorageLimitError,
     output_limit,
@@ -868,8 +868,11 @@ async def process(config):
                 finally:
                     basal.MODEL_CALLS.reset(token)
                     basal.DECISION_CACHE.reset(cache_token)
-                reason = rejection_reason(result, config)
-                if reason is not None and not config["api"]["debug"]:
+                coverage_reason = feature_rejection_reason(result, config)
+                reason = coverage_reason or rejection_reason(result, config)
+                if reason is not None and (
+                    not config["api"]["debug"] or coverage_reason
+                ):
                     record["rejected"] = True
                     summary["rejected_records"] += 1
                     remove_tree(pending)
