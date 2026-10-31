@@ -29,6 +29,7 @@ SETTINGS = {
         "prior_payment": ["wypłac"],
         "procedural_costs": ["koszt"],
         "mixed": ["żąda"],
+        "other_payments": ["odset", "rent", "grzywn"],
     },
 }
 PATTERNS = {
@@ -37,6 +38,7 @@ PATTERNS = {
     "prior_payment": ["wypłacił już {amount}"],
     "procedural_costs": ["zwrot kosztów procesu {amount}"],
     "mixed": ["żądał więcej, zasądzono {amount}"],
+    "other_payments": ["odsetki wynoszą {amount}"],
 }
 
 
@@ -106,15 +108,16 @@ def test_highest_match_wins_and_request_is_optional():
 @pytest.mark.parametrize(
     ("vector", "label"),
     [
-        ([0.7, -math.sqrt(0.51)], "judgment"),
+        ([0.7, -math.sqrt(0.51)], None),
+        ([0.71, -math.sqrt(1 - 0.71**2)], "judgment"),
         ([0.69, -math.sqrt(1 - 0.69**2)], None),
         ([0.0, 1.0], "request"),
-        ([1.0, 1.0], None),
+        ([1.0, 1.0], "judgment"),
     ],
 )
-def test_similarity_boundary_and_cross_class_ties(vector, label):
+def test_strict_similarity_boundary_and_single_class_winner(vector, label):
     """
-    Admit the configured boundary, abstain below it and do not dual-label ties.
+    Reject the configured boundary and assign one deterministic class above it.
 
     args:
         vector: Controlled source embedding.
@@ -255,6 +258,7 @@ def test_invalid_keyword_groups_fail_before_loading(groups):
     ("text", "vector", "excluded"),
     [
         ("Zasądza 100 zł kosztów procesu.", [0.70, 0, 0, 0.71, 0], "procedural_costs"),
+        ("Zasądza 100 zł odsetek.", [0.70, 0, 0, 0, 0, 0.71], "other_payments"),
         ("Przyznano i wypłacono już 100 zł.", [0.70, 0, 0.71, 0, 0], "prior_payment"),
         ("Żądał zasądzenia 200 zł, zasądzono 100 zł.", [0.70, 0, 0, 0, 0.71], "mixed"),
     ],
@@ -280,9 +284,9 @@ def test_exclusion_winner_does_not_become_target_and_keeps_other_candidates(
     assert result["request"] is None
 
 
-def test_exclusion_tie_abstains_instead_of_admitting_a_target():
+def test_exclusion_wins_an_exact_tie_instead_of_admitting_a_target():
     """
-    Reject an exact target/exclusion tie without depending on pattern order.
+    Prefer an exclusion class on an exact target/exclusion score tie.
 
     args:
         None.
@@ -291,6 +295,6 @@ def test_exclusion_tie_abstains_instead_of_admitting_a_target():
         None.
     """
     matcher = TargetMatcher(SETTINGS, PATTERNS, Encoder([[1, 0, 0, 1, 0]]))
-    assert all(
-        value is None for value in matcher.match("Zasądza 100 zł kosztów.").values()
-    )
+    result = matcher.match("Zasądza 100 zł kosztów.")
+    assert result["judgment"] is None
+    assert result["procedural_costs"] is not None

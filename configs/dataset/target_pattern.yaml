@@ -37,6 +37,9 @@ procedural_costs:
   - "uiszczona opłata od pozwu wynosiła {amount}"
   - "przyznaje pełnomocnikowi z urzędu wynagrodzenie w wysokości {amount}"
   - "obciąża stronę wydatkami na opinię biegłego w kwocie {amount}"
+  - "strona przegrywająca zwróci przeciwnikowi {amount} kosztów postępowania apelacyjnego"
+  - "komornik ustalił koszty postępowania egzekucyjnego na {amount}"
+  - "zwraca stronie niewykorzystaną zaliczkę na wydatki sądowe w kwocie {amount}"
 
 mixed:
   - "powód żądał {previous_amount}, lecz sąd zasądził tylko {amount}"
@@ -44,3 +47,11 @@ mixed:
   - "powód utrzymał się z żądaniem do kwoty {amount}, a w pozostałej części powództwo oddalono"
   - "sąd obniżył żądaną sumę {previous_amount} do należnego zadośćuczynienia {amount}"
   - "w miejsce wnioskowanych {previous_amount} przyznano poszkodowanemu {amount}"
+
+# Non-principal payments outside the selected one-off compensation targets.
+other_payments:
+  - "skapitalizowane odsetki za opóźnienie wynoszą {amount}"
+  - "od kwoty głównej naliczono {amount} odsetek ustawowych"
+  - "zasądza rentę w wysokości {amount} miesięcznie płatną do dziesiątego dnia miesiąca"
+  - "zaległe raty renty za wskazany okres wynoszą łącznie {amount}"
+  - "wymierza karę grzywny w wysokości {amount}"

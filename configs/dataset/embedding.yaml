@@ -3,7 +3,7 @@ revision: e8f8c211226b894fcb81acc59f3b34ba3efd5f42
 device: mps # cpu, mps or cuda.
 batch_size: 64
 max_length: 128 # Longer sentences use all token windows, without dropping the tail.
-minimum_cosine_similarity: 0.7
+minimum_cosine_similarity: 0.7 # Winning score must be strictly greater.
 
 # Target and exclusion groups compete by similarity; shared stems enable target roles.
 candidate_keywords:
@@ -35,13 +35,25 @@ candidate_keywords:
   - zapłaci
   - zaspokoj
   procedural_costs:
-  - koszt
+  - proces
+  - postępowan
+  - sądow
+  - apelac
+  - kasac
   - opłat
   - zastępstw
   - pełnomocni
   - skarb
   - biegł
-  - wynagrodz
+  - adwok
+  - radc
+  - komorn
+  - egzekuc
+  - zaliczk
+  other_payments:
+  - odset
+  - rent
+  - grzywn
   mixed:
   - żąd
   - zażąd

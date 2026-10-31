@@ -15,6 +15,7 @@ KEYWORDS = {
     "prior_payment": ["wypłac"],
     "procedural_costs": ["koszt"],
     "mixed": ["utrzyma"],
+    "other_payments": ["odset", "rent", "grzywn"],
 }
 
 
@@ -121,6 +122,7 @@ def test_role_specific_stems_take_precedence_over_shared_words(text, classes):
     [
         ("Wypłacono już 100 zł.", "prior_payment", "wypłac"),
         ("Koszty procesu wyniosły 100 zł.", "procedural_costs", "koszt"),
+        ("Naliczono 100 zł odsetek.", "other_payments", "odset"),
         ("Utrzymał się z żądaniem do 100 zł.", "mixed", "utrzyma"),
     ],
 )
@@ -141,3 +143,27 @@ def test_exclusion_keywords_also_select_sentences_before_embedding(text, group, 
     (row,) = target_matching.candidate_sentences(text, groups)
     assert row["classes"] == (group,)
     assert text[row["start"] : row["end"]] == text
+
+
+def test_configured_cost_keywords_distinguish_treatment_from_procedure():
+    """
+    Keep clinical expenses eligible as damages instead of procedural costs.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    from src.dataset.processing.basal_filtering import load_config
+
+    keywords = load_config()["embedding"]["candidate_keywords"]
+    (treatment,) = target_matching.candidate_sentences(
+        "Zasądza 5000 zł tytułem zwrotu kosztów leczenia.", keywords
+    )
+    (procedure,) = target_matching.candidate_sentences(
+        "Zasądza 2400 zł tytułem zwrotu kosztów procesu.", keywords
+    )
+    assert "judgment" in treatment["classes"]
+    assert "procedural_costs" not in treatment["classes"]
+    assert "procedural_costs" in procedure["classes"]

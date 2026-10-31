@@ -41,7 +41,7 @@ MODEL_FILES = [
 
 
 DEFAULTS = {
-    "version": "saos-extraction-16",
+    "version": "saos-extraction-17",
     "chunk_characters": 6000,
     "context_characters": 600,
     "system_one": {

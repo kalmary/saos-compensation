@@ -88,8 +88,8 @@ def target_rejection_reason(award, config):
     if "target_matches" in award:
         match = award["target_matches"].get("judgment")
         threshold = config["embedding"]["minimum_cosine_similarity"]
-        if match is None or match["similarity"] < threshold:
-            return f"no judgment sentence with cosine similarity >= {threshold}"
+        if match is None or match["similarity"] <= threshold:
+            return f"no judgment sentence with cosine similarity > {threshold}"
     threshold = config["system_one"]["amount_minimum_probability"]
     probability = award.get("verification", {}).get("noul")
     low_confidence = probability is not None and probability < threshold

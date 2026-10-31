@@ -237,3 +237,27 @@ def test_text_feature_coverage_requires_strict_majority_and_ignores_metadata(fou
         assert reason is None
     else:
         assert reason == f"insufficient text features ({found}/6; required > 50%)"
+
+
+@pytest.mark.parametrize(("similarity", "accepted"), [(0.7, False), (0.7001, True)])
+def test_target_admission_uses_strict_cosine_threshold(similarity, accepted):
+    """
+    Apply the same strict similarity boundary during matching and target admission.
+
+    args:
+        similarity: Winning judgment cosine score.
+        accepted: Whether the score exceeds the configured threshold.
+
+    returns:
+        None.
+    """
+    from src.dataset.processing.quality import target_rejection_reason
+
+    config = basal.load_config()
+    award = {
+        "target_matches": {"judgment": {"similarity": similarity}},
+        "confirmed": True,
+        "verification": {"noul": 0.9},
+        "zadoscuczynienie": "100",
+    }
+    assert (target_rejection_reason(award, config) is None) is accepted

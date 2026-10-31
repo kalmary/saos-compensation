@@ -10,7 +10,7 @@ from .text import MONEY, sentence_fragments
 
 ROOT = Path(__file__).resolve().parents[3]
 TARGET_CLASSES = ("judgment", "request")
-EXCLUDED_CLASSES = ("prior_payment", "procedural_costs", "mixed")
+EXCLUDED_CLASSES = ("prior_payment", "procedural_costs", "mixed", "other_payments")
 PATTERN_CLASSES = TARGET_CLASSES + EXCLUDED_CLASSES
 
 
@@ -255,7 +255,7 @@ class TargetMatcher:
 
     def match(self, text):
         """
-        Select the highest-scoring eligible sentence for each class; a tie abstains.
+        Assign each candidate its highest-scoring eligible class above the strict threshold.
 
         args:
             text: Full normalized judgment text.
@@ -278,14 +278,12 @@ class TargetMatcher:
             for index, (label, phrase) in enumerate(self.patterns):
                 if label not in row["classes"]:
                     continue
-                score = round(float(similarities[index]), 7)
+                score = float(similarities[index])
                 if label not in best or score > best[label][0]:
                     best[label] = (score, phrase)
-            label = max(best, key=lambda key: best[key][0])
-            if sum(value[0] == best[label][0] for value in best.values()) > 1:
-                continue
+            label = max(best, key=lambda key: (best[key][0], key in EXCLUDED_CLASSES))
             score, phrase = best[label]
-            if score >= self.settings["minimum_cosine_similarity"] and (
+            if score > self.settings["minimum_cosine_similarity"] and (
                 result[label] is None or score > result[label]["similarity"]
             ):
                 result[label] = {**row, "similarity": score, "pattern": phrase}
