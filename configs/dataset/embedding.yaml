@@ -4,3 +4,32 @@ device: mps # cpu, mps or cuda.
 batch_size: 64
 max_length: 128 # Longer sentences use all token windows, without dropping the tail.
 minimum_cosine_similarity: 0.7
+
+# Role-specific stems restrict class eligibility; shared stems are a fallback.
+candidate_keywords:
+  judgment:
+  - zasądz
+  - nakaz
+  - zobowiąz
+  - orzek
+  - orzecz
+  request:
+  - żąd
+  - zażąd
+  - domaga
+  - wnos
+  - wniós
+  - wnies
+  - wnieś
+  - wnios
+  - wzyw
+  - wezw
+  - dochodz
+  shared:
+  - przyzna
+  - roszcz
+  - powództw
+  - zapłat
+  - zapłac
+  - zadośćuczyn
+  - odszkod

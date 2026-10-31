@@ -18,3 +18,5 @@ request:
   - "podtrzymuje żądanie pozwu w wysokości {amount}"
   - "w apelacji domaga się zmiany wyroku i przyznania kwoty {amount}"
   - "wzywa do zapłaty kwoty {amount}"
+  - "pełnomocnik powoda ostatecznie zażądał jako zadośćuczynienia sumy {amount}"
+  - "w pozwie określono dochodzone świadczenie na {amount}"

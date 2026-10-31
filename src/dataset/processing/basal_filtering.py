@@ -41,7 +41,7 @@ MODEL_FILES = [
 
 
 DEFAULTS = {
-    "version": "saos-extraction-11",
+    "version": "saos-extraction-13",
     "chunk_characters": 6000,
     "context_characters": 600,
     "system_one": {
@@ -490,20 +490,6 @@ async def ask(server, state, questions, config):
     if MODEL_CALLS.get() is not None:
         MODEL_CALLS.get().append({"request": request, "response": response})
     return check_decision(response, questions, state)
-
-
-def choices(question, criteria):
-    """
-    Build a model question with an explicit choice space.
-
-    args:
-        question: Instructions for the model question.
-        criteria: Allowed model choices and their descriptions.
-
-    returns:
-        Choice-question definition.
-    """
-    return {"type": "choice", "instructions": question, "criteria": criteria}
 
 
 def source_blocks(text, limit):

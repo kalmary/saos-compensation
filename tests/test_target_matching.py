@@ -21,6 +21,11 @@ SETTINGS = {
     "batch_size": 8,
     "max_length": 128,
     "minimum_cosine_similarity": 0.7,
+    "candidate_keywords": {
+        "judgment": ["zasądz"],
+        "request": ["żąda"],
+        "shared": ["przyzna"],
+    },
 }
 PATTERNS = {"judgment": ["zasądza {amount}"], "request": ["żąda {amount}"]}
 
@@ -67,14 +72,14 @@ def test_highest_match_wins_and_request_is_optional():
     """
     encoder = Encoder([[0.8, 0.6], [1.0, 0.0]])
     matcher = TargetMatcher(SETTINGS, PATTERNS, encoder)
-    text = "Pierwsze zdanie.\nDrugie zdanie."
+    text = "Zasądza 100 zł.\nPrzyznaje 200 zł."
     result = matcher.match(text)
-    assert result["judgment"]["text"] == "Drugie zdanie."
+    assert result["judgment"]["text"] == "Przyznaje 200 zł."
     assert result["judgment"]["similarity"] == 1.0
     assert result["request"] is None
     assert (
         text[result["judgment"]["start"] : result["judgment"]["end"]]
-        == "Drugie zdanie."
+        == "Przyznaje 200 zł."
     )
     matcher.match(text)
     assert len(encoder.calls) == 3
@@ -102,7 +107,7 @@ def test_similarity_boundary_and_cross_class_ties(vector, label):
         None.
     """
     matcher = TargetMatcher(SETTINGS, PATTERNS, Encoder([vector]))
-    result = matcher.match("Zdanie.")
+    result = matcher.match("Przyznaje 100 zł.")
     assert {key for key, value in result.items() if value is not None} == (
         {label} if label else set()
     )
@@ -188,3 +193,43 @@ def test_long_sentence_windows_are_pooled_without_dropping_tokens():
         encoder.encode(["long sentence", "short sentence"]),
         torch.tensor([[2.0, 2.0], [5.0, 5.0]]),
     )
+
+
+def test_request_only_sentence_cannot_become_judgment_despite_higher_similarity():
+    """
+    Respect keyword eligibility before choosing a cosine winner.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    matcher = TargetMatcher(SETTINGS, PATTERNS, Encoder([[0.72, 0.71]]))
+    result = matcher.match("Żąda 100 zł.")
+    assert result["judgment"] is None
+    assert result["request"]["similarity"] >= 0.7
+
+
+@pytest.mark.parametrize(
+    "groups",
+    [
+        ["zasądz"],
+        {"judgment": ["zasądz"], "request": []},
+        {"judgment": [], "request": [], "shared": []},
+        {"judgment": "zasądz", "request": [], "shared": []},
+        {"judgment": [""], "request": [], "shared": []},
+    ],
+)
+def test_invalid_keyword_groups_fail_before_loading(groups):
+    """
+    Reject malformed keyword groups at the configuration boundary.
+
+    args:
+        groups: Invalid candidate keyword configuration.
+
+    returns:
+        None.
+    """
+    with pytest.raises(ValueError, match="candidate_keywords"):
+        validate_settings({**SETTINGS, "candidate_keywords": groups}, PATTERNS)

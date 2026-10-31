@@ -29,6 +29,7 @@ def validate_settings(settings, patterns):
         "batch_size",
         "max_length",
         "minimum_cosine_similarity",
+        "candidate_keywords",
     }
     if not isinstance(settings, dict) or set(settings) != required:
         raise ValueError(f"embedding.yaml requires {sorted(required)}")
@@ -51,6 +52,23 @@ def validate_settings(settings, patterns):
         or not 0 <= threshold <= 1
     ):
         raise ValueError("minimum_cosine_similarity must be between 0 and 1")
+    keywords = settings["candidate_keywords"]
+    if not isinstance(keywords, dict) or set(keywords) != {
+        "judgment",
+        "request",
+        "shared",
+    }:
+        raise ValueError(
+            "candidate_keywords requires judgment, request and shared groups"
+        )
+    if not any(keywords.values()) or any(
+        not isinstance(words, list)
+        or any(not isinstance(word, str) or not word.strip() for word in words)
+        for words in keywords.values()
+    ):
+        raise ValueError(
+            "candidate_keywords groups must contain word stems, with at least one nonempty group"
+        )
     if not isinstance(patterns, dict) or set(patterns) != {"judgment", "request"}:
         raise ValueError("target_pattern.yaml requires judgment and request lists")
     for label, phrases in patterns.items():
@@ -62,6 +80,49 @@ def validate_settings(settings, patterns):
             raise ValueError(f"Target patterns for {label} must be nonempty strings")
         for phrase in phrases:
             prepare_text(phrase)
+
+
+def candidate_sentences(text, keywords):
+    """
+    Select sentences containing both a numeric PLN amount and a target-related word stem.
+
+    args:
+        text: Full normalized judgment text.
+        keywords: Judgment, request and shared word-prefix groups from embedding.yaml.
+
+    returns:
+        Candidate sentences with unchanged source offsets and eligible classes.
+    """
+    core = {
+        group: re.compile(
+            r"\b(?:" + "|".join(re.escape(word) for word in words) + r")\w*",
+            re.IGNORECASE,
+        )
+        if words
+        else re.compile(r"(?!)")
+        for group, words in keywords.items()
+    }
+    sentences = []
+    for line in re.finditer(r"[^\n]+", text):
+        if not MONEY.search(line[0]) or not any(
+            pattern.search(line[0]) for pattern in core.values()
+        ):
+            continue
+        for sentence in sentence_fragments(
+            {"text": line[0], "start": line.start(), "end": line.end()}
+        ):
+            if not MONEY.search(sentence["text"]):
+                continue
+            classes = tuple(
+                label
+                for label in ("judgment", "request")
+                if core[label].search(sentence["text"])
+            )
+            if not classes and core["shared"].search(sentence["text"]):
+                classes = ("judgment", "request")
+            if classes:
+                sentences.append({**sentence, "classes": classes})
+    return sentences
 
 
 def prepare_text(text):
@@ -200,13 +261,7 @@ class TargetMatcher:
         """
         from .cosine_similarity import cosine_similarity
 
-        sentences = [
-            sentence
-            for line in re.finditer(r"[^\n]+", text)
-            for sentence in sentence_fragments(
-                {"text": line[0], "start": line.start(), "end": line.end()}
-            )
-        ]
+        sentences = candidate_sentences(text, self.settings["candidate_keywords"])
         result = {"judgment": None, "request": None}
         if not sentences:
             return result
@@ -217,10 +272,12 @@ class TargetMatcher:
         for row, similarities in zip(sentences, scores, strict=True):
             best = {}
             for index, (label, phrase) in enumerate(self.patterns):
+                if label not in row["classes"]:
+                    continue
                 score = round(float(similarities[index]), 7)
                 if label not in best or score > best[label][0]:
                     best[label] = (score, phrase)
-            if best["judgment"][0] == best["request"][0]:
+            if len(best) == 2 and best["judgment"][0] == best["request"][0]:
                 continue
             label = max(best, key=lambda key: best[key][0])
             score, phrase = best[label]
@@ -257,6 +314,8 @@ def match_targets(text, config):
     returns:
         Best matching source sentences for both classes.
     """
+    if not candidate_sentences(text, config["embedding"]["candidate_keywords"]):
+        return {"judgment": None, "request": None}
     matcher = cached_matcher(
         json.dumps(config["embedding"], sort_keys=True),
         json.dumps(config["target_patterns"], sort_keys=True),
