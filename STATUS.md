@@ -6,7 +6,27 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
-Within-judgment recovery now persists source/configuration and validated model decisions under <ID>/pending/, independently of debug. Resumed requests reuse completed decisions; pending state is retained after interruption, counted toward the size budget, and removed after output commit or explicit rejection. Completed debug artifacts remain per-run, matching the notebook analysis/evidence outputs. Offline cancellation/recovery checks pass; old sessions with no saved decisions cannot be recovered.
+Added pairwise embedding cosine similarity under src/dataset/processing/cosine_similarity.py for CPU, MPS and CUDA, defaulting to CPU. It returns an N-by-M float32 tensor, validates finite real nonzero vectors and dimensions, and rejects unavailable accelerators without fallback. The complete suite passes 225 tests with one skipped fixture replay. A live MPS result matches CPU; CUDA hardware is unavailable on this Mac. Embedding generation and phrase-based target matching remain unimplemented.
+
+configs/dataset/target.yaml contains five representative award/payment constructions and seven request constructions. Inflection, word-order and ending variants are omitted; extraction remains unchanged. These are not wired into extraction. YAML structure was validated; model inference was not rerun.
+
+The amount-classification prompt now explicitly maps Polish request phrases (wnosi o zasądzenie, żąda, domaga się) to pomin, distinguishing a party request from a court award. This clarification has not been evaluated with a new inference run.
+
+Completed a live MPS/debug inspection of three consecutive candidate judgments with Basal mini (255711, 256099, 256444): all three completed with four files and valid=false. The run made 352 fresh requests in about six minutes. Manual inspection found source-grounded but poorly matched/duplicated feature values, incorrect amount-role classifications, a numeric-parenthesis parsing gap, a multiple-claimant exclusion and an irrelevant property case. Detailed assessment: tmp/basal_review_20261031_123326_review.md. No extraction fixes were applied during this evaluation.
+
+Debug now retains every completed extraction attempt, including missing/unverifiable targets and invalid amounts, and continues feature extraction with unchanged leakage checks. award.json uses valid=false whenever strict target or feature admission fails. Debug=false retains the existing rejection policy. Source/model-call files are saved before temporary pending state is cleaned up. Version 8 requires a fresh path for older checkpoints.
+
+Award rejection messages distinguish low confidence from missing/unconfirmed verification and show the observed probability with its required threshold. Missing verification is reported as unavailable, not zero.
+
+Version 8 extracts feature candidates directly from packed blocks, skipping preliminary paragraph/block classification. Candidate sentences retain factuality, confidence, currency and leakage checks with shared reviews across fields and fallback to lower-ranked candidates. Target-first validation and the basic/debug output layout remain unchanged. Older checkpoints require a fresh output directory. No live speed/quality benchmark was run.
+
+The three incremental extraction speed steps are tracked in src/dataset/what2do.md; all three implementation steps are complete; live quality/runtime comparison remains pending.
+
+Target extraction and its existing admission checks now precede instance/paragraph/feature inference. Rejected targets return immediately; accepted targets retain the existing feature pipeline. Both early and final admission reuse the same target validation. This is the first incremental speed change; 188 offline tests pass with one missing-fixture replay skipped. No live speed benchmark was run.
+
+Completed per-case output is now flat: record.json contains feature values only; award.json contains selected target values, total and boolean valid. Debug adds only source.txt and model_calls.json. Console summaries replace persistent reports; operational checkpoint/pending recovery remains. The current macOS configuration selects MPS, matching the earlier notebook backend; no fresh performance claim is made. Confirmed partial awards are retained when another selected component is unknown.
+
+Within-judgment recovery now persists source/configuration and validated model decisions under <ID>/pending/, independently of debug. Resumed requests reuse completed decisions; pending state is retained after interruption, counted toward the size budget, and removed after output commit or explicit rejection. Completed debug artifacts are limited to source.txt and model_calls.json. Offline cancellation/recovery checks pass; old sessions with no saved decisions cannot be recovered.
 
 Admission now requires established selected targets, confirmed award confidence and reviewed selected evidence below the leakage ceiling. Rejected cases leave no record or per-case diagnostics/model cache; progress advances explicitly after rejection. Raw judgment pages are no longer persisted before admission. Polish how-it-works.md documents the complete flow and a proposed, not implemented, stratification strategy.
 
@@ -16,13 +36,13 @@ The dataset CLI remains src/dataset/get_data.py; support modules are grouped und
 
 The dataset pipeline resumes automatically from `<download_path>/checkpoint.json`, preserving dataset identity, exact request dates, extraction settings, current page IDs and the next page/item. Final records are saved before progress advances; a record saved immediately before an interruption is recognized on restart. Changing debug, timeout, max_gib or page limits is allowed; incompatible extraction/date changes require a new output path. Download-only mode has been removed.
 
-max_gib bounds the total size of all files in the target folder, including existing records, debug history and atomic temporary writes. Writes that exceed the budget are refused and progress remains resumable. The model cache must be outside a size-limited target folder. Every execution has a unique run ID; original sources, exact result snapshots, analysis and acquisition/filtering reports are kept separately per run when debug is enabled. Ordinary output contains records and the operational checkpoint only.
+max_gib bounds the total size of all files in the target folder, including existing records, debug history and atomic temporary writes. Writes that exceed the budget are refused and progress remains resumable. The model cache must be outside a size-limited target folder. Console summaries retain execution identifiers; persistent output contains the operational checkpoint and the two basic per-case files, plus the two requested debug files when enabled.
 
 Feature identifiers are English, including event_circumstances, harm_type, harm_severity_duration, life_impact, claimant_circumstances and treatment_assistance. Basal still receives Polish field descriptions and Polish judgment text. Original development fixtures remain unchanged; offline replay adapts their historical schema keys. court_locality_size classifies the population of the locality where the court is located using GUGiK LICZBAMIESZKANCOW, with ambiguous matches left missing. The source snapshot has no verified population measurement year.
 
 The configured HTTP timeout remains 20 seconds. The working-directory independence test now compares configuration before and after changing directories instead of assuming fixed YAML values. AGENTS.md requires short English function docstrings with description, args and returns; repository functions have been documented accordingly. PROJECT.md describes the actual acquisition and output behavior in place.
 
-Validation: offline tests pass in the working directory (180 passed, one fixture replay skipped because its files were locally deleted) and in the final isolated copy containing the committed historical fixtures (191 passed). GPU inference, dependency installation and live acquisition were not repeated. Existing fixture deletions remain untouched. Independent extraction/leakage evaluation and downstream PostgreSQL, vectorization and regression work remain outstanding.
+Validation: 211 offline tests pass; one historical-fixture replay is skipped because its files are absent. Ruff still reports 25 style findings across the dataset modules and existing tests; broad style cleanup is outside this output change. No live acquisition or MPS inference benchmark was repeated. Independent extraction/leakage evaluation and downstream PostgreSQL, vectorization and regression work remain outstanding.
 
 ## Next steps
 
@@ -33,7 +53,6 @@ Validation: offline tests pass in the working directory (180 passed, one fixture
 
 ## Log
 
-- 2026-10-27: Added and ran the SAOS feasibility script. Verified scoped search, pagination, and full-text access; inspected 18 judgments and documented extraction risks in `tmp/saos_feasibility/report.md`.
 - 2026-10-27: Documented a fixed Polish-model approach to text-feature extraction and standardization. Kept exploratory outputs under `tmp/` and retained package markers in ignored project folders.
 - 2026-10-27: Preserved `data/.gitkeep` while keeping generated data ignored. Updated the status summary, next steps, and log instructions.
 - 2026-10-27: Added the status-maintenance rule to `AGENTS.md`, including summary updates, dated entries, and a limit of 50 log entries.
@@ -89,3 +108,31 @@ Validation: offline tests pass in the working directory (180 passed, one fixture
 - 2026-10-31: Reviewed Hugging Face download progress: snapshot_download blocks the pipeline but defaults to eight file workers, while Xet reports separate transfer/reconstruction progress. Restricted both source and notebook downloads to runtime weights/tokenizer/configuration/calibration files and one file worker. Existing cached documents are preserved; no active downloads were interrupted.
 
 - 2026-10-31: Fixed loss of paragraph-level progress caused by disabling all pre-admission persistence. Added temporary decision checkpoints, explicit cached-progress messages, size-budget release on cleanup and normal KeyboardInterrupt reporting. Compared source-pipeline output with tmp/system_one/328131; documented pending versus accepted diagnostic layouts. Passed 184 offline tests with one historical-fixture replay skipped; no inference run or active-process interruption.
+
+- 2026-10-31: Simplified accepted output to two basic files, with only source.txt/model_calls.json added by debug. Removed persistent per-run reports/raw court snapshots and extra result/config/analysis exports from the dataset path. Compared the notebook artifact: it used MPS and the same paragraph-based approach, while recent slow runs used CPU; selected MPS for local configuration. Relaxed admission to retain at least one confirmed selected target, matching example 328131. Existing output directories were not deleted or migrated. Passed 186 offline tests with one absent-fixture replay skipped; no live MPS benchmark. Remaining Ruff findings are recorded in the summary.
+
+- 2026-10-31: Moved target extraction and shared target admission ahead of instance and feature inference. Rejected targets skip those model calls; accepted cases keep the existing paragraph workflow and output format. Added offline ordering/early-exit coverage (188 passed, one absent-fixture replay skipped). No live inference benchmark or Git operations. Larger-block candidate extraction remains the next incremental change.
+
+- 2026-10-31: Added src/dataset/what2do.md with the three incremental extraction performance steps and their completion status. Documentation only; no code changes or tests.
+
+- 2026-10-31: Implemented the second performance step: packed classification blocks with exact source offsets, bounded lengths and sentence-aware boundaries. Changed progress to block counts and bumped extraction to version 6 to prevent mixing old and new datasets. Offline sample 328131 has 9 blocks instead of 45 base fragments; 193 tests pass and one historical-fixture replay is skipped. Live quality/runtime comparison and direct candidate extraction remain pending. No Git operations.
+
+- 2026-10-31: Implemented direct candidate extraction from packed text blocks without preliminary passage classification. Preserved final sentence reviews, source offsets, shared review caching and unsafe-candidate rejection. Bumped extraction to version 7 and updated the workflow documentation and historical response-validation test. Passed 197 offline tests; one historical-fixture replay remains skipped because files are absent. Live quality/runtime comparison remains pending. No Git operations.
+
+- 2026-10-31: Made target rejection messages report verification probability and configured minimum, distinguishing low confidence from an unconfirmed award or unavailable score. Added four offline reporting cases; 201 tests pass with one missing-fixture replay skipped. No live model inference or Git operations.
+
+- 2026-10-31: Added debug retention of numeric low-confidence award proposals with full feature extraction and unchanged leakage validation. Added boolean valid to award.json, preserved unconfirmed proposal values for inspection, and passed the real debug flag through extraction. Integration tests cover saving only under debug, proposed values and valid/invalid exports; 207 tests pass, one fixture replay skipped. No live model inference or Git operations.
+
+- 2026-10-31: Fixed debug cleanup to preserve every completed extraction attempt, including missing or unverified targets. Debug bypasses final rejection cleanup, writes the four requested case files before removing pending state, and marks failed target/feature admission valid=false. Added missing-target/no-verification integration cases and debug continuation coverage; 211 offline tests pass, one fixture replay skipped. No live inference or Git operations.
+
+- 2026-10-31: Ran three live debug cases with Remek/basal-2.0-mini on MPS in the project .venv. Saved exactly four files per case and manually compared operative rulings, exported features and model calls. All valid=false; 352 fresh requests, approximately six minutes. Documented model field-relevance/abstention errors separately from parser/scope limitations in tmp/basal_review_20261031_123326_review.md. Cleared the unrelated inherited VIRTUAL_ENV for subsequent commands. No code changes, dependency changes, Git operations or 4.5B comparison.
+
+- 2026-10-31: Clarified the monetary classification prompt with explicit Polish request phrases and the pomin decision, following the three-case inspection. Updated PROJECT.md in place. Prompt wording only; no new tests, live inference or Git operations.
+
+- 2026-10-31: Added target.yaml with judgment/request phrase combinations covering beneficiary/amount order, compensation components, appellate changes and party requests. Kept the vocabulary separate from active extraction and validated YAML parsing/list structure. No inference or Git operations.
+
+- 2026-10-31: Simplified target.yaml by removing repeated benefit-specific endings and added structurally different payment/award cues (przyznaje, zobowiązuje, orzeka obowiązek, nakazuje, changes of amount). Kept component/beneficiary interpretation separate and left extraction unchanged. YAML validation passed; no inference or Git operations.
+
+- 2026-10-31: Reduced target.yaml to five structurally distinct award/payment examples and seven request examples, removing near-duplicates based on inflection, party order, endings and minor substitutions. Added the representative-construction rule to PROJECT.md. YAML validation passed; no inference or Git operations.
+
+- 2026-10-31: Added cosine_similarity for existing embedding vectors/matrices with explicit CPU/MPS/CUDA selection, stable normalization, boundary validation and no gradients. Added focused numerical/device/error tests (225 passed, one fixture replay skipped) and verified MPS against CPU on Apple GPU. No new dependencies, embedding encoder, target matcher or CUDA hardware test. No Git operations.

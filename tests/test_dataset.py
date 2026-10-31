@@ -597,7 +597,7 @@ def test_download_deduplicates_filters_and_reports_rejections(
         and report["accepted"] == report["duplicates"] == report["filtered"] == 1
     )
     assert report["rejected"] == [{"id": 254931, "reason": "Missing judgment text"}]
-    assert (tmp_path / "tmp/debug").exists() == debug
+    assert not (tmp_path / "tmp/debug").exists()
     assert checkpoint["complete"]
 
 
@@ -644,11 +644,9 @@ def test_partial_network_failure_is_visible(monkeypatch, tmp_path, capsys):
     sorted((ROOT / "fixtures").glob("*/model_calls.json")),
     ids=lambda path: path.parent.name,
 )
-def test_basal_replays_saved_requests_without_behavior_changes(
-    monkeypatch, tmp_path, path
-):
+def test_basal_validates_historical_requests_and_responses(monkeypatch, tmp_path, path):
     """
-    Verify basal replays saved requests without behavior changes.
+    Validate historical model responses independently of the current extraction order.
 
     args:
         monkeypatch: Scoped replacements for the test.
@@ -685,23 +683,17 @@ def test_basal_replays_saved_requests_without_behavior_changes(
             seen.append(key)
             return responses[key]
 
-    payload = json.loads((path.parent / "judgment.json").read_text())
-    text = extract_text(payload["data"]["textContent"])
-    result = asyncio.run(basal.extract(Server(), text, config, payload["data"]["id"]))
-    assert seen
-    assert result["features"] == translate_fields(
-        json.loads((path.parent / "record.json").read_text())
-    )
-    expected = json.loads((path.parent / "award.json").read_text())
-    for key in (*config["target_fields"], "suma", "confirmed"):
-        assert result["award"].get(key) == expected.get(key)
-    for quotes in result["evidence"].values():
-        assert all(text[row["start"] : row["end"]] == row["text"] for row in quotes)
+    for call in calls:
+        request = call["request"]
+        asyncio.run(basal.ask(Server(), request["state"], request["questions"], config))
+    assert len(seen) == len(calls)
 
 
 @pytest.mark.parametrize("debug", [False, True])
+@pytest.mark.parametrize("low_confidence", [False, True])
+@pytest.mark.parametrize("missing_target", [False, True])
 def test_pipeline_writes_separate_outputs_and_stops_worker(
-    monkeypatch, tmp_path, debug
+    monkeypatch, tmp_path, debug, low_confidence, missing_target
 ):
     """
     Verify pipeline writes separate outputs and stops worker.
@@ -710,6 +702,8 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         monkeypatch: Scoped replacements for the test.
         tmp_path: Isolated temporary directory.
         debug: Whether to save diagnostic artifacts.
+        low_confidence: Whether target verification falls below the threshold.
+        missing_target: Whether no monetary target could be established.
 
     returns:
         None.
@@ -725,7 +719,6 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     config["api"]["max_gib"] = 0
     config["metadata_fields"] = ["judgment_year", "instance", "court_seat"]
     monkeypatch.setattr(pipeline, "check_device", lambda device: None)
-    monkeypatch.setattr(pipeline, "rejection_reason", lambda result, config: None)
     stopped = []
 
     class Server:
@@ -819,11 +812,14 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
             "id": identifier,
             "features": {"opis": text},
             "evidence": {},
-            "award": {
-                "confirmed": False,
-                "zadoscuczynienie": "not_available",
-                "pozostale_odszkodowanie": "not_available",
-            },
+            "award": basal.finish_award(
+                {
+                    "zadoscuczynienie": "brak informacji" if missing_target else "100",
+                    "pozostale_odszkodowanie": "brak informacji",
+                },
+                not low_confidence and not missing_target,
+                {} if missing_target else {"noul": 0.4 if low_confidence else 0.9},
+            ),
             "field_status": {},
             "confidence": {},
             "instance": {"value": "pierwsza", "decision": {"confidence": 0.9}},
@@ -836,23 +832,28 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     asyncio.run(pipeline.run(config))
     directory = tmp_path / "tmp"
     path = directory / "42"
+    if (low_confidence or missing_target) and not debug:
+        assert not path.exists()
+        assert stopped == [True]
+        return
     record = json.loads((path / "record.json").read_text())
-    assert record["features"] == {
+    assert record == {
         "opis": "Opis.",
         "judgment_year": 2020,
         "instance": "pierwsza",
         "court_seat": "Płocku",
     }
-    assert record["targets"] == {
-        "zadoscuczynienie": "not_available",
+    assert json.loads((path / "award.json").read_text()) == {
+        "zadoscuczynienie": "not_available" if missing_target else "100",
         "pozostale_odszkodowanie": "not_available",
+        "total": "not_available",
+        "valid": not low_confidence and not missing_target,
     }
-    assert (path / "debug" / record["run_id"] / "analysis.json").exists() == debug
-    assert (directory / "debug" / record["run_id"] / "filtering.json").exists() == debug
-    if not debug:
-        assert sorted(
-            p.relative_to(directory).as_posix() for p in directory.rglob("*")
-        ) == ["42", "42/record.json", "checkpoint.json"]
+    assert {item.name for item in path.iterdir()} == (
+        {"record.json", "award.json", "model_calls.json", "source.txt"}
+        if debug
+        else {"record.json", "award.json"}
+    )
     assert stopped == [True]
 
 
@@ -1590,51 +1591,53 @@ def test_checkpoint_does_not_advance_without_saved_output(
     capsys.readouterr()
 
 
-def test_debug_history_preserves_result_and_analysis_for_each_run(
-    monkeypatch, tmp_path
+@pytest.mark.parametrize("debug", [False, True])
+def test_export_contains_only_features_targets_and_requested_debug_files(
+    tmp_path, debug
 ):
     """
-    Verify debug history preserves result and analysis for each run.
+    Keep diagnostic data out of the feature and target files.
 
     args:
-        monkeypatch: Scoped replacements for the test.
-        tmp_path: Isolated temporary directory.
+        tmp_path: Isolated output directory.
+        debug: Whether the two debug files are requested.
 
     returns:
         None.
     """
-    config = basal.load_config(overrides={**CONFIG, "debug": True})
+    config = basal.load_config(overrides={"debug": debug})
     result = {
         "id": 42,
-        "features": {"description": "first"},
-        "diagnostics": [],
-        "status": "review required",
+        "features": {"harm_type": "source sentence"},
+        "source_text": "source sentence",
+        "evidence": {"harm_type": [{"start": 0, "end": 15}]},
+        "description_reviews": [
+            {"start": 0, "end": 15, "answers": {"wyciek": {"noul": 0.01}}}
+        ],
+        "model_calls": [{"request": "input", "response": "output"}],
         "award": {
+            "confirmed": True,
+            "verification": {"noul": 0.99},
             "zadoscuczynienie": "100",
             "pozostale_odszkodowanie": "brak informacji",
+            "evidence": ["private diagnostics"],
         },
     }
-    path = tmp_path / "42"
-    get_data.write_result(result, path, config, "first", "dataset")
-    result["features"]["description"] = "second"
-    get_data.write_result(result, path, config, "second", "dataset")
-    assert (
-        json.loads((path / "record.json").read_text())["features"]["description"]
-        == "second"
+    get_data.write_result(result, tmp_path, config)
+    assert json.loads((tmp_path / "record.json").read_text()) == {
+        "harm_type": "source sentence"
+    }
+    assert json.loads((tmp_path / "award.json").read_text()) == {
+        "zadoscuczynienie": "100",
+        "pozostale_odszkodowanie": "not_available",
+        "total": "not_available",
+        "valid": True,
+    }
+    assert {p.name for p in tmp_path.iterdir()} == (
+        {"record.json", "award.json", "model_calls.json", "source.txt"}
+        if debug
+        else {"record.json", "award.json"}
     )
-    assert (
-        json.loads((path / "debug/first/result.json").read_text())["features"][
-            "description"
-        ]
-        == "first"
-    )
-    assert (
-        json.loads((path / "debug/first/analysis.json").read_text())["features"][
-            "description"
-        ]
-        == "first"
-    )
-    assert (path / "debug/second/analysis.json").exists()
 
 
 def test_removed_download_only_option_is_rejected():
@@ -1870,3 +1873,40 @@ def test_interrupted_extraction_reuses_completed_decisions_without_debug(
     asyncio.run(execute())
     assert calls == ["first", "second", "second"]
     assert len(list((tmp_path / "pending/decisions").glob("*.json"))) == 2
+
+
+def test_debug_export_preserves_low_confidence_proposal_with_invalid_flag(tmp_path):
+    """
+    Keep proposed target values for debug inspection without labeling them valid.
+
+    args:
+        tmp_path: Isolated output directory.
+
+    returns:
+        None.
+    """
+    config = basal.load_config(overrides={"debug": True})
+    award = basal.finish_award(
+        {
+            "zadoscuczynienie": "6300",
+            "pozostale_odszkodowanie": "brak informacji",
+            "suma": "brak informacji",
+        },
+        False,
+        {"noul": 0.4},
+    )
+    result = {"features": {}, "award": award, "source_text": "Source."}
+    assert get_data.rejection_reason(result, config) is not None
+    get_data.write_result(result, tmp_path, config)
+    assert json.loads((tmp_path / "award.json").read_text()) == {
+        "zadoscuczynienie": "6300",
+        "pozostale_odszkodowanie": "not_available",
+        "total": "not_available",
+        "valid": False,
+    }
+    assert {path.name for path in tmp_path.iterdir()} == {
+        "award.json",
+        "record.json",
+        "model_calls.json",
+        "source.txt",
+    }

@@ -11,22 +11,21 @@ from contextlib import closing
 from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import uuid4
-import copy
 
 import requests
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.dataset.processing.text import MONEY, extract_text
 from src.dataset.processing.quality import rejection_reason
-from src.dataset.processing.storage import remove_tree
 from src.dataset.processing.storage import (
     StorageLimitError,
     output_limit,
+    remove_tree,
     write_bytes,
     write_json,
 )
+from src.dataset.processing.text import MONEY, extract_text
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_URL = "https://www.saos.org.pl/api"
@@ -431,6 +430,10 @@ def record_complete(path, identifier, dataset_id):
     record = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(record, dict):
         raise ValueError(f"Invalid saved record: {path}")
+    award_path = path.with_name("award.json")
+    if "features" not in record and "dataset_id" not in record and award_path.exists():
+        award = json.loads(award_path.read_text(encoding="utf-8"))
+        return path.parent.name == str(identifier) and isinstance(award, dict)
     return (
         type(record.get("id")) is int
         and record.get("id") == identifier
@@ -457,8 +460,7 @@ def download(config, checkpoint, run_id):
     end = date.fromisoformat(params["judgmentEndDate"])
     directory = ROOT / config["download_path"]
     checkpoint_path = directory / "checkpoint.json"
-    debug = directory / "debug" / run_id if config["debug"] else None
-    raw = debug / "raw" if debug else None
+    raw = None
     manifest = {
         "started_at": datetime.now(timezone.utc).isoformat(),
         "request": params,
@@ -578,14 +580,6 @@ def download(config, checkpoint, run_id):
         raise
     finally:
         manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
-        if debug:
-            try:
-                write_json(debug / "acquisition.json", manifest)
-            except StorageLimitError:
-                print(
-                    "Output limit reached; acquisition report is available in the console.",
-                    flush=True,
-                )
         print(json.dumps(manifest, ensure_ascii=False), flush=True)
 
 
@@ -652,52 +646,43 @@ def add_metadata_features(result, record, fields, localities=None):
         )
 
 
-def write_result(result, directory, config, run_id, dataset_id):
+def write_result(result, directory, config):
     """
-    Save a primary record and optional run-specific diagnostic snapshots.
+    Write feature and target values, plus only the requested debug files.
 
     args:
-        result: Extraction result and supporting evidence.
-        directory: Input or output directory for this operation.
-        config: Effective pipeline or acquisition settings.
-        run_id: Unique identifier for this execution.
-        dataset_id: Identifier shared by records in this dataset.
+        result: Extracted feature and award values.
+        directory: Judgment output directory.
+        config: Selected fields and diagnostic flag.
 
     returns:
         None.
     """
     award = result["award"]
-    record = {
-        "id": result["id"],
-        "dataset_id": dataset_id,
-        "run_id": run_id,
-        "features": {
-            field: "not_available" if value == "brak informacji" else value
-            for field, value in result["features"].items()
-        },
-        "targets": {
-            field: "not_available"
-            if award[field] == "brak informacji"
-            else award[field]
-            for field in config["target_fields"]
-        },
-        "total": "not_available"
-        if award.get("suma", "brak informacji") == "brak informacji"
-        else award["suma"],
-        "confirmed": award.get("confirmed", False),
-        "status": result["status"],
-        "target_status": award.get("status", "not_available"),
+    valid = rejection_reason(result, config) is None
+    if config["api"]["debug"] and not valid:
+        award = award.get("proposal", award)
+    features = {
+        field: "not_available" if value == "brak informacji" else value
+        for field, value in result["features"].items()
     }
+    targets = {
+        field: "not_available"
+        if award.get(field, "brak informacji") == "brak informacji"
+        else award[field]
+        for field in config["target_fields"]
+    }
+    targets["total"] = (
+        "not_available"
+        if award.get("suma", "brak informacji") == "brak informacji"
+        else award["suma"]
+    )
+    targets["valid"] = valid
     if config["api"]["debug"]:
-        from src.dataset.processing import basal_filtering as basal
-
-        debug = directory / "debug" / run_id
-        basal.write_paragraphs(
-            result, debug, config["system_one"]["minimum_probability"], True
-        )
-        write_json(debug / "config.json", config)
-        write_json(debug / "result.json", record)
-    write_json(directory / "record.json", record)
+        write_json(directory / "model_calls.json", result.get("model_calls", []))
+        write_bytes(directory / "source.txt", result["source_text"].encode("utf-8"))
+    write_json(directory / "award.json", targets)
+    write_json(directory / "record.json", features)
 
 
 def check_device(device):
@@ -786,7 +771,7 @@ async def process(config):
         from src.dataset.processing.localities import load_localities
 
         rows, metadata = load_localities(
-            directory / "debug" / "gugik" if config["api"]["debug"] else None,
+            ROOT / "tmp" / "gugik",
             timeout=config["api"]["timeout"],
         )
         digest = metadata["sha256"]
@@ -852,10 +837,8 @@ async def process(config):
                 cache_token = basal.DECISION_CACHE.set(pending / "decisions")
                 token = basal.MODEL_CALLS.set([] if config["api"]["debug"] else None)
                 try:
-                    extraction_config = copy.deepcopy(config)
-                    extraction_config["api"]["debug"] = False
                     result = await basal.extract(
-                        server, record["text"], extraction_config, identifier
+                        server, record["text"], config, identifier
                     )
                     if config["api"]["debug"]:
                         result["model_calls"] = basal.MODEL_CALLS.get()
@@ -863,7 +846,7 @@ async def process(config):
                     basal.MODEL_CALLS.reset(token)
                     basal.DECISION_CACHE.reset(cache_token)
                 reason = rejection_reason(result, config)
-                if reason is not None:
+                if reason is not None and not config["api"]["debug"]:
                     record["rejected"] = True
                     summary["rejected_records"] += 1
                     remove_tree(pending)
@@ -871,36 +854,23 @@ async def process(config):
                         pending.parent.rmdir()
                     print(f"Rejected judgment {identifier}: {reason}", flush=True)
                     continue
-                if config["api"]["debug"]:
-                    path = directory / str(identifier) / "debug" / run_id
-                    write_json(path / "judgment.json", record["source_payload"])
-                    write_json(
-                        path / "metadata.json",
-                        {
-                            key: value
-                            for key, value in record.items()
-                            if key != "source_payload"
-                        },
-                    )
-                    write_bytes(
-                        path / "source.txt", (record["text"] + "\n").encode("utf-8")
-                    )
+                result["source_text"] = record["text"]
                 add_metadata_features(
                     result, record, config["metadata_fields"], localities
                 )
-                write_result(
-                    result,
-                    directory / str(identifier),
-                    config,
-                    run_id,
-                    checkpoint["dataset_id"],
-                )
+                write_result(result, directory / str(identifier), config)
                 remove_tree(pending)
                 summary["processed"] += 1
                 summary["confirmed_awards"] += int(
                     result["award"].get("confirmed", False)
                 )
-                print(f"Filtered judgment {identifier}", flush=True)
+                if reason is not None:
+                    print(
+                        f"Saved debug judgment {identifier}: {reason}",
+                        flush=True,
+                    )
+                else:
+                    print(f"Filtered judgment {identifier}", flush=True)
         summary["complete"] = True
     except asyncio.CancelledError:
         summary["interrupted"] = True
@@ -912,14 +882,6 @@ async def process(config):
         worker.cancel()
         await asyncio.gather(worker, return_exceptions=True)
         summary["requests"] = basal.REQUEST_COUNTS.copy()
-        if config["api"]["debug"]:
-            try:
-                write_json(directory / "debug" / run_id / "filtering.json", summary)
-            except StorageLimitError:
-                print(
-                    "Output limit reached; filtering report is available in the console.",
-                    flush=True,
-                )
         print(
             json.dumps(
                 {
@@ -984,7 +946,7 @@ def parse_arguments(arguments=None):
         "--debug",
         action=argparse.BooleanOptionalAction,
         default=argparse.SUPPRESS,
-        help="Save sources, evidence and model decisions",
+        help="Save source/model calls and retain failed extraction attempts with valid=false",
     )
     return parser.parse_args(arguments)
 

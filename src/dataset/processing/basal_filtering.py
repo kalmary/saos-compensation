@@ -5,7 +5,6 @@ import hashlib
 import json
 import math
 import re
-from collections import Counter
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -14,6 +13,7 @@ from pathlib import Path
 import yaml
 
 from . import text as api
+from .quality import target_rejection_reason
 from .storage import write_bytes, write_json
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -40,7 +40,7 @@ MODEL_FILES = [
 
 
 DEFAULTS = {
-    "version": "saos-extraction-5",
+    "version": "saos-extraction-8",
     "chunk_characters": 1200,
     "context_characters": 600,
     "system_one": {
@@ -87,8 +87,10 @@ DEFAULTS = {
         "amount": {
             "instructions": "Czego dotyczy wyłącznie kwota oznaczona <KWOTA>? Przeczytaj jej "
             "otoczenie i sentencję. Wybierz zasądzone świadczenie tylko dla tego "
-            "wyroku i wskazanego poszkodowanego. Nie pomyl żądania ani "
-            "wcześniejszej wypłaty z zasądzeniem. Jeżeli sąd uznaje za odpowiednie "
+            "wyroku i wskazanego poszkodowanego. Zwroty «wnosi o zasądzenie», "
+            "«żąda» i «domaga się», lub podobne, opisują żądanie strony, nie zasądzenie przez "
+            "sąd; dla takiej wzmianki wybierz pomin. Nie pomyl wcześniejszej "
+            "wypłaty z zasądzeniem. Jeżeli sąd uznaje za odpowiednie "
             "7000 zł, ale po odjęciu wypłaty zasądza 6300 zł, targetem jest 6300 "
             "zł. Zwrot kosztów instancji odwoławczej jest kosztem postępowania, "
             "nigdy pozostałym odszkodowaniem. Kwota główna z odsetkami nadal może "
@@ -313,7 +315,7 @@ def feature_input(text, config):
         "text": text,
         "start": 0,
         "end": len(text),
-        "status": "semantic classification of all paragraphs with context",
+        "status": "source text selected for feature extraction",
     }
 
 
@@ -513,6 +515,35 @@ def sentence_fragments(chunk):
             }
 
 
+def classification_blocks(text, limit):
+    """
+    Pack adjacent source sentences into bounded blocks with exact offsets.
+
+    args:
+        text: Normalized judgment text with paragraph boundaries.
+        limit: Positive maximum block length in characters.
+
+    returns:
+        Iterator of source blocks; overlong sentences are split at spaces.
+    """
+    if limit <= 0:
+        raise ValueError("Block character limit must be positive")
+    start, end = None, None
+    for paragraph in fragments(text, max(1, len(text))):
+        for sentence in sentence_fragments(paragraph):
+            for part in fragments(sentence["text"], limit):
+                part_start = sentence["start"] + part["start"]
+                part_end = sentence["start"] + part["end"]
+                if start is not None and part_end - start > limit:
+                    yield {"text": text[start:end], "start": start, "end": end}
+                    start = None
+                if start is None:
+                    start = part_start
+                end = part_end
+    if start is not None:
+        yield {"text": text[start:end], "start": start, "end": end}
+
+
 async def classify_paragraphs(server, text, config, identifier):
     """
     Classify source fragments with neighboring context and inspect mixed passages.
@@ -533,7 +564,7 @@ async def classify_paragraphs(server, text, config, identifier):
             "start": chunk["start"] + selected["start"],
             "end": chunk["end"] + selected["start"],
         }
-        for chunk in fragments(selected["text"], config["chunk_characters"])
+        for chunk in classification_blocks(selected["text"], config["chunk_characters"])
     ]
     questions = {
         "sekcja": {"type": "choice", **config["questions"]["section"]},
@@ -570,11 +601,9 @@ async def classify_paragraphs(server, text, config, identifier):
 
     for i, chunk in enumerate(chunks):
         cached_before = REQUEST_COUNTS["cached"]
-        row = await classify(chunk, "paragraph")
+        row = await classify(chunk, "block")
         status = "cached" if REQUEST_COUNTS["cached"] > cached_before else "classified"
-        print(
-            f"ID {identifier}: paragraph {i + 1}/{len(chunks)} ({status})", flush=True
-        )
+        print(f"ID {identifier}: block {i + 1}/{len(chunks)} ({status})", flush=True)
         decision = row["answers"]["sekcja"]
         if (
             decision["choice"] == "mieszany"
@@ -968,8 +997,15 @@ async def extract(server, text, config, identifier):
         identifier: Stable judgment identifier.
 
     returns:
-        Feature and target results with review evidence.
+        Feature and target results, or only id and award when the target is rejected.
     """
+    print(f"ID {identifier}: extracting target", flush=True)
+    award = await extract_award(server, text, [], config)
+    if (
+        not config["api"]["debug"]
+        and target_rejection_reason(award, config) is not None
+    ):
+        return {"id": identifier, "award": award}
     fields = config["fields"]
     threshold = config["system_one"]["minimum_probability"]
     heading = api.REASONS.search(text)
@@ -981,24 +1017,13 @@ async def extract(server, text, config, identifier):
         config,
     )
     instance = instance["instancja"]
-    # Separate factual passages from reasoning and other content before feature extraction.
-    if fields:
-        selected, diagnostics = await classify_paragraphs(
-            server, text, config, identifier
-        )
-    else:
-        selected, diagnostics = feature_input(text, config), []
-    passages = select_facts(
-        diagnostics, threshold, config["system_one"]["maximum_leak_probability"]
+    selected = feature_input(text, config)
+    passages = (
+        list(classification_blocks(text, config["chunk_characters"])) if fields else []
     )
     descriptions = {field: "brak informacji" for field in fields}
     evidence = {field: [] for field in fields}
-    field_status = {
-        field: "no accepted factual passages"
-        if not passages
-        else "no description extracted"
-        for field in fields
-    }
+    field_status = {field: "no description extracted" for field in fields}
     confidence = {field: None for field in fields}
     native, candidates = [], {field: [] for field in fields}
     schema = {
@@ -1012,7 +1037,7 @@ async def extract(server, text, config, identifier):
             for field, question in fields.items()
         },
     }
-    # Short batches reduce competition between sentences when extracting source-grounded descriptions.
+    # Candidates remain untrusted until their source sentences pass factuality and leakage review.
     for batch, (source, mapping) in enumerate(
         extraction_batches(text, passages, config["chunk_characters"])
         if fields
@@ -1091,25 +1116,17 @@ async def extract(server, text, config, identifier):
             field_status[field] = (
                 "description rejected: non-factual source or leakage signal"
             )
-    award = await extract_award(server, text, diagnostics, config)
     return {
         "id": identifier,
         "features": descriptions,
         "evidence": evidence,
         "award": award,
-        "diagnostics": diagnostics,
+        "diagnostics": list(reviews.values()),
         "field_status": field_status,
         "fields_evaluated": bool(passages),
         "confidence": confidence,
         "native_extraction": native,
         "description_reviews": list(reviews.values()),
-        "paragraph_counts": dict(
-            Counter(
-                row["answers"]["sekcja"]["choice"]
-                for row in diagnostics
-                if row["unit"] == "paragraph"
-            )
-        ),
         "instance": {
             "value": instance["choice"]
             if instance["choice"] != "nieustalona"
@@ -1124,8 +1141,10 @@ async def extract(server, text, config, identifier):
         },
         "input_characters": {
             "full": len(text),
-            "classified": len(selected["text"]),
-            "features": sum(len(row["text"]) for row in diagnostics if row["accepted"]),
+            "classified": sum(len(row["text"]) for row in reviews.values()),
+            "features": sum(
+                len(row["text"]) for row in reviews.values() if row["accepted"]
+            ),
         },
         "status": "candidates for review; not approved for training",
         "text_sha256": hashlib.sha256(text.encode()).hexdigest(),

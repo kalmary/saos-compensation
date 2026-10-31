@@ -20,10 +20,10 @@ flowchart TD
     B --> C[Strona SAOS dump]
     C --> D[Walidacja i wybór tematyczny]
     D --> E[Polski tekst i metadane]
-    E --> F[Ekstrakcja faktów]
-    E --> G[Oddzielna ekstrakcja targetów]
+    E --> G[Ekstrakcja i kontrola targetów]
+    G -->|odrzucenie| I
+    G -->|akceptacja| F[Ekstrakcja faktów]
     F --> H[Kontrola progów jakości]
-    G --> H
     H -->|odrzucenie| I[Brak rekordu i diagnostyki przypadku]
     H -->|akceptacja| J[Metadane i zapis record.json]
     J --> K[Opcjonalna historia debug]
@@ -33,12 +33,15 @@ flowchart TD
 
 ## Ekstrakcja cech
 
+Ten etap rozpoczyna się dopiero po ekstrakcji i dopuszczeniu targetu. Bez debug brak lub nieprawidłowy target kończy przetwarzanie przed oceną instancji i cech. Z debug zachowujemy każdą zakończoną próbę ekstrakcji, również gdy target jest brakujący, niepotwierdzony lub ma niską pewność. Cechy nadal przechodzą kontrolę wycieku, a brakujące wartości pozostają not_available.
+
 1. Basal określa instancję na podstawie początku dokumentu. Poziom sądu nie zastępuje informacji o instancji.
-2. Każdy fragment akapitu jest oceniany z poprzedzającym i następującym kontekstem. Jedno żądanie zawiera pytanie o funkcję fragmentu i pytanie o wyciek informacji o świadczeniu. Funkcje to m.in. fakty, stanowiska stron, rozstrzygnięcie i rozważania.
-3. Akapit rozpoznany jako mieszany może zostać podzielony na zdania i oceniony ponownie.
-4. Do ekstrakcji trafiają fakty spełniające `minimum_probability` i `maximum_leak_probability`, bez oznaczeń waluty. Sam nagłówek uzasadnienia nie daje takiej gwarancji.
-5. Krótkie porcje faktów wypełniają schemat wybranych cech. Wartości są dokładnymi fragmentami źródła. Wybrany fragment jest rozszerzany do pełnego zdania, żeby nie zgubić osoby ani negacji.
-6. Kandydaci są porządkowani według wyniku modelu. Wybrane zdania przechodzą ponowną kontrolę funkcji i wycieku. Brak opisu oznacza brak wydobytej informacji, a nie potwierdzenie, że dane zjawisko nie wystąpiło.
+2. Krótkie akapity są łączone w bloki do 1200 znaków. Zdania mieszczące się w limicie pozostają całe; dłuższe są dzielone przy spacji lub na granicy limitu. Mapowanie zachowuje dokładne pozycje źródłowe.
+3. Basal wydobywa kandydatów na wybrane cechy bezpośrednio z bloków. Nie klasyfikujemy wcześniej wszystkich akapitów ani bloków. Wejście może zawierać fakty, stanowiska stron i rozważania; żaden kandydat nie jest jeszcze zaufaną cechą.
+4. Wartości są rozszerzane do źródłowych zdań z zachowaniem osoby i negacji. Kandydaci są porządkowani według wyniku modelu.
+5. Sprawdzamy tylko wybrane zdania: muszą zostać rozpoznane jako fakty z pewnością co najmniej `minimum_probability`, mieć wyciek nie większy niż `maximum_leak_probability` i nie zawierać oznaczeń waluty. Ocenę tego samego zakresu źródła współdzielimy między cechami. Jeśli kandydat odpada, sprawdzamy kolejnego.
+6. Brak bezpiecznego kandydata oznacza brak informacji, a nie potwierdzenie, że dane zjawisko nie wystąpiło. Progi dopuszczenia targetu i kontroli wycieku pozostają bez zmian.
+
 
 `judgment_year` pochodzi z daty SAOS. `court_locality_size` jest klasą populacji miejscowości, w której znajduje się sąd. Nazwa miejscowości jest dopasowywana do GUGiK przez Morfeusza, a klasa wynika z `LICZBAMIESZKANCOW`. Nie jest to populacja obszaru właściwości sądu ani miejsce zamieszkania powoda. Dopasowania niejednoznaczne pozostają brakujące. Nie znamy roku pomiaru ludności, więc współczesnego źródła nie należy traktować jako zweryfikowanych danych historycznych.
 
@@ -54,25 +57,27 @@ Powtórzeń tej samej wartości nie sumujemy. Jawny dowód z sentencji ma pierws
 
 Nie ma stałej liczby wywołań Basala. Dla dokumentu z cechami jest to w przybliżeniu:
 
-`1 + P + S + B + R + M + V`
+`M + V + 1 + B + R`
 
 - `1`: decyzja o instancji;
-- `P`: liczba fragmentów akapitów;
-- `S`: dodatkowe zdania z fragmentów mieszanych;
-- `B`: porcje dopuszczonych faktów do ekstrakcji;
+- `B`: porcje tekstu do bezpośredniej ekstrakcji kandydatów;
 - `R`: kontrole zdań-kandydatów, współdzielone, gdy to samo zdanie pasuje do kilku pól;
 - `M`: liczba wystąpień kwot;
 - `V`: końcowa weryfikacja propozycji, zwykle 0 albo 1.
 
-To liczba żądań aplikacji, nie liczba wewnętrznych przebiegów sieci. Silnik może wykonywać kilka operacji dla jednego żądania. Wyłączenie cech tekstowych pomija ich klasyfikację i ekstrakcję. Czas zależy również od długości tekstu, urządzenia i modelu.
+Dla odrzuconego targetu wykonujemy tylko `M + V`, bez pozostałych etapów. Wyjątek: debug zachowuje wszystkie zakończone próby, również z brakującym targetem, i wykonuje dla nich ekstrakcję cech.
+
+To liczba żądań aplikacji, nie liczba wewnętrznych przebiegów sieci. Silnik może wykonywać kilka operacji dla jednego żądania. Wyłączenie cech tekstowych pomija ich ekstrakcję i kontrolę kandydatów. Czas zależy również od długości tekstu, urządzenia i modelu.
 
 ## Warunek zapisu
 
-Rekord zostaje zapisany dopiero wtedy, gdy całe zasądzenie jest potwierdzone co najmniej na poziomie `amount_minimum_probability`, wszystkie wybrane targety mają ustalone nieujemne wartości i użyte cytaty cech mają kontrolę wycieku zgodną z `maximum_leak_probability`.
+W zwykłym trybie rekord zostaje zapisany dopiero wtedy, gdy całe zasądzenie jest potwierdzone co najmniej na poziomie `amount_minimum_probability`, co najmniej jeden wybrany target ma ustaloną nieujemną wartość i użyte cytaty cech mają kontrolę wycieku zgodną z `maximum_leak_probability`.
 
-Podczas obliczeń katalog `<ID>/pending/` przechowuje źródło, konfigurację i zakończone decyzje modelu. To tymczasowy stan wznowienia, również przy wyłączonym debugowaniu. Po przerwaniu te same żądania korzystają z zapisanych odpowiedzi; tylko przerwane wywołanie może wymagać powtórzenia. Po odrzuceniu albo zapisaniu wyniku katalog roboczy jest usuwany. Odrzucony przypadek nie pozostawia `record.json` ani diagnostyki sprawy. Tymczasowy stan wlicza się do max_gib. Strony dumpu z odrzuconymi wyrokami nie są zachowywane jako surowe pliki. Checkpoint i zbiorcze raporty nadal opisują postęp; ich techniczny rozmiar wlicza się do limitu całego katalogu. Nie da się zarazem zachować pliku w katalogu i nie liczyć jego rzeczywistych bajtów.
+Podczas obliczeń katalog `<ID>/pending/` przechowuje źródło, konfigurację i zakończone decyzje modelu. To tymczasowy stan wznowienia, również przy wyłączonym debugowaniu. Po przerwaniu te same żądania korzystają z zapisanych odpowiedzi; tylko przerwane wywołanie może wymagać powtórzenia. Bez debug po odrzuceniu katalog roboczy jest usuwany. Z debug najpierw zapisujemy cztery pliki sprawy, a dopiero potem usuwamy stan roboczy. Odrzucony przypadek nie pozostawia `record.json` ani diagnostyki sprawy. Tymczasowy stan wlicza się do max_gib. Strony dumpu z odrzuconymi wyrokami nie są zachowywane jako surowe pliki. Checkpoint i komunikaty konsoli nadal opisują postęp; ich techniczny rozmiar wlicza się do limitu całego katalogu. Nie da się zarazem zachować pliku w katalogu i nie liczyć jego rzeczywistych bajtów.
 
-Dla zaakceptowanych rekordów `debug: true` zapisuje źródło, offsety, decyzje, konfigurację i wynik pod osobnym ID uruchomienia. `debug: false` pozostawia rekordy i checkpoint. Starsze pliki nie są usuwane automatycznie. Nowa polityka jakości zmienia wersję ekstrakcji i wymaga nowego katalogu dla zbiorów utworzonych wcześniej.
+record.json zawiera wyłącznie cechy, a award.json wybrane targety, sumę i valid. valid=true oznacza target spełniający zwykłe warunki. Debug zachowuje też nieudane próby ekstrakcji jako valid=false; te rekordy nie mogą trafiać do treningu bez niezależnej weryfikacji. Przy debug: true dochodzą tylko source.txt i model_calls.json; przy false nie ma tych plików. Nie zapisujemy analysis.json, facts.txt, raportów ani kopii konfiguracji. Checkpoint i tymczasowe pending są stanem operacyjnym, nie danymi do modelu. Starsze pliki nie są automatycznie usuwane.
+
+Poprzedni notebook także klasyfikował akapity osobno. Zapisany przebieg działał na MPS, a późniejszy wolny przebieg na CPU. Bieżący YAML wskazuje MPS dla tego Maca; CPU i CUDA pozostają dostępne. Nie jest to nowy pomiar szybkości ani dowód równoważnej jakości różnych modeli.
 
 ## Przykład poglądowy
 

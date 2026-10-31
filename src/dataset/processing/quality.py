@@ -14,20 +14,9 @@ def rejection_reason(result, config):
     returns:
         Rejection reason, or None when the record meets admission rules.
     """
-    award = result["award"]
-    threshold = config["system_one"]["amount_minimum_probability"]
-    if (
-        not award.get("confirmed")
-        or award.get("verification", {}).get("noul", 0) < threshold
-    ):
-        return "unconfirmed or low-confidence award"
-    for field in config["target_fields"]:
-        try:
-            value = Decimal(award.get(field, ""))
-        except (InvalidOperation, TypeError, ValueError):
-            return "missing target"
-        if not value.is_finite() or value < 0:
-            return "invalid target"
+    reason = target_rejection_reason(result["award"], config)
+    if reason is not None:
+        return reason
     maximum = config["system_one"]["maximum_leak_probability"]
     for field in config["fields"]:
         quotes = result.get("evidence", {}).get(field, [])
@@ -49,4 +38,41 @@ def rejection_reason(result, config):
                 return (
                     "missing leakage review or excessive leakage in selected features"
                 )
+    return None
+
+
+def target_rejection_reason(award, config):
+    """
+    Check selected monetary targets before spending inference on features.
+
+    args:
+        award: Extracted award and verification decision.
+        config: Selected targets and confidence threshold.
+
+    returns:
+        Rejection reason, or None for an admissible target.
+    """
+    threshold = config["system_one"]["amount_minimum_probability"]
+    probability = award.get("verification", {}).get("noul")
+    low_confidence = probability is not None and probability < threshold
+    if low_confidence:
+        return (
+            f"low-confidence award (probability={probability}, required >= {threshold})"
+        )
+    if not award.get("confirmed") or probability is None:
+        level = probability if probability is not None else "unavailable"
+        return f"unconfirmed award (probability={level}, required >= {threshold})"
+    established = 0
+    for field in config["target_fields"]:
+        try:
+            value = Decimal(award.get(field, ""))
+        except (InvalidOperation, TypeError, ValueError):
+            if award.get(field) in (None, "brak informacji", "not_available"):
+                continue
+            return "invalid target"
+        if not value.is_finite() or value < 0:
+            return "invalid target"
+        established += 1
+    if not established:
+        return "no established selected target"
     return None

@@ -1,0 +1,20 @@
+# Representative phrase templates; not connected to extraction yet.
+# Keep distinct constructions, not inflection, word-order or ending variants.
+# Placeholders stand for source text; these are not regular expressions.
+# Payment cues require separate checks of the current ruling, beneficiary and component.
+judgment:
+  - "zasądza od {defendant} na rzecz {claimant} kwotę {amount}"
+  - "przyznaje {claimant} kwotę {amount}"
+  - "nakazuje {defendant} zapłacić na rzecz {claimant} kwotę {amount}"
+  - "zobowiązuje {defendant} do naprawienia szkody poprzez zapłatę kwoty {amount}"
+  - "zmienia zaskarżony wyrok przez zastąpienie kwoty {previous_amount} kwotą {amount}"
+
+# A requested amount remains a request even when it equals the eventual award.
+request:
+  - "wnosi o zasądzenie od {defendant} na rzecz {claimant} kwoty {amount}"
+  - "żąda zapłaty kwoty {amount}"
+  - "roszczenie objęte pozwem wynosi {amount}"
+  - "rozszerza powództwo o kwotę {additional_amount}, do łącznej kwoty {amount}"
+  - "podtrzymuje żądanie pozwu w wysokości {amount}"
+  - "w apelacji domaga się zmiany wyroku i przyznania kwoty {amount}"
+  - "wzywa do zapłaty kwoty {amount}"
