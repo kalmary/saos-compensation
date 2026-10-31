@@ -384,5 +384,6 @@ def test_prior_payment_feature_is_resolved_for_debug_case_without_target(monkeyp
         )
     )
     assert result["prior_payment"] == 700
+    assert result["fields_evaluated"] is False
     assert "prior_payment" not in result["award"]
     assert result["award"]["confirmed"] is False

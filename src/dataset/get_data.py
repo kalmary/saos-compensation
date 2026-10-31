@@ -869,7 +869,14 @@ async def process(config):
                     basal.MODEL_CALLS.reset(token)
                     basal.DECISION_CACHE.reset(cache_token)
                 coverage_reason = feature_rejection_reason(result, config)
-                reason = coverage_reason or rejection_reason(result, config)
+                reason = rejection_reason(result, config)
+                if coverage_reason and reason != coverage_reason:
+                    detail = (
+                        coverage_reason
+                        if result.get("fields_evaluated", bool(result.get("features")))
+                        else "text feature extraction skipped"
+                    )
+                    reason = f"{reason}; {detail}"
                 if reason is not None and (
                     not config["api"]["debug"] or coverage_reason
                 ):

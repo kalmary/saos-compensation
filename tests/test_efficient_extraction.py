@@ -123,3 +123,83 @@ def test_missing_fields_do_not_trigger_fallback(monkeypatch, treatment_in_findin
     }
     for quotes in result["evidence"].values():
         assert all(text[q["start"] : q["end"]] == q["text"] for q in quotes)
+
+
+@pytest.mark.parametrize(
+    ("text", "section", "probability", "leakage", "fit", "reason", "calls"),
+    [
+        ("Powód złamał nogę.", "fakty", 0.99, 0.01, 0.99, "accepted", 2),
+        ("Powód złamał nogę.", "rozwazania", 0.99, 0.01, 0.99, "not factual", 2),
+        ("Powód złamał nogę.", "fakty", 0.4, 0.01, 0.99, "factual confidence=0.400", 2),
+        ("Powód złamał nogę.", "fakty", 0.99, 0.8, 0.99, "leakage=0.800", 2),
+        ("Powód złamał nogę.", "fakty", 0.99, 0.01, 0.3, "field relevance=0.300", 2),
+        ("Powód zapłacił 100 zł.", "fakty", 0.99, 0.01, 0.99, "contains currency", 1),
+        (None, "fakty", 0.99, 0.01, 0.99, "no description extracted", 1),
+    ],
+)
+def test_feature_logs_report_existing_decision_failures_without_extra_calls(
+    monkeypatch, capsys, text, section, probability, leakage, fit, reason, calls
+):
+    """
+    Explain missing features using existing extraction and review decisions only.
+
+    args:
+        monkeypatch: Scoped model replacement.
+        capsys: Captured progress and rejection details.
+        text: Extracted sentence or missing value.
+        section: Factuality class returned by the review.
+        probability: Factuality confidence.
+        leakage: Leakage probability.
+        fit: Field relevance probability.
+        reason: Expected explanation in console output.
+        calls: Expected number of unchanged model decisions.
+
+    returns:
+        None.
+    """
+    source = text or "Powód złamał nogę."
+    config = basal.load_config()
+    config["fields"] = {"harm_type": "Injury"}
+    events = []
+
+    async def ask(server, state, questions, config):
+        """
+        Supply controlled extraction and quality decisions.
+
+        args:
+            server: Unused inference server.
+            state: Source text or review context.
+            questions: Existing extraction or quality questions.
+            config: Effective extraction configuration.
+
+        returns:
+            Controlled source span or review answer.
+        """
+        events.append(set(questions))
+        if "opis" in questions:
+            return {
+                "opis": {
+                    "data": {"harm_type": text},
+                    "fields": {
+                        "harm_type": {
+                            "start": 0 if text else None,
+                            "end": len(text) if text else None,
+                            "confidence": 0.9,
+                            "line_probability": 0.9,
+                        }
+                    },
+                }
+            }
+        return {
+            "sekcja": {"choice": section, "confidence": probability},
+            "wyciek": {"noul": leakage},
+            "fit_harm_type": {"noul": fit},
+        }
+
+    monkeypatch.setattr(basal, "ask", ask)
+    result = asyncio.run(basal.extract_features(None, source, config, 42))
+    assert reason in capsys.readouterr().out
+    assert len(events) == calls
+    if reason != "accepted":
+        assert reason in result["field_status"]["harm_type"]
+        assert result["features"]["harm_type"] == "brak informacji"

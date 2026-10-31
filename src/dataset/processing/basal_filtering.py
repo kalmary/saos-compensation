@@ -41,7 +41,7 @@ MODEL_FILES = [
 
 
 DEFAULTS = {
-    "version": "saos-extraction-17",
+    "version": "saos-extraction-18",
     "chunk_characters": 6000,
     "context_characters": 600,
     "system_one": {
@@ -127,6 +127,7 @@ DEFAULTS = {
             "i czas. Nie dopisuj ocen, nie używaj kwot ani uzasadnienia ich "
             "wysokości. Każde pole musi odpowiadać własnemu opisowi: leczenie nie "
             "opisuje okoliczności wypadku, a dane spółki nie opisują krzywdy osoby. "
+            "Opisuj poszkodowanego, nie jego pełnomocnika ani innych osób. "
             "Nie wypełniaj pola zdaniem tylko dlatego, że jest dostępne. Jeśli brak "
             "informacji odpowiadającej temu polu, wybierz not stated.",
             "field_suffix": " Konkretny opis dotyczący poszkodowanego.",
@@ -144,18 +145,14 @@ DEFAULTS = {
     },
 }
 FEATURE_DESCRIPTIONS = {
-    "event_circumstances": "Zdarzenie będące przyczyną krzywdy i jego okoliczności.",
-    "harm_type": "Konkretny rodzaj krzywdy poszkodowanego, np. obrażenie ciała, śmierć bliskiego albo "
-    "naruszenie dobrego imienia.",
-    "harm_severity_duration": "Przebieg dolegliwości, ich nasilenie, czas trwania oraz ustąpienie lub "
-    "utrzymywanie się.",
-    "life_impact": "Co zmieniło się w funkcjonowaniu, pracy, relacjach lub samodzielności i jakie skutki "
-    "pozostały?",
-    "claimant_circumstances": "Wiek, zawód, wcześniejsza sytuacja osobista i zdrowie "
-    "poszkodowanego albo relacja ze zmarłym.",
-    "treatment_assistance": "Jak łagodzono skutki i jakiego leczenia, wsparcia lub innej pomocy "
-    "potrzebował poszkodowany?",
+    "event_circumstances": "Przyczyna i przebieg zdarzenia, bez obrażeń i leczenia.",
+    "harm_type": "Rodzaj krzywdy: uraz, choroba, utrata bliskiego lub naruszenie dóbr osobistych; bez leczenia.",
+    "harm_severity_duration": "Nasilenie i czas trwania cierpienia, trwałość uszczerbku i rokowania.",
+    "life_impact": "Ograniczenia codziennych czynności, pracy i relacji; nie samo leczenie.",
+    "claimant_circumstances": "Wiek, zawód i zdrowie poszkodowanego przed zdarzeniem lub jego więź ze zmarłym.",
+    "treatment_assistance": "Zastosowane lub zalecone leczenie, rehabilitacja i pomoc innych osób.",
 }
+
 METADATA_FIELDS = (
     "judgment_year",
     "instance",
@@ -536,14 +533,31 @@ def select_facts(diagnostics, threshold, maximum_leak):
     """
     for row in diagnostics:
         answer, section = row["answers"], row["answers"]["sekcja"]
-        row["accepted"] = (
-            section["choice"] == "fakty"
-            and section["confidence"] >= threshold
-            and answer["wyciek"]["noul"] <= maximum_leak
-            and not api.CURRENCY.search(row["text"])
-            and any(char.isalpha() for char in row["text"])
-            and not row["text"].rstrip().endswith(":")
-        )
+        checks = [
+            (
+                section["choice"] != "fakty",
+                f"not factual (section={section['choice']})",
+            ),
+            (
+                section["confidence"] < threshold,
+                f"factual confidence={section['confidence']:.3f}, required >= {threshold}",
+            ),
+            (
+                answer["wyciek"]["noul"] > maximum_leak,
+                f"leakage={answer['wyciek']['noul']:.3f}, required <= {maximum_leak}",
+            ),
+            (
+                bool(api.CURRENCY.search(row["text"])),
+                "source sentence contains currency",
+            ),
+            (not any(char.isalpha() for char in row["text"]), "no descriptive text"),
+            (
+                row["text"].rstrip().endswith(":"),
+                "heading instead of factual description",
+            ),
+        ]
+        row["rejection_reasons"] = [reason for failed, reason in checks if failed]
+        row["accepted"] = not row["rejection_reasons"]
     return [row for row in diagnostics if row["accepted"]]
 
 
@@ -819,7 +833,7 @@ async def extract_features(server, text, config, identifier):
     selected = feature_input(text, config)
     descriptions = {field: "brak informacji" for field in fields}
     evidence = {field: [] for field in fields}
-    statuses = {field: "no safe field-relevant description" for field in fields}
+    statuses = {field: "no description extracted" for field in fields}
     confidence = {field: None for field in fields}
     native, reviews = [], {}
     passages = [
@@ -871,6 +885,10 @@ async def extract_features(server, text, config, identifier):
             answer, mapping, fields, threshold
         )
         for field in fields:
+            if quotes[field] and api.CURRENCY.search(values[field]):
+                statuses[field] = (
+                    "extracted description rejected: source sentence contains currency"
+                )
             if quotes[field] and not api.CURRENCY.search(values[field]):
                 candidates[field].append(
                     (
@@ -935,6 +953,17 @@ async def extract_features(server, text, config, identifier):
                 descriptions[field], evidence[field] = value, quotes
                 statuses[field], confidence[field] = status, probability
                 break
+            if not statuses[field].startswith("best candidate rejected:"):
+                reasons = list(review["rejection_reasons"])
+                relevance = review["answers"][f"fit_{field}"]["noul"]
+                if relevance < threshold:
+                    reasons.append(
+                        f"field relevance={relevance:.3f}, required >= {threshold}"
+                    )
+                statuses[field] = "best candidate rejected: " + "; ".join(reasons)
+    for field in fields:
+        status = "accepted" if evidence[field] else statuses[field]
+        print(f"ID {identifier}: feature {field}: {status}", flush=True)
     return {
         "features": descriptions,
         "evidence": evidence,
@@ -986,6 +1015,7 @@ async def extract(server, text, config, identifier):
         return {
             "id": identifier,
             "award": award,
+            "fields_evaluated": False,
             **prior_features,
             "features": {field: "brak informacji" for field in config["fields"]},
             "evidence": {field: [] for field in config["fields"]},

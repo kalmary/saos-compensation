@@ -694,7 +694,13 @@ def test_basal_validates_historical_requests_and_responses(monkeypatch, tmp_path
 @pytest.mark.parametrize("missing_target", [False, True])
 @pytest.mark.parametrize("sparse_features", [False, True])
 def test_pipeline_writes_separate_outputs_and_stops_worker(
-    monkeypatch, tmp_path, debug, low_confidence, missing_target, sparse_features
+    monkeypatch,
+    tmp_path,
+    debug,
+    low_confidence,
+    missing_target,
+    sparse_features,
+    capsys,
 ):
     """
     Verify pipeline writes separate outputs and stops worker.
@@ -706,6 +712,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         low_confidence: Whether target verification falls below the threshold.
         missing_target: Whether no monetary target could be established.
         sparse_features: Whether insufficient text evidence must discard even debug cases.
+        capsys: Captured console output.
 
     returns:
         None.
@@ -842,6 +849,11 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
 
     monkeypatch.setattr(basal, "extract", extract)
     asyncio.run(pipeline.run(config))
+    output = capsys.readouterr().out
+    if low_confidence and not missing_target:
+        assert "low-confidence award" in output
+    if missing_target:
+        assert "final award verification not run" in output
     directory = tmp_path / "tmp"
     path = directory / "42"
     if sparse_features or ((low_confidence or missing_target) and not debug):

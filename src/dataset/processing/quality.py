@@ -97,6 +97,16 @@ def target_rejection_reason(award, config):
         return (
             f"low-confidence award (probability={probability}, required >= {threshold})"
         )
+    if probability is None and award.get("status"):
+        reason = award["status"]
+        decisions = award.get("amount_decisions", [])
+        if decisions:
+            best = max(decisions, key=lambda row: row["confidence"])
+            reason += (
+                f"; best amount classification={best['category']}"
+                f" (probability={best['confidence']:.3f}, required >= {threshold})"
+            )
+        return reason + "; final award verification not run"
     if not award.get("confirmed") or probability is None:
         level = probability if probability is not None else "unavailable"
         return f"unconfirmed award (probability={level}, required >= {threshold})"
