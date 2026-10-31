@@ -85,7 +85,7 @@ Acquisition options use hyphens, e.g. `--max-gib 5`; `--debug` and `--no-debug` 
 - **Basal:** pinned Polish model, separate factual-feature and monetary-target extraction; English feature names with Polish descriptions and source text.
 - **GUGiK and Morfeusz:** population class of the locality where the court is located; ambiguous matches remain missing. Population measurement year is unknown.
 
-Targets are awarded compensation for non-material harm and other one-off damages. Litigation costs, interest and periodic rent are excluded. Missing values are `not_available`, never an assumed zero. Model outputs require review, including confirmed proposals.
+Targets are awarded compensation for non-material harm and other one-off damages. Litigation costs, interest and periodic rent are excluded. Missing values are `not_available`, never an assumed zero. Only records with established selected targets, sufficient award confidence and safe selected evidence are persisted. Rejected cases leave no record or per-case diagnostics. Accepted outputs still require independent review.
 
 ### Output and resume
 
@@ -121,3 +121,5 @@ _To be implemented: MAE, RMSE and error analysis across case groups._
 ## Inference
 
 _To be implemented: compensation prediction from model-ready case features._
+
+[Jak to działa](src/dataset/how-it-works.md) describes the complete extraction flow, passes, examples and proposed stratification in Polish.

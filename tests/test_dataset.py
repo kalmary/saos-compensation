@@ -725,6 +725,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     config["api"]["max_gib"] = 0
     config["metadata_fields"] = ["judgment_year", "instance", "court_seat"]
     monkeypatch.setattr(pipeline, "check_device", lambda device: None)
+    monkeypatch.setattr(pipeline, "rejection_reason", lambda result, config: None)
     stopped = []
 
     class Server:
@@ -789,6 +790,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
                 {
                     "id": 42,
                     "text": "Opis.",
+                    "source_payload": {"id": 42},
                     "judgmentDate": "2020-05-12",
                     "division": {"court": {"name": "Sąd Okręgowy w Płocku"}},
                 }
@@ -1766,4 +1768,41 @@ def test_resume_starts_at_next_page_after_network_failure(
     )
     assert list(get_data.download(config["api"], resumed, "second")) == []
     assert starts == [1] and resumed["complete"]
+    capsys.readouterr()
+
+
+def test_rejected_record_advances_checkpoint_without_case_files(
+    monkeypatch, tmp_path, capsys
+):
+    """
+    Continue after explicit rejection without persisting case artifacts.
+
+    args:
+        monkeypatch: Scoped dependency replacements.
+        tmp_path: Isolated dataset directory.
+        capsys: Captured progress reports.
+
+    returns:
+        None.
+    """
+    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    config = basal.load_config(overrides=CONFIG)
+    checkpoint = get_data.load_checkpoint(config)
+    data = fixture()["data"]
+    division = data["division"]
+    item = {**data, "division": {"id": division["id"]}}
+    monkeypatch.setattr(
+        get_data,
+        "search_pages",
+        lambda *args: iter([(0, {"items": [item], "links": []})]),
+    )
+    monkeypatch.setattr(
+        get_data, "load_divisions", lambda *args: {division["id"]: division}
+    )
+    stream = get_data.download(config["api"], checkpoint, "run")
+    record = next(stream)
+    record["rejected"] = True
+    assert list(stream) == []
+    assert get_data.load_checkpoint(config)["complete"]
+    assert not (tmp_path / "tmp" / str(data["id"])).exists()
     capsys.readouterr()

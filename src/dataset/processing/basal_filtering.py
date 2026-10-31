@@ -22,7 +22,7 @@ MODEL_CALLS = ContextVar("model_calls", default=None)
 
 
 DEFAULTS = {
-    "version": "saos-extraction-4",
+    "version": "saos-extraction-5",
     "chunk_characters": 1200,
     "context_characters": 600,
     "system_one": {
@@ -235,7 +235,9 @@ def load_config(directory=None, overrides=None):
         ],
         "target_fields": basal["target_fields"],
     }
-    config["system_one"].update(model=basal["model"], revision=revisions[basal["model"]])
+    config["system_one"].update(
+        model=basal["model"], revision=revisions[basal["model"]]
+    )
     config["system_one"]["mode"] = "mps" if basal["device"] == "mps" else "eager"
     config["system_one"]["device"] = basal["device"]
     config["system_one"].update(

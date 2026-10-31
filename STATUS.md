@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Admission now requires established selected targets, confirmed award confidence and reviewed selected evidence below the leakage ceiling. Rejected cases leave no record or per-case diagnostics/model cache; progress advances explicitly after rejection. Raw judgment pages are no longer persisted before admission. Polish how-it-works.md documents the complete flow and a proposed, not implemented, stratification strategy.
+
 Basal weights are cached under the ignored basal_weights/ directory, directly inside per-model Hugging Face folders. Both the dataset entry point and Basal notebook pass this cache explicitly to snapshot_download; missing files are downloaded automatically when extraction starts. Existing 4.5B and mini caches were moved without altering their relative snapshot/blob links.
 
 The dataset CLI remains src/dataset/get_data.py; support modules are grouped under src/dataset/processing/. The src.dataset package exports load_config, extract_text and extract for potential inference reuse without loading model weights at import. README.md now separates structure, purpose, installation, dataset tools and placeholders for ML pipeline/training/evaluation/inference. Dependency syncing is explicit before execution; commands and CI use uv run --no-sync.
@@ -79,3 +81,5 @@ Validation: offline tests pass in the working directory (180 passed, one fixture
 - 2026-10-30: Moved existing Basal 4.5B/mini weight caches to ignored basal_weights/models--Remek--basal-* folders and configured source/notebook snapshot downloads to use that directory directly. Missing weights still download on demand; package import does not download models. Updated docs and added cache-path verification to the mocked pipeline test.
 
 - 2026-10-31: Added model selection for the pinned Basal mini/4.5B checkpoints, selected mini in YAML and retained basal_weights/.gitkeep while ignoring all other cache contents. Moved shared Hugging Face blobs as well as per-model folders, restoring both weight links without downloading weights.
+
+- 2026-10-31: Added dataset admission checks and delayed per-case persistence until acceptance, with rejection-aware checkpoint advancement. Disabled pre-admission judgment-page/model-response persistence so rejected cases do not occupy record volume. Added offline boundary checks (183 passed, one absent-fixture replay skipped). Wrote the full Polish how-it-works.md with input/output, variable pass counts, synthetic example, limitations and a group/time-aware stratification proposal. No live inference or balancing was performed.

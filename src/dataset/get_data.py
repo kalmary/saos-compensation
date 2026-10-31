@@ -11,6 +11,7 @@ from contextlib import closing
 from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import uuid4
+import copy
 
 import requests
 
@@ -18,6 +19,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.dataset.processing.text import MONEY, extract_text
+from src.dataset.processing.quality import rejection_reason
 from src.dataset.processing.storage import (
     StorageLimitError,
     output_limit,
@@ -475,7 +477,7 @@ def download(config, checkpoint, run_id):
     try:
         with requests.Session() as session:
             for number, page in search_pages(
-                config, raw, end, session, checkpoint["page"], params
+                config, None, end, session, checkpoint["page"], params
             ):
                 ids = [item["id"] for item in page["items"]]
                 if checkpoint["page_ids"] is not None and ids != checkpoint["page_ids"]:
@@ -548,16 +550,12 @@ def download(config, checkpoint, run_id):
                         "text": text,
                         "source_url": f"{BASE_URL}/judgments/{identifier}",
                     }
-                    if debug:
-                        path = directory / str(identifier) / "debug" / run_id
-                        write_json(path / "judgment.json", item)
-                        write_json(path / "metadata.json", record)
-                        write_bytes(path / "source.txt", (text + "\n").encode("utf-8"))
+                    record["source_payload"] = item
                     write_json(checkpoint_path, checkpoint)
                     manifest["accepted"] += 1
                     yield record
                     # Advance only after the consumer has durably saved the final record.
-                    if not record_complete(
+                    if not record.get("rejected") and not record_complete(
                         record_path, identifier, checkpoint["dataset_id"]
                     ):
                         raise RuntimeError(
@@ -835,6 +833,7 @@ async def process(config):
         "engine_arguments": vars(args),
         "processed": 0,
         "confirmed_awards": 0,
+        "rejected_records": 0,
         "complete": False,
     }
     try:
@@ -843,13 +842,35 @@ async def process(config):
                 identifier = record["id"]
                 token = basal.MODEL_CALLS.set([] if config["api"]["debug"] else None)
                 try:
+                    extraction_config = copy.deepcopy(config)
+                    extraction_config["api"]["debug"] = False
                     result = await basal.extract(
-                        server, record["text"], config, identifier
+                        server, record["text"], extraction_config, identifier
                     )
                     if config["api"]["debug"]:
                         result["model_calls"] = basal.MODEL_CALLS.get()
                 finally:
                     basal.MODEL_CALLS.reset(token)
+                reason = rejection_reason(result, config)
+                if reason is not None:
+                    record["rejected"] = True
+                    summary["rejected_records"] += 1
+                    print(f"Rejected judgment {identifier}: {reason}", flush=True)
+                    continue
+                if config["api"]["debug"]:
+                    path = directory / str(identifier) / "debug" / run_id
+                    write_json(path / "judgment.json", record["source_payload"])
+                    write_json(
+                        path / "metadata.json",
+                        {
+                            key: value
+                            for key, value in record.items()
+                            if key != "source_payload"
+                        },
+                    )
+                    write_bytes(
+                        path / "source.txt", (record["text"] + "\n").encode("utf-8")
+                    )
                 add_metadata_features(
                     result, record, config["metadata_fields"], localities
                 )
