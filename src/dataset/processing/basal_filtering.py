@@ -19,6 +19,7 @@ from .storage import write_bytes, write_json
 ROOT = Path(__file__).resolve().parents[3]
 REQUEST_COUNTS = {"cached": 0, "computed": 0}
 MODEL_CALLS = ContextVar("model_calls", default=None)
+DECISION_CACHE = ContextVar("decision_cache", default=None)
 
 
 MODEL_FILES = [
@@ -431,17 +432,23 @@ async def ask(server, state, questions, config):
         json.dumps([identity, request], ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
     path = ROOT / config["api"]["download_path"] / "debug" / "decisions" / f"{key}.json"
-    debug = config["api"]["debug"]
-    if debug:
+    progress = DECISION_CACHE.get()
+    if progress is not None:
+        path = progress / f"{key}.json"
+    cache_enabled = config["api"]["debug"] or progress is not None
+    if cache_enabled:
         path.parent.mkdir(parents=True, exist_ok=True)
-    if debug and path.exists():
+    if cache_enabled and path.exists():
         REQUEST_COUNTS["cached"] += 1
-        response = json.loads(path.read_text(encoding="utf-8"))["response"]
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        if saved["request"] != request:
+            raise ValueError("Saved model decision does not match its request")
+        response = saved["response"]
     else:
         REQUEST_COUNTS["computed"] += 1
         response = await server.serve(request)
         check_decision(response, questions, state)
-        if debug:
+        if cache_enabled:
             write_json(
                 path,
                 {
@@ -562,10 +569,12 @@ async def classify_paragraphs(server, text, config, identifier):
         return row
 
     for i, chunk in enumerate(chunks):
-        print(
-            f"ID {identifier}: classifying paragraph {i + 1}/{len(chunks)}", flush=True
-        )
+        cached_before = REQUEST_COUNTS["cached"]
         row = await classify(chunk, "paragraph")
+        status = "cached" if REQUEST_COUNTS["cached"] > cached_before else "classified"
+        print(
+            f"ID {identifier}: paragraph {i + 1}/{len(chunks)} ({status})", flush=True
+        )
         decision = row["answers"]["sekcja"]
         if (
             decision["choice"] == "mieszany"

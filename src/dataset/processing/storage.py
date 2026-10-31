@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import tempfile
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -88,3 +89,23 @@ def write_json(path, value):
     write_bytes(
         path, (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     )
+
+
+def remove_tree(path):
+    """
+    Remove completed working state and release its output-size allocation.
+
+    args:
+        path: Temporary per-judgment working directory.
+
+    returns:
+        None.
+    """
+    path = Path(path)
+    if not path.exists():
+        return
+    size = sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+    shutil.rmtree(path)
+    budget = _OUTPUT.get()
+    if budget is not None and path.resolve().is_relative_to(budget["root"]):
+        budget["used"] -= size

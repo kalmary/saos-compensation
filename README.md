@@ -98,11 +98,11 @@ Targets are awarded compensation for non-material harm and other one-off damages
   debug/<RUN_ID>/           # original responses and run reports
 ```
 
-Restart the same command to resume from the checkpoint. Saved records are recognized without repeating extraction. Dates and extraction settings stay pinned; debug, timeout, size and page limits may change. A completed dataset or different extraction settings require a new output path. Run one process per output directory.
+Restart the same command to resume from the checkpoint. During extraction, `<SAOS_ID>/pending/` stores the source, configuration and completed model decisions even with debug disabled. Restarting reuses these decisions (reported as cached); only the interrupted request may need repeating. Pending state counts toward max_gib and is removed after acceptance or rejection. Saved records are recognized without repeating extraction. Dates and extraction settings stay pinned; debug, timeout, size and page limits may change. A completed dataset or different extraction settings require a new output path. Run one process per output directory.
 
 `max_pages: 0` reads all pages; a page limit is not random sampling. `max_gib` caps all files in the output directory across resumes, including diagnostic history; `0` disables it. Model weights are cached separately under the ignored `basal_weights/models--Remek--basal-2.0-4.5B/` directory. Missing files download automatically through Hugging Face when extraction starts; cached weights are reused. This is handled by the model loader, not PyTorch itself. Only runtime model/tokenizer/configuration/calibration files are requested, with one file-download worker; Xet can still display separate transfer/reconstruction progress.
 
-With `debug: false`, only records and the checkpoint are saved. With `debug: true`, sources, quotes/offsets, scores, accepted/rejected passages, configuration and exact model calls are preserved per run. Existing diagnostics are retained.
+With `debug: false`, completed output consists only of records and the checkpoint; temporary pending state remains only for unfinished cases. With `debug: true`, sources, quotes/offsets, scores, accepted/rejected passages, configuration and exact model calls are preserved per run. Existing diagnostics are retained.
 
 Research experiments remain in `notebooks/`; their outputs are separate from the dataset CLI. See [PROJECT.md](PROJECT.md) for the full workflow.
 

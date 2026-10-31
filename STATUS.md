@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Within-judgment recovery now persists source/configuration and validated model decisions under <ID>/pending/, independently of debug. Resumed requests reuse completed decisions; pending state is retained after interruption, counted toward the size budget, and removed after output commit or explicit rejection. Completed debug artifacts remain per-run, matching the notebook analysis/evidence outputs. Offline cancellation/recovery checks pass; old sessions with no saved decisions cannot be recovered.
+
 Admission now requires established selected targets, confirmed award confidence and reviewed selected evidence below the leakage ceiling. Rejected cases leave no record or per-case diagnostics/model cache; progress advances explicitly after rejection. Raw judgment pages are no longer persisted before admission. Polish how-it-works.md documents the complete flow and a proposed, not implemented, stratification strategy.
 
 Basal weights are cached under the ignored basal_weights/ directory, directly inside per-model Hugging Face folders. Both the dataset entry point and Basal notebook pass this cache explicitly to snapshot_download; missing files are downloaded automatically when extraction starts. Existing 4.5B and mini caches were moved without altering their relative snapshot/blob links.
@@ -85,3 +87,5 @@ Validation: offline tests pass in the working directory (180 passed, one fixture
 - 2026-10-31: Added dataset admission checks and delayed per-case persistence until acceptance, with rejection-aware checkpoint advancement. Disabled pre-admission judgment-page/model-response persistence so rejected cases do not occupy record volume. Added offline boundary checks (183 passed, one absent-fixture replay skipped). Wrote the full Polish how-it-works.md with input/output, variable pass counts, synthetic example, limitations and a group/time-aware stratification proposal. No live inference or balancing was performed.
 
 - 2026-10-31: Reviewed Hugging Face download progress: snapshot_download blocks the pipeline but defaults to eight file workers, while Xet reports separate transfer/reconstruction progress. Restricted both source and notebook downloads to runtime weights/tokenizer/configuration/calibration files and one file worker. Existing cached documents are preserved; no active downloads were interrupted.
+
+- 2026-10-31: Fixed loss of paragraph-level progress caused by disabling all pre-admission persistence. Added temporary decision checkpoints, explicit cached-progress messages, size-budget release on cleanup and normal KeyboardInterrupt reporting. Compared source-pipeline output with tmp/system_one/328131; documented pending versus accepted diagnostic layouts. Passed 184 offline tests with one historical-fixture replay skipped; no inference run or active-process interruption.

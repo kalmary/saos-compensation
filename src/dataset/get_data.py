@@ -20,6 +20,7 @@ if __package__ in (None, ""):
 
 from src.dataset.processing.text import MONEY, extract_text
 from src.dataset.processing.quality import rejection_reason
+from src.dataset.processing.storage import remove_tree
 from src.dataset.processing.storage import (
     StorageLimitError,
     output_limit,
@@ -502,6 +503,7 @@ def download(config, checkpoint, run_id):
                     if record_complete(
                         record_path, identifier, checkpoint["dataset_id"]
                     ):
+                        remove_tree(record_path.parent / "pending")
                         manifest["saved_records"] += 1
                         continue
                     if (
@@ -841,6 +843,13 @@ async def process(config):
         with closing(download(config["api"], checkpoint, run_id)) as records:
             for record in records:
                 identifier = record["id"]
+                pending = directory / str(identifier) / "pending"
+                write_json(pending / "judgment.json", record["source_payload"])
+                write_json(pending / "config.json", config)
+                write_bytes(
+                    pending / "source.txt", (record["text"] + "\n").encode("utf-8")
+                )
+                cache_token = basal.DECISION_CACHE.set(pending / "decisions")
                 token = basal.MODEL_CALLS.set([] if config["api"]["debug"] else None)
                 try:
                     extraction_config = copy.deepcopy(config)
@@ -852,10 +861,14 @@ async def process(config):
                         result["model_calls"] = basal.MODEL_CALLS.get()
                 finally:
                     basal.MODEL_CALLS.reset(token)
+                    basal.DECISION_CACHE.reset(cache_token)
                 reason = rejection_reason(result, config)
                 if reason is not None:
                     record["rejected"] = True
                     summary["rejected_records"] += 1
+                    remove_tree(pending)
+                    if not any(pending.parent.iterdir()):
+                        pending.parent.rmdir()
                     print(f"Rejected judgment {identifier}: {reason}", flush=True)
                     continue
                 if config["api"]["debug"]:
@@ -882,12 +895,16 @@ async def process(config):
                     run_id,
                     checkpoint["dataset_id"],
                 )
+                remove_tree(pending)
                 summary["processed"] += 1
                 summary["confirmed_awards"] += int(
                     result["award"].get("confirmed", False)
                 )
                 print(f"Filtered judgment {identifier}", flush=True)
         summary["complete"] = True
+    except asyncio.CancelledError:
+        summary["interrupted"] = True
+        raise
     except Exception as error:
         summary["error"] = str(error)
         raise
@@ -986,7 +1003,14 @@ def main():
 
     options = vars(parse_arguments())
     directory = options.pop("config_dir")
-    asyncio.run(run(load_config(directory, options)))
+    try:
+        asyncio.run(run(load_config(directory, options)))
+    except KeyboardInterrupt:
+        print(
+            "Interrupted. Completed model decisions are saved; rerun the same command to resume.",
+            flush=True,
+        )
+        raise SystemExit(130)
 
 
 if __name__ == "__main__":

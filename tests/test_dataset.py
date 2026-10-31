@@ -1809,3 +1809,64 @@ def test_rejected_record_advances_checkpoint_without_case_files(
     assert get_data.load_checkpoint(config)["complete"]
     assert not (tmp_path / "tmp" / str(data["id"])).exists()
     capsys.readouterr()
+
+
+def test_interrupted_extraction_reuses_completed_decisions_without_debug(
+    monkeypatch, tmp_path
+):
+    """
+    Reuse operational decisions after cancellation with diagnostics disabled.
+
+    args:
+        monkeypatch: Scoped dependencies.
+        tmp_path: Isolated working-state directory.
+
+    returns:
+        None.
+    """
+    config = basal.load_config(overrides={"debug": False})
+    questions = {"q": {"type": "noul", "instructions": "Czy to fakt?"}}
+    response = {
+        "answers": {"q": {"noul": 0.8, "probabilities": {"true": 0.8, "false": 0.2}}}
+    }
+    calls = []
+
+    class Server:
+        async def serve(self, request):
+            """
+            Interrupt the second state once.
+
+            args:
+                request: Model decision input.
+
+            returns:
+                Deterministic model response.
+            """
+            calls.append(request["state"])
+            if request["state"] == "second" and calls.count("second") == 1:
+                raise asyncio.CancelledError()
+            return response
+
+    async def execute():
+        """
+        Re-enter the same working cache after cancellation.
+
+        args:
+            None
+
+        returns:
+            None.
+        """
+        token = basal.DECISION_CACHE.set(tmp_path / "pending/decisions")
+        try:
+            await basal.ask(Server(), "first", questions, config)
+            with pytest.raises(asyncio.CancelledError):
+                await basal.ask(Server(), "second", questions, config)
+            await basal.ask(Server(), "first", questions, config)
+            await basal.ask(Server(), "second", questions, config)
+        finally:
+            basal.DECISION_CACHE.reset(token)
+
+    asyncio.run(execute())
+    assert calls == ["first", "second", "second"]
+    assert len(list((tmp_path / "pending/decisions").glob("*.json"))) == 2
