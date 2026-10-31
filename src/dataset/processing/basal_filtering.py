@@ -41,7 +41,7 @@ MODEL_FILES = [
 
 
 DEFAULTS = {
-    "version": "saos-extraction-14",
+    "version": "saos-extraction-15",
     "chunk_characters": 6000,
     "context_characters": 600,
     "system_one": {
@@ -162,6 +162,7 @@ METADATA_FIELDS = (
     "court_seat",
     "court_locality_size",
     "injured_party_count",
+    "prior_payment",
 )
 
 
@@ -740,6 +741,68 @@ async def extract_award(server, text, diagnostics, config):
     return await extract_targets(server, text, config)
 
 
+async def extract_prior_payment(server, match, config):
+    """
+    Resolve an earlier principal payment as an integer PLN feature, never a target.
+
+    args:
+        server: Local Basal extraction server.
+        match: Embedding-selected prior-payment sentence, or None.
+        config: Effective amount confidence threshold and model settings.
+
+    returns:
+        Confirmed prior principal rounded to whole PLN, or zero without confirmation.
+    """
+    from decimal import ROUND_HALF_UP, Decimal
+
+    if match is None:
+        return 0
+    answer = (
+        await ask(
+            server,
+            match["text"],
+            {
+                "prior_payment": {
+                    "type": "extract",
+                    "instructions": "Wskaż kwotę świadczenia głównego już wypłaconą poszkodowanym "
+                    "przez pozwanego lub ubezpieczyciela przed analizowanym wyrokiem. "
+                    "Nie wybieraj kwoty żądanej, zasądzonej, pozostałej do zapłaty, odsetek "
+                    "ani kosztów postępowania. Wskaż wyłącznie liczbową kwotę wraz z walutą "
+                    "jako dokładny fragment źródła. Jeśli podano składniki i ich sumę, wybierz "
+                    "tylko sumę. Gdy jest kilka odrębnych wypłat bez jednoznacznej sumy "
+                    "lub inny odbiorca niż poszkodowani w tej sprawie, wybierz not stated.",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "amount": {
+                                "type": "string",
+                                "description": "Wcześniej wypłacona kwota główna z walutą PLN.",
+                            }
+                        },
+                    },
+                }
+            },
+            config,
+        )
+    )["prior_payment"]
+    value = answer["data"]["amount"]
+    probability = answer["fields"]["amount"].get("confidence")
+    if (
+        value is None
+        or probability is None
+        or probability < config["system_one"]["amount_minimum_probability"]
+    ):
+        return 0
+    amount = api.MONEY.fullmatch(value.strip())
+    if amount is None:
+        return 0
+    return int(
+        Decimal(api.amount_in_pln(amount)).quantize(
+            Decimal(1), rounding=ROUND_HALF_UP
+        )
+    )
+
+
 async def extract_features(server, text, config, identifier):
     """
     Extract from factual findings first and review field relevance of final candidates.
@@ -926,10 +989,16 @@ async def extract(server, text, config, identifier):
         and target_rejection_reason(award, config) is not None
     ):
         return {"id": identifier, "award": award}
+    prior_features = {}
+    if "prior_payment" in config["metadata_fields"]:
+        prior_features["prior_payment"] = await extract_prior_payment(
+            server, award.get("target_matches", {}).get("prior_payment"), config
+        )
     if "target_matches" in award and award["target_matches"]["judgment"] is None:
         return {
             "id": identifier,
             "award": award,
+            **prior_features,
             "features": {field: "brak informacji" for field in config["fields"]},
             "evidence": {field: [] for field in config["fields"]},
             "confidence": {field: None for field in config["fields"]},
@@ -953,6 +1022,7 @@ async def extract(server, text, config, identifier):
     return {
         "id": identifier,
         "award": award,
+        **prior_features,
         **features,
         "instance": {
             "value": instance["choice"]

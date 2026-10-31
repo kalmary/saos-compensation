@@ -609,6 +609,8 @@ def add_metadata_features(result, record, fields, localities=None):
         values["injured_party_count"] = result["award"].get(
             "injured_party_count", "not_available"
         )
+    if "prior_payment" in fields:
+        values["prior_payment"] = result.get("prior_payment", 0)
     if "court_locality_size" in fields:
         from src.dataset.processing.localities import locality_class, match_locality
 
@@ -634,6 +636,10 @@ def add_metadata_features(result, record, fields, localities=None):
         sources["injured_party_count"] = {
             "source": "embedding-selected ruling; Basal beneficiary extraction"
         }
+    if "prior_payment" in fields:
+        sources["prior_payment"] = {
+            "source": "embedding-selected prior payment; Basal amount extraction"
+        }
     result["metadata_sources"] = {field: sources[field] for field in fields}
     for field in fields:
         result["features"][field] = values[field]
@@ -644,7 +650,9 @@ def add_metadata_features(result, record, fields, localities=None):
             else None
         )
         result["field_status"][field] = (
-            "not_available"
+            "earlier principal payment in whole PLN; zero without confirmation"
+            if field == "prior_payment"
+            else "not_available"
             if values[field] == "not_available"
             else "review required"
             if field == "instance"

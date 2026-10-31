@@ -211,3 +211,178 @@ def test_distinct_award_clauses_are_summed_without_double_counting_people(
     result = asyncio.run(extraction.extract_targets(None, text, config))
     assert result["suma"] == "200"
     assert result["confirmed"]
+
+
+@pytest.mark.parametrize(
+    ("value", "probability", "expected"),
+    [
+        ("700 zł", 0.9, 700),
+        ("1,5 tys. zł", 0.9, 1500),
+        ("700,49 zł", 0.9, 700),
+        ("700,50 zł", 0.9, 701),
+        ("700 zł", 0.5, 0),
+        ("700 zł", None, 0),
+        (None, 0.9, 0),
+        ("700 EUR", 0.9, 0),
+    ],
+)
+def test_prior_payment_resolves_only_selected_principal_as_integer(
+    monkeypatch, value, probability, expected
+):
+    """
+    Keep prior payments numeric and separate from the remaining amount to award.
+
+    args:
+        monkeypatch: Scoped model replacement.
+        value: Extracted source amount or missing value.
+        probability: Model confidence in the selected amount.
+        expected: Whole-PLN feature value.
+
+    returns:
+        None.
+    """
+
+    async def ask(server, state, questions, config):
+        """
+        Return an earlier-payment span without selecting the outstanding balance.
+
+        args:
+            server: Unused inference server.
+            state: Earlier-payment sentence.
+            questions: Requested feature extraction.
+            config: Effective settings.
+
+        returns:
+            Controlled source extraction.
+        """
+        assert set(questions) == {"prior_payment"}
+        return {
+            "prior_payment": {
+                "data": {"amount": value},
+                "fields": {"amount": {"confidence": probability}},
+            }
+        }
+
+    monkeypatch.setattr(basal, "ask", ask)
+    result = asyncio.run(
+        basal.extract_prior_payment(
+            None, {"text": "Wypłacono 700 zł, pozostaje 6300 zł."}, basal.load_config()
+        )
+    )
+    assert type(result) is int
+    assert result == expected
+
+
+def test_missing_prior_payment_requires_no_model_call(monkeypatch):
+    """
+    Default a missing earlier-payment match to zero without inference.
+
+    args:
+        monkeypatch: Scoped model replacement.
+
+    returns:
+        None.
+    """
+    monkeypatch.setattr(
+        basal, "ask", lambda *args: pytest.fail("Unexpected model call")
+    )
+    assert (
+        asyncio.run(basal.extract_prior_payment(None, None, basal.load_config())) == 0
+    )
+
+
+@pytest.mark.parametrize("prior_payment", [0, 34400])
+def test_prior_payment_is_exported_only_in_record(tmp_path, prior_payment):
+    """
+    Persist the integer feature without adding it to target fields or their total.
+
+    args:
+        tmp_path: Isolated output directory.
+        prior_payment: Earlier principal feature including the absent-value default.
+
+    returns:
+        None.
+    """
+    import json
+
+    from src.dataset.get_data import add_metadata_features, write_result
+
+    config = basal.load_config(overrides={"debug": True})
+    result = {
+        "features": {},
+        "evidence": {},
+        "confidence": {},
+        "field_status": {},
+        "prior_payment": prior_payment,
+        "award": {"confirmed": False, "zadoscuczynienie": "65600", "suma": "65600"},
+        "instance": {"value": "pierwsza", "decision": {"confidence": 0.9}},
+        "source_text": "Source.",
+    }
+    record = {
+        "judgmentDate": "2020-01-01",
+        "division": {"court": {"name": "Sąd w Warszawie"}},
+    }
+    add_metadata_features(result, record, ["prior_payment"])
+    write_result(result, tmp_path, config)
+    features = json.loads((tmp_path / "record.json").read_text())
+    award = json.loads((tmp_path / "award.json").read_text())
+    assert features == {"prior_payment": prior_payment}
+    assert type(features["prior_payment"]) is int
+    assert "prior_payment" not in award
+    assert award["total"] == "65600"
+
+
+def test_prior_payment_feature_is_resolved_for_debug_case_without_target(monkeypatch):
+    """
+    Retain a prior-payment feature even when debug preserves a case without an award.
+
+    args:
+        monkeypatch: Scoped target and feature resolvers.
+
+    returns:
+        None.
+    """
+
+    async def extract_award(*args):
+        """
+        Supply an excluded earlier payment without any eligible judgment.
+
+        args:
+            args: Unused extraction arguments.
+
+        returns:
+            Unconfirmed target and embedding diagnostics.
+        """
+        return {
+            "confirmed": False,
+            "target_matches": {
+                "judgment": None,
+                "prior_payment": {"text": "Wypłacono 700 zł."},
+            },
+        }
+
+    async def prior_payment(server, match, config):
+        """
+        Resolve the selected feature without modifying the target result.
+
+        args:
+            server: Unused inference server.
+            match: Earlier-payment source sentence.
+            config: Effective pipeline configuration.
+
+        returns:
+            Integer feature value.
+        """
+        assert match["text"] == "Wypłacono 700 zł."
+        return 700
+
+    monkeypatch.setattr(basal, "extract_award", extract_award)
+    monkeypatch.setattr(basal, "extract_prior_payment", prior_payment)
+    result = asyncio.run(
+        basal.extract(
+            None, "Wypłacono 700 zł.", basal.load_config(overrides={"debug": True}), 42
+        )
+    )
+    assert result["prior_payment"] == 700
+    assert "prior_payment" not in result["award"]
+    assert result["award"]["confirmed"] is False

@@ -44,6 +44,8 @@ Ten etap rozpoczyna się dopiero po ekstrakcji i dopuszczeniu targetu. Bez debug
 
 `judgment_year` pochodzi z daty SAOS. `court_locality_size` jest klasą populacji miejscowości, w której znajduje się sąd. Nazwa miejscowości jest dopasowywana do GUGiK przez Morfeusza, a klasa wynika z `LICZBAMIESZKANCOW`. Nie jest to populacja obszaru właściwości sądu ani miejsce zamieszkania powoda. Dopasowania niejednoznaczne pozostają brakujące. Nie znamy roku pomiaru ludności, więc współczesnego źródła nie należy traktować jako zweryfikowanych danych historycznych.
 
+`prior_payment` jest osobną cechą liczbową, zapisywaną wyłącznie w record.json. Basal odczytuje wcześniejszą wypłatę świadczenia głównego ze zdania wybranego jako prior_payment; nie wlicza żądania, bieżącego zasądzenia ani kosztów procesu. Wybiera jawną sumę wcześniejszych wypłat, jeśli jest dostępna, bez sumowania powtórzonych wzmianek. Kwota jest typu int w PLN, zaokrąglana do najbliższego złotego (0,50 w górę). Brak potwierdzonej kwoty oznacza 0, również przy niejednoznacznej ekstrakcji. Ta cecha nie zmienia award.json ani targetu; tekst ujawniający wypłatę nadal nie jest cechą tekstową.
+
 ## Wybór zdań targetu i ekstrakcja kwot
 
 embedding.yaml wybiera mały model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2, jego przypiętą rewizję, urządzenie CPU/MPS/CUDA i minimum_cosine_similarity: 0.7. Wagi są w embedding_weights/, oddzielnie od basal_weights/.

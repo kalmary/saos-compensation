@@ -198,6 +198,7 @@ def load_config(path=None):
                 "court_seat",
                 "court_locality_size",
                 "injured_party_count",
+                "prior_payment",
             },
         ),
         ("target_fields", AWARD_FIELDS),

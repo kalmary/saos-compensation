@@ -5,6 +5,7 @@ device: mps
 feature_fields:
 - judgment_year
 - instance
+- prior_payment # Earlier principal paid in PLN, rounded to int; 0 without confirmation.
 - injured_party_count # People receiving compensation in this judgment.
 - court_locality_size # Population class of the locality where the court is located (GUGiK).
 - event_circumstances

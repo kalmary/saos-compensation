@@ -40,6 +40,7 @@ This is a regression problem. Do not turn it into judgment classification or gen
 
 - Extract labels separately from predictor features.
 - Do not use the awarded amount, requested amount, calculations based on that amount, or passages explaining why that amount was selected as model input.
+- `prior_payment` is an explicitly allowed numeric predictor for confirmed earlier principal payments, never a target. Keep its source passage and all other monetary evidence out of text features.
 - Split data before fitting encoders or other learned preprocessing.
 - Group related judgments, appeals, or duplicate proceedings in the same split.
 - Review extracted features and nearest-neighbor results for indirect disclosure of the target.
