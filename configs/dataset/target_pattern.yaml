@@ -11,7 +11,7 @@ judgment:
 
 # A requested amount remains a request even when it equals the eventual award.
 request:
-  - "wnosi o zasądzenie od {defendant} na rzecz {claimant} kwoty {amount}"
+  - "powód wnosi o zasądzenie od {defendant} na rzecz {claimant} kwoty {amount}"
   - "żąda zapłaty kwoty {amount}"
   - "roszczenie objęte pozwem wynosi {amount}"
   - "rozszerza powództwo o kwotę {additional_amount}, do łącznej kwoty {amount}"
@@ -20,3 +20,27 @@ request:
   - "wzywa do zapłaty kwoty {amount}"
   - "pełnomocnik powoda ostatecznie zażądał jako zadośćuczynienia sumy {amount}"
   - "w pozwie określono dochodzone świadczenie na {amount}"
+
+# These groups compete with target roles; their winners are not target amounts.
+prior_payment:
+  - "ubezpieczyciel wypłacił poszkodowanemu {amount} w postępowaniu likwidacyjnym"
+  - "przed wniesieniem pozwu pozwany zapłacił powodowi {amount}"
+  - "na poczet należnego świadczenia powód otrzymał już {amount}"
+  - "dotychczas przyznane przez pozwanego zadośćuczynienie wynosi {amount}"
+  - "roszczenie zostało częściowo zaspokojone przez dobrowolną zapłatę {amount}"
+  - "sąd ocenił dotychczasową wypłatę {amount} jako symboliczną i niewystarczającą"
+
+procedural_costs:
+  - "zasądza od pozwanego na rzecz powoda {amount} tytułem zwrotu kosztów procesu"
+  - "powodowie wnieśli o zasądzenie {amount} tytułem zastępstwa procesowego"
+  - "nakazuje pobrać na rzecz Skarbu Państwa {amount} nieuiszczonych kosztów sądowych"
+  - "uiszczona opłata od pozwu wynosiła {amount}"
+  - "przyznaje pełnomocnikowi z urzędu wynagrodzenie w wysokości {amount}"
+  - "obciąża stronę wydatkami na opinię biegłego w kwocie {amount}"
+
+mixed:
+  - "powód żądał {previous_amount}, lecz sąd zasądził tylko {amount}"
+  - "z dochodzonej kwoty {previous_amount} uwzględniono powództwo co do {amount}"
+  - "powód utrzymał się z żądaniem do kwoty {amount}, a w pozostałej części powództwo oddalono"
+  - "sąd obniżył żądaną sumę {previous_amount} do należnego zadośćuczynienia {amount}"
+  - "w miejsce wnioskowanych {previous_amount} przyznano poszkodowanemu {amount}"

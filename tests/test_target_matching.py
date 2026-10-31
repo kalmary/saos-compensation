@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 torch = pytest.importorskip("torch")
 from src.dataset.processing.target_matching import (
+    PATTERN_CLASSES,
     TargetMatcher,
     prepare_text,
     validate_settings,
@@ -25,9 +26,18 @@ SETTINGS = {
         "judgment": ["zasądz"],
         "request": ["żąda"],
         "shared": ["przyzna"],
+        "prior_payment": ["wypłac"],
+        "procedural_costs": ["koszt"],
+        "mixed": ["żąda"],
     },
 }
-PATTERNS = {"judgment": ["zasądza {amount}"], "request": ["żąda {amount}"]}
+PATTERNS = {
+    "judgment": ["zasądza {amount}"],
+    "request": ["żąda {amount}"],
+    "prior_payment": ["wypłacił już {amount}"],
+    "procedural_costs": ["zwrot kosztów procesu {amount}"],
+    "mixed": ["żądał więcej, zasądzono {amount}"],
+}
 
 
 class Encoder:
@@ -56,7 +66,12 @@ class Encoder:
         """
         self.calls.append(texts)
         return torch.tensor(
-            [[1.0, 0.0], [0.0, 1.0]] if len(self.calls) == 1 else self.vectors
+            torch.eye(len(PATTERN_CLASSES)).tolist()
+            if len(self.calls) == 1
+            else [
+                vector + [0.0] * (len(PATTERN_CLASSES) - len(vector))
+                for vector in self.vectors
+            ]
         )
 
 
@@ -83,7 +98,9 @@ def test_highest_match_wins_and_request_is_optional():
     )
     matcher.match(text)
     assert len(encoder.calls) == 3
-    assert encoder.calls[0] == ["zasądza 100 zł", "żąda 100 zł"]
+    assert encoder.calls[0] == [
+        prepare_text(phrases[0]) for phrases in PATTERNS.values()
+    ]
 
 
 @pytest.mark.parametrize(
@@ -124,10 +141,9 @@ def test_empty_text_does_not_encode_source():
         None.
     """
     encoder = Encoder([])
-    assert TargetMatcher(SETTINGS, PATTERNS, encoder).match("") == {
-        "judgment": None,
-        "request": None,
-    }
+    assert TargetMatcher(SETTINGS, PATTERNS, encoder).match("") == dict.fromkeys(
+        PATTERN_CLASSES
+    )
     assert len(encoder.calls) == 1
 
 
@@ -233,3 +249,48 @@ def test_invalid_keyword_groups_fail_before_loading(groups):
     """
     with pytest.raises(ValueError, match="candidate_keywords"):
         validate_settings({**SETTINGS, "candidate_keywords": groups}, PATTERNS)
+
+
+@pytest.mark.parametrize(
+    ("text", "vector", "excluded"),
+    [
+        ("Zasądza 100 zł kosztów procesu.", [0.70, 0, 0, 0.71, 0], "procedural_costs"),
+        ("Przyznano i wypłacono już 100 zł.", [0.70, 0, 0.71, 0, 0], "prior_payment"),
+        ("Żądał zasądzenia 200 zł, zasądzono 100 zł.", [0.70, 0, 0, 0, 0.71], "mixed"),
+    ],
+)
+def test_exclusion_winner_does_not_become_target_and_keeps_other_candidates(
+    text, vector, excluded
+):
+    """
+    Keep exclusion diagnostics and find a target in another source sentence.
+
+    args:
+        text: Sentence containing an excluded payment context.
+        vector: Controlled similarities with a stronger exclusion match.
+        excluded: Expected exclusion class.
+
+    returns:
+        None.
+    """
+    matcher = TargetMatcher(SETTINGS, PATTERNS, Encoder([vector, [1.0, 0.0]]))
+    result = matcher.match(text + "\nZasądza 300 zł.")
+    assert result[excluded]["text"] == text
+    assert result["judgment"]["text"] == "Zasądza 300 zł."
+    assert result["request"] is None
+
+
+def test_exclusion_tie_abstains_instead_of_admitting_a_target():
+    """
+    Reject an exact target/exclusion tie without depending on pattern order.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    matcher = TargetMatcher(SETTINGS, PATTERNS, Encoder([[1, 0, 0, 1, 0]]))
+    assert all(
+        value is None for value in matcher.match("Zasądza 100 zł kosztów.").values()
+    )

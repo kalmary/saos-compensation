@@ -9,15 +9,18 @@ from pathlib import Path
 from .text import MONEY, sentence_fragments
 
 ROOT = Path(__file__).resolve().parents[3]
+TARGET_CLASSES = ("judgment", "request")
+EXCLUDED_CLASSES = ("prior_payment", "procedural_costs", "mixed")
+PATTERN_CLASSES = TARGET_CLASSES + EXCLUDED_CLASSES
 
 
 def validate_settings(settings, patterns):
     """
-    Validate embedding settings and the two pattern classes before model loading.
+    Validate embedding settings, keyword groups and pattern classes before model loading.
 
     args:
         settings: Embedding model, runtime settings and similarity threshold.
-        patterns: Nonempty judgment and request phrase lists.
+        patterns: Nonempty target and exclusion phrase lists.
 
     returns:
         None.
@@ -53,13 +56,9 @@ def validate_settings(settings, patterns):
     ):
         raise ValueError("minimum_cosine_similarity must be between 0 and 1")
     keywords = settings["candidate_keywords"]
-    if not isinstance(keywords, dict) or set(keywords) != {
-        "judgment",
-        "request",
-        "shared",
-    }:
+    if not isinstance(keywords, dict) or set(keywords) != {*PATTERN_CLASSES, "shared"}:
         raise ValueError(
-            "candidate_keywords requires judgment, request and shared groups"
+            f"candidate_keywords requires {sorted((*PATTERN_CLASSES, 'shared'))} groups"
         )
     if not any(keywords.values()) or any(
         not isinstance(words, list)
@@ -69,8 +68,8 @@ def validate_settings(settings, patterns):
         raise ValueError(
             "candidate_keywords groups must contain word stems, with at least one nonempty group"
         )
-    if not isinstance(patterns, dict) or set(patterns) != {"judgment", "request"}:
-        raise ValueError("target_pattern.yaml requires judgment and request lists")
+    if not isinstance(patterns, dict) or set(patterns) != set(PATTERN_CLASSES):
+        raise ValueError(f"target_pattern.yaml requires {list(PATTERN_CLASSES)} lists")
     for label, phrases in patterns.items():
         if (
             not isinstance(phrases, list)
@@ -88,7 +87,7 @@ def candidate_sentences(text, keywords):
 
     args:
         text: Full normalized judgment text.
-        keywords: Judgment, request and shared word-prefix groups from embedding.yaml.
+        keywords: Target, exclusion and shared word-prefix groups from embedding.yaml.
 
     returns:
         Candidate sentences with unchanged source offsets and eligible classes.
@@ -115,11 +114,16 @@ def candidate_sentences(text, keywords):
                 continue
             classes = tuple(
                 label
-                for label in ("judgment", "request")
+                for label in TARGET_CLASSES
                 if core[label].search(sentence["text"])
             )
             if not classes and core["shared"].search(sentence["text"]):
-                classes = ("judgment", "request")
+                classes = TARGET_CLASSES
+            classes += tuple(
+                label
+                for label in EXCLUDED_CLASSES
+                if label in core and core[label].search(sentence["text"])
+            )
             if classes:
                 sentences.append({**sentence, "classes": classes})
     return sentences
@@ -233,7 +237,7 @@ class TargetMatcher:
 
         args:
             settings: Embedding configuration and minimum similarity.
-            patterns: Judgment and request templates.
+            patterns: Target and exclusion templates.
             encoder: Optional existing sentence encoder.
 
         returns:
@@ -257,12 +261,12 @@ class TargetMatcher:
             text: Full normalized judgment text.
 
         returns:
-            Judgment/request matches with source offsets and scores, or None per class.
+            Best matches per target/exclusion class, with source offsets and scores.
         """
         from .cosine_similarity import cosine_similarity
 
         sentences = candidate_sentences(text, self.settings["candidate_keywords"])
-        result = {"judgment": None, "request": None}
+        result = dict.fromkeys(PATTERN_CLASSES)
         if not sentences:
             return result
         vectors = self.encoder.encode([prepare_text(row["text"]) for row in sentences])
@@ -277,9 +281,9 @@ class TargetMatcher:
                 score = round(float(similarities[index]), 7)
                 if label not in best or score > best[label][0]:
                     best[label] = (score, phrase)
-            if len(best) == 2 and best["judgment"][0] == best["request"][0]:
-                continue
             label = max(best, key=lambda key: best[key][0])
+            if sum(value[0] == best[label][0] for value in best.values()) > 1:
+                continue
             score, phrase = best[label]
             if score >= self.settings["minimum_cosine_similarity"] and (
                 result[label] is None or score > result[label]["similarity"]
@@ -305,17 +309,17 @@ def cached_matcher(settings_json, patterns_json):
 
 def match_targets(text, config):
     """
-    Locate judgment and optional request sentences using configured embeddings.
+    Locate target roles and competing exclusion contexts using configured embeddings.
 
     args:
         text: Full normalized judgment.
         config: Effective pipeline configuration.
 
     returns:
-        Best matching source sentences for both classes.
+        Best matching source sentence per target or exclusion class.
     """
     if not candidate_sentences(text, config["embedding"]["candidate_keywords"]):
-        return {"judgment": None, "request": None}
+        return dict.fromkeys(PATTERN_CLASSES)
     matcher = cached_matcher(
         json.dumps(config["embedding"], sort_keys=True),
         json.dumps(config["target_patterns"], sort_keys=True),

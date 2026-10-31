@@ -12,6 +12,9 @@ KEYWORDS = {
     "judgment": ["zasądz"],
     "request": ["żąda"],
     "shared": ["przyzna", "odszkod"],
+    "prior_payment": ["wypłac"],
+    "procedural_costs": ["koszt"],
+    "mixed": ["utrzyma"],
 }
 
 
@@ -81,7 +84,7 @@ def test_no_candidates_does_not_load_the_embedding_model(monkeypatch):
     config = {"embedding": {"candidate_keywords": KEYWORDS}}
     assert target_matching.match_targets(
         "Zasądza świadczenie. Inny rachunek: 100 zł.", config
-    ) == {"judgment": None, "request": None}
+    ) == dict.fromkeys(target_matching.PATTERN_CLASSES)
 
 
 @pytest.mark.parametrize(
@@ -111,3 +114,30 @@ def test_role_specific_stems_take_precedence_over_shared_words(text, classes):
     }
     rows = target_matching.candidate_sentences(text, groups)
     assert rows[0]["classes"] == classes
+
+
+@pytest.mark.parametrize(
+    ("text", "group", "stem"),
+    [
+        ("Wypłacono już 100 zł.", "prior_payment", "wypłac"),
+        ("Koszty procesu wyniosły 100 zł.", "procedural_costs", "koszt"),
+        ("Utrzymał się z żądaniem do 100 zł.", "mixed", "utrzyma"),
+    ],
+)
+def test_exclusion_keywords_also_select_sentences_before_embedding(text, group, stem):
+    """
+    Admit excluded payment contexts without requiring a positive target keyword.
+
+    args:
+        text: Monetary sentence belonging to an exclusion group.
+        group: Eligible exclusion class.
+        stem: Word prefix selecting that class.
+
+    returns:
+        None.
+    """
+    groups = {key: [] for key in (*target_matching.PATTERN_CLASSES, "shared")}
+    groups[group] = [stem]
+    (row,) = target_matching.candidate_sentences(text, groups)
+    assert row["classes"] == (group,)
+    assert text[row["start"] : row["end"]] == text
