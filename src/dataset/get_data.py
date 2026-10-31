@@ -605,6 +605,10 @@ def add_metadata_features(result, record, fields, localities=None):
         else result["instance"]["value"],
         "court_seat": locality[1].strip() if locality else "not_available",
     }
+    if "injured_party_count" in fields:
+        values["injured_party_count"] = result["award"].get(
+            "injured_party_count", "not_available"
+        )
     if "court_locality_size" in fields:
         from src.dataset.processing.localities import locality_class, match_locality
 
@@ -625,6 +629,10 @@ def add_metadata_features(result, record, fields, localities=None):
             "locality": matched,
             "matching": reason,
             "source": metadata,
+        }
+    if "injured_party_count" in fields:
+        sources["injured_party_count"] = {
+            "source": "embedding-selected ruling; Basal beneficiary extraction"
         }
     result["metadata_sources"] = {field: sources[field] for field in fields}
     for field in fields:
@@ -676,6 +684,11 @@ def write_result(result, directory, config):
         "not_available"
         if award.get("suma", "brak informacji") == "brak informacji"
         else award["suma"]
+    )
+    targets["request"] = (
+        "not_available"
+        if award.get("request", "brak informacji") == "brak informacji"
+        else award["request"]
     )
     targets["valid"] = valid
     if config["api"]["debug"]:
@@ -755,14 +768,16 @@ async def process(config):
         print("No pending judgments within the configured page limit.", flush=True)
         return
     model_cache = ROOT / "basal_weights"
-    if config["api"]["max_gib"] and model_cache.resolve().is_relative_to(
-        directory.resolve()
-    ):
-        raise ValueError(
-            "basal_weights must be outside download_path when max_gib is enabled"
-        )
+    for cache in (model_cache, ROOT / "embedding_weights"):
+        if config["api"]["max_gib"] and cache.resolve().is_relative_to(
+            directory.resolve()
+        ):
+            raise ValueError(
+                f"{cache.name} must be outside download_path when max_gib is enabled"
+            )
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     check_device(config["system_one"]["device"])
+    check_device(config["embedding"]["device"])
     write_json(directory / "checkpoint.json", checkpoint)
     localities = None
     if "court_locality_size" in config["metadata_fields"]:

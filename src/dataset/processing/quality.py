@@ -38,6 +38,15 @@ def rejection_reason(result, config):
                 return (
                     "missing leakage review or excessive leakage in selected features"
                 )
+            minimum = config["system_one"]["minimum_probability"]
+            if any(
+                row["answers"].get(f"fit_{field}", {}).get("noul", 0) < minimum
+                for row in reviews
+            ):
+                return (
+                    "missing field-relevance review or irrelevant feature description"
+                )
+
     return None
 
 
@@ -52,6 +61,11 @@ def target_rejection_reason(award, config):
     returns:
         Rejection reason, or None for an admissible target.
     """
+    if "target_matches" in award:
+        match = award["target_matches"].get("judgment")
+        threshold = config["embedding"]["minimum_cosine_similarity"]
+        if match is None or match["similarity"] < threshold:
+            return f"no judgment sentence with cosine similarity >= {threshold}"
     threshold = config["system_one"]["amount_minimum_probability"]
     probability = award.get("verification", {}).get("noul")
     low_confidence = probability is not None and probability < threshold
@@ -74,5 +88,12 @@ def target_rejection_reason(award, config):
             return "invalid target"
         established += 1
     if not established:
+        if "target_matches" in award:
+            try:
+                total = Decimal(award.get("suma", ""))
+            except (InvalidOperation, TypeError, ValueError):
+                return "no established judgment amount"
+            if total.is_finite() and total >= 0:
+                return None
         return "no established selected target"
     return None

@@ -45,6 +45,8 @@ htmlcov/
 /tmp/
 /basal_weights/*
 !/basal_weights/.gitkeep
+/embedding_weights/*
+!/embedding_weights/.gitkeep
 .DS_Store
 Thumbs.db
 

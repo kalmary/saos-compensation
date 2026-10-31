@@ -1,4 +1,4 @@
-# Representative phrase templates; not connected to extraction yet.
+# Representative phrase templates for embedding-based sentence selection.
 # Keep distinct constructions, not inflection, word-order or ending variants.
 # Placeholders stand for source text; these are not regular expressions.
 # Payment cues require separate checks of the current ruling, beneficiary and component.

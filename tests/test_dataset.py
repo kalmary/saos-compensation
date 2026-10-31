@@ -847,6 +847,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         "zadoscuczynienie": "not_available" if missing_target else "100",
         "pozostale_odszkodowanie": "not_available",
         "total": "not_available",
+        "request": "not_available",
         "valid": not low_confidence and not missing_target,
     }
     assert {item.name for item in path.iterdir()} == (
@@ -961,6 +962,8 @@ def test_config_allows_metadata_only_without_adding_it_to_basal_schema(tmp_path)
     config["feature_fields"] = list(basal.METADATA_FIELDS)
     (tmp_path / "basal.yaml").write_text(yaml.safe_dump(config))
     (tmp_path / "api.yaml").write_text(yaml.safe_dump(CONFIG))
+    for name in ("embedding.yaml", "target_pattern.yaml"):
+        (tmp_path / name).write_text((ROOT / "configs/dataset" / name).read_text())
     loaded = basal.load_config(tmp_path)
     assert loaded["metadata_fields"] == list(basal.METADATA_FIELDS)
     assert loaded["fields"] == {}
@@ -1020,6 +1023,8 @@ def test_cli_can_override_yaml_before_validation(tmp_path):
 
     api = {**CONFIG, "max_pages": -1, "debug": True}
     (tmp_path / "api.yaml").write_text(yaml.safe_dump(api))
+    for name in ("embedding.yaml", "target_pattern.yaml"):
+        (tmp_path / name).write_text((ROOT / "configs/dataset" / name).read_text())
     (tmp_path / "basal.yaml").write_text(
         (ROOT / "configs/dataset/basal.yaml").read_text()
     )
@@ -1335,6 +1340,8 @@ def test_explicit_device_configuration_and_availability(
     settings["device"] = device
     (tmp_path / "basal.yaml").write_text(yaml.safe_dump(settings))
     (tmp_path / "api.yaml").write_text(yaml.safe_dump(CONFIG))
+    for name in ("embedding.yaml", "target_pattern.yaml"):
+        (tmp_path / name).write_text((ROOT / "configs/dataset" / name).read_text())
     config = basal.load_config(tmp_path)
     assert config["system_one"]["mode"] == mode
     assert config["system_one"]["device"] == device
@@ -1612,7 +1619,11 @@ def test_export_contains_only_features_targets_and_requested_debug_files(
         "source_text": "source sentence",
         "evidence": {"harm_type": [{"start": 0, "end": 15}]},
         "description_reviews": [
-            {"start": 0, "end": 15, "answers": {"wyciek": {"noul": 0.01}}}
+            {
+                "start": 0,
+                "end": 15,
+                "answers": {"wyciek": {"noul": 0.01}, "fit_harm_type": {"noul": 0.9}},
+            }
         ],
         "model_calls": [{"request": "input", "response": "output"}],
         "award": {
@@ -1631,6 +1642,7 @@ def test_export_contains_only_features_targets_and_requested_debug_files(
         "zadoscuczynienie": "100",
         "pozostale_odszkodowanie": "not_available",
         "total": "not_available",
+        "request": "not_available",
         "valid": True,
     }
     assert {p.name for p in tmp_path.iterdir()} == (
@@ -1902,6 +1914,7 @@ def test_debug_export_preserves_low_confidence_proposal_with_invalid_flag(tmp_pa
         "zadoscuczynienie": "6300",
         "pozostale_odszkodowanie": "not_available",
         "total": "not_available",
+        "request": "not_available",
         "valid": False,
     }
     assert {path.name for path in tmp_path.iterdir()} == {

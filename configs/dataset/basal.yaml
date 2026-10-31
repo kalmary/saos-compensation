@@ -1,10 +1,11 @@
-model: Remek/basal-2.0-mini
+model: Remek/basal-2.0-4.5B
 # cpu, mps (Apple GPU), or cuda (NVIDIA GPU).
 device: mps
 
 feature_fields:
 - judgment_year
 - instance
+- injured_party_count # People receiving compensation in this judgment.
 - court_locality_size # Population class of the locality where the court is located (GUGiK).
 - event_circumstances
 - harm_type

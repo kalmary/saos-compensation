@@ -105,7 +105,7 @@ MONEY = re.compile(
     """
     + AMOUNT_NUMBER
     + rf"(?:\s*{AMOUNT_SCALE}(?:\s+{AMOUNT_NUMBER}(?:\s*{AMOUNT_SCALE})?)*)?"
-    + r")\s*"
+    + r")\s*(?:\([^()\n]{1,200}\)\s*)?"
     + PLN_UNIT
     + r"\b",
     re.IGNORECASE | re.VERBOSE,
@@ -145,3 +145,39 @@ def amount_in_pln(match):
     if scaled and "." in value:
         value = value.rstrip("0").rstrip(".")
     return value
+
+
+def sentence_fragments(chunk):
+    # Split mixed paragraphs into sentences without treating initials or decimal amounts as boundaries.
+    """
+    Split paragraphs into sentences while retaining original offsets.
+
+    args:
+        chunk: Source fragment with offsets.
+
+    returns:
+        Iterator of source sentences.
+    """
+    boundaries = [
+        0,
+        *[
+            m.end()
+            for m in re.finditer(
+                r"(?<!\b[A-ZĄĆĘŁŃÓŚŹŻ]\.)(?<!\br\.)"
+                r"(?<!(?i:\b(?:tys|mln|mld)\.))(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ])",
+                chunk["text"],
+            )
+        ],
+        len(chunk["text"]),
+    ]
+    for start, end in zip(boundaries, boundaries[1:]):
+        while start < end and chunk["text"][start].isspace():
+            start += 1
+        while end > start and chunk["text"][end - 1].isspace():
+            end -= 1
+        if end > start:
+            yield {
+                "text": chunk["text"][start:end],
+                "start": chunk["start"] + start,
+                "end": chunk["start"] + end,
+            }

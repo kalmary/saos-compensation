@@ -7,14 +7,15 @@ import math
 import re
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from decimal import Decimal
 from pathlib import Path
 
 import yaml
 
 from . import text as api
 from .quality import target_rejection_reason
-from .storage import write_bytes, write_json
+from .target_matching import validate_settings
+from .text import sentence_fragments
+from .storage import write_json
 
 ROOT = Path(__file__).resolve().parents[3]
 REQUEST_COUNTS = {"cached": 0, "computed": 0}
@@ -40,8 +41,8 @@ MODEL_FILES = [
 
 
 DEFAULTS = {
-    "version": "saos-extraction-8",
-    "chunk_characters": 1200,
+    "version": "saos-extraction-11",
+    "chunk_characters": 6000,
     "context_characters": 600,
     "system_one": {
         "model": "Remek/basal-2.0-4.5B",
@@ -87,7 +88,7 @@ DEFAULTS = {
         "amount": {
             "instructions": "Czego dotyczy wyłącznie kwota oznaczona <KWOTA>? Przeczytaj jej "
             "otoczenie i sentencję. Wybierz zasądzone świadczenie tylko dla tego "
-            "wyroku i wskazanego poszkodowanego. Zwroty «wnosi o zasądzenie», "
+            "wyroku i wskazanych poszkodowanych. Zwroty «wnosi o zasądzenie», "
             "«żąda» i «domaga się», lub podobne, opisują żądanie strony, nie zasądzenie przez "
             "sąd; dla takiej wzmianki wybierz pomin. Nie pomyl wcześniejszej "
             "wypłaty z zasądzeniem. Jeżeli sąd uznaje za odpowiednie "
@@ -114,18 +115,20 @@ DEFAULTS = {
             },
         },
         "award_check": {
-            "instructions": "Czy propozycja jest zgodna z sentencją analizowanego wyroku i "
-            "dowodami? Odbiorcą ma być wskazany poszkodowany, nie fundacja ani "
-            "inna osoba. Kwoty muszą być zasądzone w tym wyroku, nie tylko "
-            "żądane, wcześniej wypłacone lub cytowane. Koszty procesu i "
-            "sądowe, koszty instancji odwoławczej, odsetki oraz renta są "
-            "wyłączone. Nieustalenie jednego składnika nie unieważnia "
-            "drugiego. Nie traktuj zgodności sumy jako jedynego dowodu."
+            "instructions": "Czy sentencja i przytoczone dowody potwierdzają zasądzenie "
+            "wymienionych składników w podanych kwotach dla wskazanego poszkodowanego "
+            "w tym wyroku? Odróżnij zasądzenie od żądania, wcześniejszej wypłaty "
+            "i kosztów postępowania. Nie oceniaj, czy kwota jest słuszna. "
+            "Sprawdzaj tylko wskazane składniki; brak innego składnika nie oznacza "
+            "błędu. Nie wymagaj zapisania w sentencji ich obliczonej sumy."
         },
         "extraction": {
             "instructions": "Wyodrębnij treść pól opisu sprawy zgodnie ze schematem. Zachowaj negacje, osobę "
             "i czas. Nie dopisuj ocen, nie używaj kwot ani uzasadnienia ich "
-            "wysokości. Jeśli nie ma informacji dla pola, wybierz not stated.",
+            "wysokości. Każde pole musi odpowiadać własnemu opisowi: leczenie nie "
+            "opisuje okoliczności wypadku, a dane spółki nie opisują krzywdy osoby. "
+            "Nie wypełniaj pola zdaniem tylko dlatego, że jest dostępne. Jeśli brak "
+            "informacji odpowiadającej temu polu, wybierz not stated.",
             "field_suffix": " Konkretny opis dotyczący poszkodowanego.",
         },
         "instance": {
@@ -158,6 +161,7 @@ METADATA_FIELDS = (
     "instance",
     "court_seat",
     "court_locality_size",
+    "injured_party_count",
 )
 
 
@@ -195,6 +199,9 @@ def load_config(directory=None, overrides=None):
     )
     basal = read_config(directory / "basal.yaml")
     api = read_config(directory / "api.yaml")
+    embedding = read_config(directory / "embedding.yaml")
+    patterns = read_config(directory / "target_pattern.yaml")
+    validate_settings(embedding, patterns)
     api.update(overrides or {})
     search_settings(api)
     required = {
@@ -245,6 +252,8 @@ def load_config(directory=None, overrides=None):
     config = {
         **copy.deepcopy(DEFAULTS),
         "api": api,
+        "embedding": embedding,
+        "target_patterns": patterns,
         "fields": {
             key: FEATURE_DESCRIPTIONS[key]
             for key in basal["feature_fields"]
@@ -311,11 +320,29 @@ def feature_input(text, config):
     returns:
         Selected source text, offsets and selection status.
     """
+    reasons = list(api.REASONS.finditer(text))
+    body_start = reasons[0].end() if len(reasons) == 1 else 0
+    facts = re.search(
+        r"^sąd(?:\s+\w+){0,3}\s+ustalił(?:\s+i\s+zważył)?(?:(?:,\s*|\s+)co następuje|\s+(?:następujący\s+)?stan faktyczny)?\s*[:.]?\s*$"
+        r"|^(?:ustalenia faktyczne|stan faktyczny)\s*[:.]?\s*$",
+        text[body_start:],
+        re.IGNORECASE | re.MULTILINE,
+    )
+    start = body_start + facts.end() if facts else body_start
+    reasoning = re.search(
+        r"^sąd(?:\s+\w+){0,3}\s+zważył[^\n]*$",
+        text[start:],
+        re.IGNORECASE | re.MULTILINE,
+    )
+    end = start + reasoning.start() if reasoning else len(text)
     return {
-        "text": text,
-        "start": 0,
-        "end": len(text),
-        "status": "source text selected for feature extraction",
+        "text": text[start:end],
+        "start": start,
+        "end": end,
+        "status": "court factual findings"
+        if facts
+        else "reasoning body; factual heading unavailable",
+        "body_start": body_start,
     }
 
 
@@ -479,43 +506,7 @@ def choices(question, criteria):
     return {"type": "choice", "instructions": question, "criteria": criteria}
 
 
-def sentence_fragments(chunk):
-    # Split mixed paragraphs into sentences without treating initials or decimal amounts as boundaries.
-    """
-    Split paragraphs into sentences while retaining original offsets.
-
-    args:
-        chunk: Source fragment with offsets.
-
-    returns:
-        Iterator of source sentences.
-    """
-    boundaries = [
-        0,
-        *[
-            m.end()
-            for m in re.finditer(
-                r"(?<!\b[A-ZĄĆĘŁŃÓŚŹŻ]\.)(?<!\br\.)"
-                r"(?<!(?i:\b(?:tys|mln|mld)\.))(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ])",
-                chunk["text"],
-            )
-        ],
-        len(chunk["text"]),
-    ]
-    for start, end in zip(boundaries, boundaries[1:]):
-        while start < end and chunk["text"][start].isspace():
-            start += 1
-        while end > start and chunk["text"][end - 1].isspace():
-            end -= 1
-        if end > start:
-            yield {
-                "text": chunk["text"][start:end],
-                "start": chunk["start"] + start,
-                "end": chunk["start"] + end,
-            }
-
-
-def classification_blocks(text, limit):
+def source_blocks(text, limit):
     """
     Pack adjacent source sentences into bounded blocks with exact offsets.
 
@@ -542,78 +533,6 @@ def classification_blocks(text, limit):
                 end = part_end
     if start is not None:
         yield {"text": text[start:end], "start": start, "end": end}
-
-
-async def classify_paragraphs(server, text, config, identifier):
-    """
-    Classify source fragments with neighboring context and inspect mixed passages.
-
-    args:
-        server: Local inference server.
-        text: Normalized Polish source text.
-        config: Effective pipeline or acquisition settings.
-        identifier: Stable judgment identifier.
-
-    returns:
-        Selected input metadata and fragment diagnostics.
-    """
-    selected = feature_input(text, config)
-    chunks = [
-        {
-            **chunk,
-            "start": chunk["start"] + selected["start"],
-            "end": chunk["end"] + selected["start"],
-        }
-        for chunk in classification_blocks(selected["text"], config["chunk_characters"])
-    ]
-    questions = {
-        "sekcja": {"type": "choice", **config["questions"]["section"]},
-        "wyciek": {"type": "noul", **config["questions"]["leakage"]},
-    }
-    diagnostics = []
-
-    async def classify(chunk, unit, parent=None):
-        """
-        Classify one fragment and retain its contextual model decision.
-
-        args:
-            chunk: Source fragment with offsets.
-            unit: Fragment granularity.
-            parent: Original paragraph, when classifying a sentence.
-
-        returns:
-            Result of this operation.
-        """
-        context = config["context_characters"]
-        state = {
-            "oceniany_fragment": chunk["text"],
-            "poprzedzajacy_kontekst": text[
-                max(0, chunk["start"] - context) : chunk["start"]
-            ],
-            "nastepujacy_kontekst": text[chunk["end"] : chunk["end"] + context],
-        }
-        answer = await ask(server, state, questions, config)
-        row = {**chunk, "unit": unit, "answers": answer, "state": state}
-        if parent:
-            row["parent_start"], row["parent_end"] = parent["start"], parent["end"]
-        diagnostics.append(row)
-        return row
-
-    for i, chunk in enumerate(chunks):
-        cached_before = REQUEST_COUNTS["cached"]
-        row = await classify(chunk, "block")
-        status = "cached" if REQUEST_COUNTS["cached"] > cached_before else "classified"
-        print(f"ID {identifier}: block {i + 1}/{len(chunks)} ({status})", flush=True)
-        decision = row["answers"]["sekcja"]
-        if (
-            decision["choice"] == "mieszany"
-            and decision["confidence"] >= config["system_one"]["minimum_probability"]
-        ):
-            sentences = list(sentence_fragments(chunk))
-            if len(sentences) > 1:
-                for sentence in sentences:
-                    await classify(sentence, "sentence", chunk)
-    return selected, diagnostics
 
 
 def select_facts(diagnostics, threshold, maximum_leak):
@@ -655,10 +574,13 @@ def extraction_source(text, passages):
     """
     sentences = {}
     for passage in passages:
-        for sentence in sentence_fragments(passage):
-            if text[sentence["start"] : sentence["end"]] != sentence["text"]:
-                raise ValueError("Niezgodny fragment opisu sprawy")
-            sentences[(sentence["start"], sentence["end"])] = sentence
+        for paragraph in fragments(passage["text"], max(1, len(passage["text"]))):
+            paragraph["start"] += passage["start"]
+            paragraph["end"] += passage["start"]
+            for sentence in sentence_fragments(paragraph):
+                if text[sentence["start"] : sentence["end"]] != sentence["text"]:
+                    raise ValueError("Feature passage does not match its source")
+                sentences[(sentence["start"], sentence["end"])] = sentence
     parts, mapping, position = [], [], 0
     for sentence in sorted(sentences.values(), key=lambda row: row["start"]):
         parts.append(sentence["text"])
@@ -788,118 +710,6 @@ def amount_contexts(text):
                 }
 
 
-def award_state(text, row, context_characters=600):
-    """
-    Assemble the ruling and context for a selected monetary occurrence.
-
-    args:
-        text: Normalized Polish source text.
-        row: Amount occurrence with its source context.
-        context_characters: Maximum preceding context length.
-
-    returns:
-        Structured Polish model input.
-    """
-    heading = list(api.REASONS.finditer(text))
-    ruling = (
-        text[: heading[0].start()]
-        if len(heading) == 1
-        else "brak jednoznacznej granicy sentencji"
-    )
-    return {
-        "fragment": row["marked"],
-        "sekcja": row["section"],
-        "sentencja": ruling,
-        "poprzedzajacy_kontekst": text[
-            max(0, row["start"] - context_characters) : row["start"]
-        ],
-    }
-
-
-def propose_award(text, decisions, target_fields=None):
-    """
-    Consolidate compatible component assignments without summing repeated mentions.
-
-    args:
-        text: Normalized Polish source text.
-        decisions: Amount assignments to consolidate.
-        target_fields: Configured award components.
-
-    returns:
-        Consolidated award proposal with evidence.
-    """
-    target_fields = AWARD_FIELDS if target_fields is None else target_fields
-    result = {
-        field: "brak informacji"
-        for field in (*target_fields, "suma", "kwota_nierozdzielona")
-    }
-    result.update(
-        beneficjent="brak informacji",
-        waluta="PLN",
-        evidence=[],
-        status="no established award",
-    )
-    heading = list(api.REASONS.finditer(text))
-    if len(heading) != 1:
-        result["status"] = "no unique ruling boundary; review required"
-        return result
-    # Identify the beneficiary without distributing a joint award across multiple people.
-    plaintiff = re.search(r"z powództwa\s+([^\n]+)", text[: heading[0].start()], re.I)
-    if not plaintiff or re.search(r",|\boraz\b|\s+i\s+", plaintiff[1]):
-        result["status"] = "unknown or multiple beneficiaries; review required"
-        return result
-    result["beneficjent"] = plaintiff[1].strip()
-    selected = {}
-    for field in ("suma", *target_fields):
-        rows = [
-            row for row in decisions if row["accepted"] and row["category"] == field
-        ]
-        direct = [row for row in rows if row["section"] == "sentencja"]
-        # Do not sum repeated mentions; conflicting component values require review. Total evidence must come from the ruling.
-        candidates = direct if field == "suma" else direct or rows
-        if field in AWARD_FIELDS and not direct and "suma" in selected:
-            total = Decimal(selected["suma"]["kwota"])
-            # Prefer an explicitly assigned component equal to the total, selecting only among model assignments.
-            exact = [row for row in candidates if Decimal(row["kwota"]) == total]
-            candidates = exact or [
-                row for row in candidates if Decimal(row["kwota"]) < total
-            ]
-        values = {Decimal(row["kwota"]) for row in candidates}
-        if len(values) == 1:
-            value = values.pop()
-            selected[field] = next(
-                row for row in candidates if Decimal(row["kwota"]) == value
-            )
-    for field in target_fields:
-        if field in selected:
-            result[field] = selected[field]["kwota"]
-    if "suma" in selected:
-        result["kwota_nierozdzielona"] = selected["suma"]["kwota"]
-    if set(AWARD_FIELDS) <= set(target_fields) and all(
-        field in selected for field in AWARD_FIELDS
-    ):
-        total = sum(Decimal(result[field]) for field in AWARD_FIELDS)
-        if "suma" in selected and total != Decimal(selected["suma"]["kwota"]):
-            result["status"] = "components do not match the total; review required"
-            result["conflict"] = {field: result[field] for field in AWARD_FIELDS}
-            result.update({field: "brak informacji" for field in AWARD_FIELDS})
-        else:
-            result.update(suma=str(total), kwota_nierozdzielona="brak informacji")
-    result["evidence"] = [
-        {
-            key: row[key]
-            for key in ("text", "start", "end", "section", "amount_start", "amount_end")
-        }
-        for row in selected.values()
-    ]
-    if (
-        result["status"] != "components do not match the total; review required"
-        and selected
-    ):
-        result["status"] = "proposal from monetary contexts; review required"
-    return result
-
-
 def finish_award(proposal, accepted, decision):
     """
     Retain confirmed award components or mark an unsupported proposal for review.
@@ -928,61 +738,185 @@ def finish_award(proposal, accepted, decision):
 
 async def extract_award(server, text, diagnostics, config):
     """
-    Assign contextual amounts and verify the assembled award proposal.
+    Resolve monetary targets from embedding-selected sentences.
+
+    args:
+        server: Local Basal amount resolver.
+        text: Full normalized judgment.
+        diagnostics: Retained compatibility argument; not used for target selection.
+        config: Effective pipeline settings.
+
+    returns:
+        Award values, beneficiary count and target-match diagnostics.
+    """
+    from .target_extraction import extract_targets
+
+    return await extract_targets(server, text, config)
+
+
+async def extract_features(server, text, config, identifier):
+    """
+    Extract from factual findings first and review field relevance of final candidates.
 
     args:
         server: Local inference server.
-        text: Normalized Polish source text.
-        diagnostics: Fragment decisions and their source locations.
-        config: Effective pipeline or acquisition settings.
+        text: Full normalized judgment.
+        config: Feature schema and admission thresholds.
+        identifier: Stable judgment identifier for progress output.
 
     returns:
-        Award proposal and supporting amount decisions.
+        Features, source evidence and model diagnostics with deliberate missing values.
     """
-    decisions = []
-    threshold = config["system_one"]["amount_minimum_probability"]
-    for row in amount_contexts(text):
-        answer = (
-            await ask(
-                server,
-                award_state(text, row, config.get("context_characters", 600)),
-                {"swiadczenie": {"type": "choice", **config["questions"]["amount"]}},
-                config,
+    fields = config["fields"]
+    threshold = config["system_one"]["minimum_probability"]
+    selected = feature_input(text, config)
+    descriptions = {field: "brak informacji" for field in fields}
+    evidence = {field: [] for field in fields}
+    statuses = {field: "no safe field-relevant description" for field in fields}
+    confidence = {field: None for field in fields}
+    native, reviews = [], {}
+    primary = [(selected["start"], selected["end"])]
+    fallback = [
+        (selected["body_start"], selected["start"]),
+        (selected["end"], len(text)),
+    ]
+    for stage, ranges in (("facts", primary), ("fallback", fallback)):
+        missing = {
+            field: description
+            for field, description in fields.items()
+            if descriptions[field] == "brak informacji"
+        }
+        if not missing:
+            break
+        passages = [
+            {**block, "start": block["start"] + start, "end": block["end"] + start}
+            for start, end in ranges
+            if text[start:end].strip()
+            for block in source_blocks(text[start:end], config["chunk_characters"])
+        ]
+        candidates = {field: [] for field in missing}
+        schema = {
+            "type": "object",
+            "properties": {
+                field: {
+                    "type": "string",
+                    "description": description
+                    + config["questions"]["extraction"]["field_suffix"],
+                }
+                for field, description in missing.items()
+            },
+        }
+        for batch, (source, mapping) in enumerate(
+            extraction_batches(text, passages, config["chunk_characters"]), 1
+        ):
+            print(
+                f"ID {identifier}: extracting {stage}, batch {batch} ({len(source)} characters)",
+                flush=True,
             )
-        )["swiadczenie"]
-        decisions.append(
-            {
-                **row,
-                "category": answer["choice"],
-                "confidence": answer["confidence"],
-                "accepted": answer["confidence"] >= threshold
-                and answer["choice"] in {*AWARD_FIELDS, "suma"},
-                "decision": answer,
-            }
-        )
-    proposal = propose_award(text, decisions, config.get("target_fields", AWARD_FIELDS))
-    if not proposal["evidence"] or "conflict" in proposal:
-        return {**proposal, "confirmed": False, "amount_decisions": decisions}
-    state = {
-        "propozycja": {
-            key: value for key, value in proposal.items() if key != "evidence"
-        },
-        "sentencja": award_state(text, decisions[0])["sentencja"],
-        "dowody": proposal["evidence"],
-    }
-    # Keep the pinned model's Polish proposal wording unchanged.
-    state["propozycja"]["status"] = "propozycja z kontekstów kwot — do kontroli"
-    answer = (
-        await ask(
-            server,
-            state,
-            {"zasadzenie": {"type": "noul", **config["questions"]["award_check"]}},
-            config,
-        )
-    )["zasadzenie"]
+            answer = (
+                await ask(
+                    server,
+                    source,
+                    {
+                        "opis": {
+                            "type": "extract",
+                            "schema": schema,
+                            "instructions": config["questions"]["extraction"][
+                                "instructions"
+                            ],
+                        }
+                    },
+                    config,
+                )
+            )["opis"]
+            native.append({"source": source, "mapping": mapping, "answer": answer})
+            values, quotes, field_status, probabilities = describe_record(
+                answer, mapping, missing, threshold
+            )
+            for field in missing:
+                if quotes[field] and not api.CURRENCY.search(values[field]):
+                    candidates[field].append(
+                        (
+                            answer["fields"][field].get("line_probability", 0),
+                            values[field],
+                            quotes[field],
+                            field_status[field],
+                            probabilities[field],
+                        )
+                    )
+        span_fields = {}
+        for field, options in candidates.items():
+            for _, value, quotes, _, _ in options:
+                span_fields.setdefault(
+                    (quotes[0]["start"], quotes[-1]["end"]), set()
+                ).add(field)
+        for field, options in candidates.items():
+            for _, value, quotes, status, probability in sorted(
+                options, key=lambda row: row[0], reverse=True
+            ):
+                start, end = quotes[0]["start"], quotes[-1]["end"]
+                if (start, end) not in reviews:
+                    context = config["context_characters"]
+                    state = {
+                        "oceniany_fragment": value,
+                        "poprzedzajacy_kontekst": text[max(0, start - context) : start],
+                        "nastepujacy_kontekst": text[end : end + context],
+                    }
+                    questions = {
+                        "sekcja": {"type": "choice", **config["questions"]["section"]},
+                        "wyciek": {"type": "noul", **config["questions"]["leakage"]},
+                        **{
+                            f"fit_{name}": {
+                                "type": "noul",
+                                "instructions": "Czy wyłącznie oceniany fragment zawiera konkretną informację "
+                                "odpowiadającą temu polu: "
+                                + fields[name]
+                                + "? Sama prawdziwość zdania nie wystarcza. Nie dopowiadaj informacji "
+                                "z sąsiedniego kontekstu. Jeśli fragment dotyczy innej kwestii, odpowiedz nie.",
+                            }
+                            for name in sorted(span_fields[start, end])
+                        },
+                    }
+                    answers = await ask(server, state, questions, config)
+                    row = {
+                        "text": value,
+                        "start": start,
+                        "end": end,
+                        "answers": answers,
+                    }
+                    select_facts(
+                        [row],
+                        threshold,
+                        config["system_one"]["maximum_leak_probability"],
+                    )
+                    reviews[start, end] = row
+                review = reviews[start, end]
+                if (
+                    review["accepted"]
+                    and review["answers"][f"fit_{field}"]["noul"] >= threshold
+                ):
+                    descriptions[field], evidence[field] = value, quotes
+                    statuses[field], confidence[field] = status, probability
+                    break
     return {
-        **finish_award(proposal, answer["noul"] >= threshold, answer),
-        "amount_decisions": decisions,
+        "features": descriptions,
+        "evidence": evidence,
+        "field_status": statuses,
+        "confidence": confidence,
+        "native_extraction": native,
+        "diagnostics": list(reviews.values()),
+        "description_reviews": list(reviews.values()),
+        "fields_evaluated": bool(native),
+        "feature_input": {
+            key: value for key, value in selected.items() if key != "text"
+        },
+        "input_characters": {
+            "full": len(text),
+            "classified": sum(len(row["text"]) for row in reviews.values()),
+            "features": sum(
+                len(value) for field, value in descriptions.items() if evidence[field]
+            ),
+        },
     }
 
 
@@ -1006,7 +940,19 @@ async def extract(server, text, config, identifier):
         and target_rejection_reason(award, config) is not None
     ):
         return {"id": identifier, "award": award}
-    fields = config["fields"]
+    if "target_matches" in award and award["target_matches"]["judgment"] is None:
+        return {
+            "id": identifier,
+            "award": award,
+            "features": {field: "brak informacji" for field in config["fields"]},
+            "evidence": {field: [] for field in config["fields"]},
+            "confidence": {field: None for field in config["fields"]},
+            "field_status": {
+                field: "no judgment sentence above the similarity threshold"
+                for field in config["fields"]
+            },
+            "instance": {"value": "brak informacji", "decision": {"confidence": 0.0}},
+        }
     threshold = config["system_one"]["minimum_probability"]
     heading = api.REASONS.search(text)
     header = text[: min(heading.start() if heading else len(text), 4000)]
@@ -1017,116 +963,11 @@ async def extract(server, text, config, identifier):
         config,
     )
     instance = instance["instancja"]
-    selected = feature_input(text, config)
-    passages = (
-        list(classification_blocks(text, config["chunk_characters"])) if fields else []
-    )
-    descriptions = {field: "brak informacji" for field in fields}
-    evidence = {field: [] for field in fields}
-    field_status = {field: "no description extracted" for field in fields}
-    confidence = {field: None for field in fields}
-    native, candidates = [], {field: [] for field in fields}
-    schema = {
-        "type": "object",
-        "properties": {
-            field: {
-                "type": "string",
-                "description": question
-                + config["questions"]["extraction"]["field_suffix"],
-            }
-            for field, question in fields.items()
-        },
-    }
-    # Candidates remain untrusted until their source sentences pass factuality and leakage review.
-    for batch, (source, mapping) in enumerate(
-        extraction_batches(text, passages, config["chunk_characters"])
-        if fields
-        else [],
-        1,
-    ):
-        print(
-            f"ID {identifier}: extracting descriptions, batch {batch} ({len(source)} characters)",
-            flush=True,
-        )
-        answer = (
-            await ask(
-                server,
-                source,
-                {
-                    "opis": {
-                        "type": "extract",
-                        "schema": schema,
-                        "instructions": config["questions"]["extraction"][
-                            "instructions"
-                        ],
-                    }
-                },
-                config,
-            )
-        )["opis"]
-        native.append({"source": source, "mapping": mapping, "answer": answer})
-        values, quotes, statuses, probabilities = describe_record(
-            answer, mapping, fields, threshold
-        )
-        for field in fields:
-            # Rank the complete selected sentence rather than the length of a phrase within it.
-            score = answer["fields"][field].get("line_probability", 0)
-            if quotes[field]:
-                candidates[field].append(
-                    (
-                        score,
-                        values[field],
-                        quotes[field],
-                        statuses[field],
-                        probabilities[field],
-                    )
-                )
-    # Check selected sentences independently because a paragraph can mix facts and reasoning.
-    reviews = {}
-    for field, options in candidates.items():
-        for score, value, quotes, status, probability in sorted(
-            options, key=lambda row: row[0], reverse=True
-        ):
-            start, end = quotes[0]["start"], quotes[-1]["end"]
-            if (start, end) not in reviews:
-                context = config["context_characters"]
-                state = {
-                    "oceniany_fragment": value,
-                    "poprzedzajacy_kontekst": text[max(0, start - context) : start],
-                    "nastepujacy_kontekst": text[end : end + context],
-                }
-                answers = await ask(
-                    server,
-                    state,
-                    {
-                        "sekcja": {"type": "choice", **config["questions"]["section"]},
-                        "wyciek": {"type": "noul", **config["questions"]["leakage"]},
-                    },
-                    config,
-                )
-                row = {"text": value, "start": start, "end": end, "answers": answers}
-                select_facts(
-                    [row], threshold, config["system_one"]["maximum_leak_probability"]
-                )
-                reviews[start, end] = row
-            if reviews[start, end]["accepted"]:
-                descriptions[field], evidence[field] = value, quotes
-                field_status[field], confidence[field] = status, probability
-                break
-            field_status[field] = (
-                "description rejected: non-factual source or leakage signal"
-            )
+    features = await extract_features(server, text, config, identifier)
     return {
         "id": identifier,
-        "features": descriptions,
-        "evidence": evidence,
         "award": award,
-        "diagnostics": list(reviews.values()),
-        "field_status": field_status,
-        "fields_evaluated": bool(passages),
-        "confidence": confidence,
-        "native_extraction": native,
-        "description_reviews": list(reviews.values()),
+        **features,
         "instance": {
             "value": instance["choice"]
             if instance["choice"] != "nieustalona"
@@ -1136,75 +977,6 @@ async def extract(server, text, config, identifier):
             "source": header,
             "status": "review required",
         },
-        "feature_input": {
-            key: value for key, value in selected.items() if key != "text"
-        },
-        "input_characters": {
-            "full": len(text),
-            "classified": sum(len(row["text"]) for row in reviews.values()),
-            "features": sum(
-                len(row["text"]) for row in reviews.values() if row["accepted"]
-            ),
-        },
         "status": "candidates for review; not approved for training",
         "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
     }
-
-
-def write_paragraphs(result, directory, threshold, debug=False):
-    """
-    Export feature values, award evidence and optional diagnostic passages.
-
-    args:
-        result: Extraction result and supporting evidence.
-        directory: Input or output directory for this operation.
-        threshold: Minimum decision confidence.
-        debug: Whether to save diagnostic artifacts.
-
-    returns:
-        None.
-    """
-    directory.mkdir(parents=True, exist_ok=True)
-    if "award" in result:
-        award = (
-            result["award"]
-            if debug
-            else {
-                key: value
-                for key, value in result["award"].items()
-                if key
-                not in {"evidence", "amount_decisions", "proposal", "verification"}
-            }
-        )
-        write_json(directory / "award.json", award)
-    write_json(directory / "record.json", result["features"])
-    if not debug:
-        return
-    write_json(
-        directory / "analysis.json",
-        {key: value for key, value in result.items() if key != "model_calls"},
-    )
-    if "model_calls" in result:
-        write_json(directory / "model_calls.json", result["model_calls"])
-    diagnostics = result["diagnostics"]
-    groups = {
-        "facts.txt": [row for row in diagnostics if row["accepted"]],
-        "reasoning.txt": [
-            row
-            for row in diagnostics
-            if row["answers"]["sekcja"]["choice"] == "rozwazania"
-            and row["answers"]["sekcja"]["confidence"] >= threshold
-        ],
-        "review.txt": [
-            row
-            for row in diagnostics
-            if row["answers"]["sekcja"]["choice"] in {"mieszany", "niejednoznaczny"}
-            or row["answers"]["sekcja"]["confidence"] < threshold
-            or (row["answers"]["sekcja"]["choice"] == "fakty" and not row["accepted"])
-        ],
-    }
-    for filename, rows in groups.items():
-        write_bytes(
-            directory / filename,
-            ("\n\n".join(row["text"] for row in rows) + "\n").encode("utf-8"),
-        )

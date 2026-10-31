@@ -13,6 +13,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+embedding = [
+    "torch>=2.11",
+    "transformers>=4.41",
+]
 extraction = [
     "basal",
 ]

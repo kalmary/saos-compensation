@@ -1365,6 +1365,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+embedding = [
+    { name = "torch" },
+    { name = "transformers" },
+]
 extraction = [
     { name = "basal" },
 ]
@@ -1397,8 +1401,10 @@ requires-dist = [
     { name = "requests", specifier = ">=2.34.2" },
     { name = "torch", marker = "sys_platform == 'darwin' and extra == 'pytorch-macos'", specifier = ">=2.11" },
     { name = "torch", marker = "sys_platform == 'linux' and extra == 'pytorch-cuda-linux'", specifier = ">=2.11" },
+    { name = "torch", marker = "extra == 'embedding'", specifier = ">=2.11" },
+    { name = "transformers", marker = "extra == 'embedding'", specifier = ">=4.41" },
 ]
-provides-extras = ["extraction", "pytorch-macos", "pytorch-cuda-linux", "gemma"]
+provides-extras = ["embedding", "extraction", "pytorch-macos", "pytorch-cuda-linux", "gemma"]
 
 [package.metadata.requires-dev]
 dev = []

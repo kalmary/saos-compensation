@@ -31,7 +31,7 @@ def test_blocks_preserve_source_text_and_character_budget(text, limit):
     returns:
         None.
     """
-    blocks = list(basal.classification_blocks(text, limit))
+    blocks = list(basal.source_blocks(text, limit))
     previous_end = 0
     for block in blocks:
         assert previous_end <= block["start"] < block["end"]
@@ -44,59 +44,18 @@ def test_blocks_preserve_source_text_and_character_budget(text, limit):
         assert blocks[0]["text"] == "First sentence.\n\nSecond sentence."
 
 
-def test_short_paragraphs_share_one_classification_call(monkeypatch):
-    """
-    Classify adjacent short paragraphs together using original neighboring context.
-
-    args:
-        monkeypatch: Scoped inference replacement.
-
-    returns:
-        None.
-    """
-    calls = []
-
-    async def ask(server, state, questions, config):
-        """
-        Record classification inputs and supply a factual decision.
-
-        args:
-            server: Unused local server.
-            state: Source block and neighboring context.
-            questions: Requested classification and leakage decisions.
-            config: Effective extraction configuration.
-
-        returns:
-            Accepted factual classification.
-        """
-        calls.append(state)
-        return {
-            "sekcja": {"choice": "fakty", "confidence": 0.9},
-            "wyciek": {"noul": 0.01},
-        }
-
-    monkeypatch.setattr(basal, "ask", ask)
-    text = "Pierwsze zdanie.\nDrugie zdanie.\nTrzecie zdanie."
-    config = basal.load_config()
-    _, rows = asyncio.run(basal.classify_paragraphs(None, text, config, 1))
-    assert len(calls) == 1
-    assert calls[0]["oceniany_fragment"] == text
-    assert rows[0]["unit"] == "block"
-    assert rows[0]["start"] == 0
-    assert rows[0]["end"] == len(text)
-
-
 @pytest.mark.parametrize(
-    ("section", "confidence", "leak", "accepted"),
+    ("section", "confidence", "leak", "fit", "accepted"),
     [
-        ("fakty", 0.9, 0.01, True),
-        ("rozwazania", 0.9, 0.01, False),
-        ("fakty", 0.9, 0.9, False),
-        ("fakty", 0.1, 0.01, False),
+        ("fakty", 0.9, 0.01, 0.9, True),
+        ("rozwazania", 0.9, 0.01, 0.9, False),
+        ("fakty", 0.9, 0.9, 0.9, False),
+        ("fakty", 0.1, 0.01, 0.9, False),
+        ("fakty", 0.9, 0.01, 0.1, False),
     ],
 )
 def test_direct_extraction_reviews_only_selected_source_sentences(
-    monkeypatch, section, confidence, leak, accepted
+    monkeypatch, section, confidence, leak, fit, accepted
 ):
     """
     Extract before classification and share source reviews across selected fields.
@@ -106,6 +65,7 @@ def test_direct_extraction_reviews_only_selected_source_sentences(
         section: Selected sentence's semantic role.
         confidence: Confidence in the semantic role.
         leak: Selected sentence's target leakage score.
+        fit: Relevance of the sentence to its proposed field.
         accepted: Whether the candidate should become a feature.
 
     returns:
@@ -178,6 +138,7 @@ def test_direct_extraction_reviews_only_selected_source_sentences(
         return {
             "sekcja": {"choice": section, "confidence": confidence},
             "wyciek": {"noul": leak},
+            **{name: {"noul": fit} for name in questions if name.startswith("fit_")},
         }
 
     monkeypatch.setattr(basal, "extract_award", extract_award)

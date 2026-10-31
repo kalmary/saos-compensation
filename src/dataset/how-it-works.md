@@ -33,39 +33,43 @@ flowchart TD
 
 ## Ekstrakcja cech
 
-Ten etap rozpoczyna się dopiero po ekstrakcji i dopuszczeniu targetu. Bez debug brak lub nieprawidłowy target kończy przetwarzanie przed oceną instancji i cech. Z debug zachowujemy każdą zakończoną próbę ekstrakcji, również gdy target jest brakujący, niepotwierdzony lub ma niską pewność. Cechy nadal przechodzą kontrolę wycieku, a brakujące wartości pozostają not_available.
+Ten etap rozpoczyna się dopiero po ekstrakcji i dopuszczeniu targetu. Bez debug brak lub nieprawidłowy target kończy przetwarzanie przed oceną instancji i cech. Z debug zachowujemy każdą zakończoną próbę ekstrakcji, również gdy target jest brakujący, niepotwierdzony lub ma niską pewność. Jeśli nie ma dopasowania judgment, zapisujemy brakujące cechy bez dalszych wywołań Basala. W pozostałych przypadkach cechy nadal przechodzą kontrolę wycieku, a brakujące wartości pozostają not_available.
 
 1. Basal określa instancję na podstawie początku dokumentu. Poziom sądu nie zastępuje informacji o instancji.
-2. Krótkie akapity są łączone w bloki do 1200 znaków. Zdania mieszczące się w limicie pozostają całe; dłuższe są dzielone przy spacji lub na granicy limitu. Mapowanie zachowuje dokładne pozycje źródłowe.
-3. Basal wydobywa kandydatów na wybrane cechy bezpośrednio z bloków. Nie klasyfikujemy wcześniej wszystkich akapitów ani bloków. Wejście może zawierać fakty, stanowiska stron i rozważania; żaden kandydat nie jest jeszcze zaufaną cechą.
-4. Wartości są rozszerzane do źródłowych zdań z zachowaniem osoby i negacji. Kandydaci są porządkowani według wyniku modelu.
-5. Sprawdzamy tylko wybrane zdania: muszą zostać rozpoznane jako fakty z pewnością co najmniej `minimum_probability`, mieć wyciek nie większy niż `maximum_leak_probability` i nie zawierać oznaczeń waluty. Ocenę tego samego zakresu źródła współdzielimy między cechami. Jeśli kandydat odpada, sprawdzamy kolejnego.
-6. Brak bezpiecznego kandydata oznacza brak informacji, a nie potwierdzenie, że dane zjawisko nie wystąpiło. Progi dopuszczenia targetu i kontroli wycieku pozostają bez zmian.
+2. Najpierw wybieramy ustalenia faktyczne sądu na podstawie nagłówków, np. „Sąd ustalił, co następuje”. Obsługiwany jest też wspólny nagłówek „Sąd ustalił i zważył”. Bez takiego nagłówka pierwszym źródłem jest treść uzasadnienia przed rozważaniami, jeżeli da się wyznaczyć tę granicę.
+3. Sąsiadujące zdania są łączone w porcje do 6000 znaków, z dokładnym mapowaniem do źródła. Wszystkie wybrane pola są wydobywane razem. Nie klasyfikujemy wcześniej każdego akapitu.
+4. Sprawdzamy wybrane zdania: faktyczność i jej pewność, brak oznaczeń waluty, wyciek targetu oraz dopasowanie do konkretnego pola. Prawdziwe zdanie o leczeniu nie wystarcza jako opis okoliczności wypadku. W jednym żądaniu współdzielimy kontrolę źródła i oceniamy dopasowanie do pól, dla których ten sam cytat jest kandydatem.
+5. Gdy kandydat nie przechodzi kontroli, sprawdzamy kolejnego. Do pozostałej treści wracamy tylko po brakujące pola; zaakceptowanych nie wydobywamy ponownie. Brak bezpiecznego, pasującego opisu pozostaje brakiem informacji.
 
 
 `judgment_year` pochodzi z daty SAOS. `court_locality_size` jest klasą populacji miejscowości, w której znajduje się sąd. Nazwa miejscowości jest dopasowywana do GUGiK przez Morfeusza, a klasa wynika z `LICZBAMIESZKANCOW`. Nie jest to populacja obszaru właściwości sądu ani miejsce zamieszkania powoda. Dopasowania niejednoznaczne pozostają brakujące. Nie znamy roku pomiaru ludności, więc współczesnego źródła nie należy traktować jako zweryfikowanych danych historycznych.
 
-## Ekstrakcja kwot
+## Wybór zdań targetu i ekstrakcja kwot
 
-Regex znajduje liczbową kwotę PLN, ale nie przypisuje jej znaczenia. Obsługiwane są m.in. grosze, separatory tysięcy i skale typu `tys.`, `mln`, `mld`. Kwoty zapisane w całości słownie nie są obsługiwane.
+embedding.yaml wybiera mały model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2, jego przypiętą rewizję, urządzenie CPU/MPS/CUDA i minimum_cosine_similarity: 0.7. Wagi są w embedding_weights/, oddzielnie od basal_weights/.
 
-Dla każdego wystąpienia Basal otrzymuje całe zdanie lub punkt listy, jedną oznaczoną kwotę, poprzedzający kontekst i sentencję. Rozróżnia zasądzone zadośćuczynienie, jednorazowe odszkodowanie, nierozdzieloną sumę, pominięcie i niepewność. Kwoty żądane, wcześniejsze wypłaty, koszty procesu, odsetki i renta nie są targetami.
+Wzorce z target_pattern.yaml są kodowane raz. Każde zdanie otrzymuje embedding i wynik cosine similarity względem wzorców judgment oraz request. Zdanie trafia do silniejszej klasy; remis między klasami oznacza wstrzymanie decyzji. W każdej klasie wygrywa najwyższy wynik spełniający próg. Request jest opcjonalny, judgment jest wymagany do poprawnego rekordu. Długie zdania są kodowane we wszystkich oknach tokenów, bez pomijania końcówki. Treść źródła i pozycje kwot pozostają niezmienione.
 
-Powtórzeń tej samej wartości nie sumujemy. Jawny dowód z sentencji ma pierwszeństwo; konflikt wartości albo wielu beneficjentów wymaga odrzucenia lub przeglądu. Suma jest wyliczana tylko ze zgodnych, ustalonych składników. Osobne żądanie sprawdza całą propozycję wraz z dowodami.
+Podobieństwo nie jest prawdopodobieństwem poprawnej interpretacji prawnej. MiniLM może uznać żądanie lub wcześniejszą wypłatę za podobne do zasądzenia. Basal nie wyszukuje już roli targetu w całym tekście, lecz ustala składniki i kwoty w wybranym zdaniu oraz jego sentencji, jeśli granica sentencji jest dostępna. Koszty, odsetki i renta są wykluczane. Brak jednoznacznej kwoty pozostaje brakiem informacji.
+
+Obsługujemy wielu poszkodowanych: jeden rekord zawiera łączną kwotę świadczeń. „Po 20 000 zł” dla dwóch osób oznacza 40 000 zł; wspólne 20 000 zł dla dwóch osób pozostaje 20 000 zł. Osobne obowiązki zapłaty są sumowane, a odbiorcy deduplikowani. Nie mnożymy kwoty, jeśli grupa odbiorców pozostaje niejednoznaczna. Liczba odbiorców świadczenia jest cechą injured_party_count.
+
+Kwota request jest zapisywana w award.json tylko wtedy, gdy wybrane zdanie zawiera jedną jednoznaczną kwotę PLN; inaczej pozostaje not_available. Nie jest predyktorem. Końcowe potwierdzenie kwoty przez Basala ma własny próg z basal.yaml, niezależny od podobieństwa 0,7.
 
 ## Ile jest przebiegów
 
 Nie ma stałej liczby wywołań Basala. Dla dokumentu z cechami jest to w przybliżeniu:
 
-`M + V + 1 + B + R`
+`1 + M + V + 1 + B + R`
 
 - `1`: decyzja o instancji;
-- `B`: porcje tekstu do bezpośredniej ekstrakcji kandydatów;
+- `B`: porcje ustaleń faktycznych oraz ewentualny drugi przebieg tylko dla brakujących pól;
 - `R`: kontrole zdań-kandydatów, współdzielone, gdy to samo zdanie pasuje do kilku pól;
-- `M`: liczba wystąpień kwot;
+- pierwsze `1`: ekstrakcja odbiorców świadczenia;
+- `M`: liczba kwot w dopasowanym zdaniu i jego sentencji;
 - `V`: końcowa weryfikacja propozycji, zwykle 0 albo 1.
 
-Dla odrzuconego targetu wykonujemy tylko `M + V`, bez pozostałych etapów. Wyjątek: debug zachowuje wszystkie zakończone próby, również z brakującym targetem, i wykonuje dla nich ekstrakcję cech.
+Przy braku judgment nie wykonujemy wywołań Basala. Dla odrzuconej propozycji kwoty wykonujemy tylko `1 + M + V`, bez pozostałych etapów. Wyjątek: debug zachowuje wszystkie zakończone próby, również z brakującym targetem, i wykonuje dla nich ekstrakcję cech.
 
 To liczba żądań aplikacji, nie liczba wewnętrznych przebiegów sieci. Silnik może wykonywać kilka operacji dla jednego żądania. Wyłączenie cech tekstowych pomija ich ekstrakcję i kontrolę kandydatów. Czas zależy również od długości tekstu, urządzenia i modelu.
 
@@ -87,20 +91,28 @@ Wejście: „Powódka złamała nogę wskutek upadku na oblodzonym chodniku. Prz
 
 Po przejściu kontroli przykładowy rekord zawiera:
 
+record.json:
+
 ```json
 {
-  "features": {
-    "event_circumstances": "Powódka złamała nogę wskutek upadku na oblodzonym chodniku.",
-    "harm_type": "Powódka złamała nogę wskutek upadku na oblodzonym chodniku.",
-    "harm_severity_duration": "Przez sześć tygodni chodziła o kulach"
-  },
-  "targets": {"zadoscuczynienie": "15000", "pozostale_odszkodowanie": "2000"},
-  "total": "17000",
-  "confirmed": true
+  "event_circumstances": "Powódka upadła na oblodzonym chodniku.",
+  "harm_type": "Powódka doznała złamania nogi.",
+  "harm_severity_duration": "Przez sześć tygodni chodziła o kulach."
 }
 ```
 
-Pełny rekord zawiera również ID sprawy, zbioru i uruchomienia, statusy oraz pozostałe wybrane cechy. Predyktory nie zawierają zdań o kwotach. Wysoki wynik kontroli Basala nie zastępuje ręcznie oznaczonej próby ani niezależnej oceny błędów.
+award.json:
+
+```json
+{
+  "zadoscuczynienie": "15000",
+  "pozostale_odszkodowanie": "2000",
+  "total": "17000",
+  "valid": true
+}
+```
+
+To przykład formatu, nie wynik pomiaru jakości. Predyktory nie zawierają zdań o kwotach. Wysoki wynik kontroli Basala nie zastępuje ręcznie oznaczonej próby ani niezależnej oceny błędów.
 
 ## Stratyfikacja i zrównoważenie danych
 

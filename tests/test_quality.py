@@ -19,6 +19,7 @@ def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
         "system_one": {
             "amount_minimum_probability": 0.6,
             "maximum_leak_probability": 0.2,
+            "minimum_probability": 0.6,
         },
     }
     result = {
@@ -29,7 +30,11 @@ def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
         },
         "evidence": {"harm_type": [{"start": 0, "end": 10}]},
         "description_reviews": [
-            {"start": 0, "end": 10, "answers": {"wyciek": {"noul": 0.2}}}
+            {
+                "start": 0,
+                "end": 10,
+                "answers": {"wyciek": {"noul": 0.2}, "fit_harm_type": {"noul": 0.9}},
+            }
         ],
     }
     assert rejection_reason(result, config) is None
@@ -38,6 +43,11 @@ def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
     result["award"]["verification"]["noul"] = 0.6
     result["description_reviews"][0]["answers"]["wyciek"]["noul"] = 0.21
     assert rejection_reason(result, config) is not None
+    result["description_reviews"][0]["answers"]["wyciek"]["noul"] = 0.2
+    result["description_reviews"][0]["answers"]["fit_harm_type"]["noul"] = 0.59
+    assert rejection_reason(result, config) is not None
+    result["description_reviews"][0]["answers"]["fit_harm_type"]["noul"] = 0.6
+    assert rejection_reason(result, config) is None
 
 
 def test_confirmed_component_does_not_require_other_components_to_be_known():
@@ -56,6 +66,7 @@ def test_confirmed_component_does_not_require_other_components_to_be_known():
         "system_one": {
             "amount_minimum_probability": 0.6,
             "maximum_leak_probability": 0.2,
+            "minimum_probability": 0.6,
         },
     }
     award = {
