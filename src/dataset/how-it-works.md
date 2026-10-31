@@ -6,7 +6,7 @@ Basal jest tu ekstraktorem informacji, a nie modelem przewidującym wysokość �
 
 `configs/dataset/basal.yaml` wybiera model przez identyfikator Hugging Face, np. `Remek/basal-2.0-mini`. Kod przypisuje obsługiwanym modelom konkretne rewizje. Nazwa odpowiada katalogowi `basal_weights/models--Remek--basal-2.0-mini/`. Brakujące pliki są pobierane automatycznie przez bibliotekę Hugging Face przy rozpoczęciu ekstrakcji; sam import pakietu ani PyTorch nie pobiera wag. `.gitkeep` zachowuje katalog w repozytorium; pozostała zawartość jest ignorowana.
 
-Instrukcje, opisy pól i tekst wyroku są po polsku. Nazwy cech są angielskie: `event_circumstances`, `harm_type`, `harm_severity_duration`, `life_impact`, `claimant_circumstances`, `treatment_assistance`. Nazwa klucza schematu nie musi być w języku dokumentu. Celem jest wybór konkretnych zdań źródła, a nie swobodne dopisywanie okoliczności.
+Instrukcje, opisy pól i tekst wyroku są po polsku. Nazwy cech są angielskie: `event_description`, `harm_description`, `harm_duration`, `practical_impact`, `claimant_context`, `remedial_actions`. Nazwa klucza schematu nie musi być w języku dokumentu. Celem jest wybór konkretnych zdań źródła, a nie swobodne dopisywanie okoliczności.
 
 ## Wejście i pobieranie
 
@@ -33,6 +33,17 @@ flowchart TD
 
 ## Ekstrakcja cech
 
+| Feature | Pytanie |
+|---|---|
+| event_description | Co doprowadziło do powstania szkody lub krzywdy? |
+| harm_description | Na czym polegała szkoda lub krzywda poszkodowanego? |
+| harm_duration | Jak długo trwały negatywne skutki i czy ustąpiły? |
+| practical_impact | Jakie czynności, obowiązki lub plany poszkodowanego zostały zakłócone? |
+| claimant_context | Jaka była sytuacja osobista, zdrowotna lub zawodowa poszkodowanego przed zdarzeniem? |
+| remedial_actions | Jak próbowano usunąć skutki zdarzenia lub ograniczyć ich uciążliwość? |
+
+Działania naprawcze obejmują nie tylko leczenie: także naprawę rzeczy, udzielenie pomocy lub zmianę warunków usługi. Jedno zdanie źródła może zawierać kilka faktów, ale każda cecha musi odpowiadać na własne pytanie.
+
 Ten etap rozpoczyna się dopiero po ekstrakcji i dopuszczeniu targetu. Bez debug brak lub nieprawidłowy target kończy przetwarzanie przed oceną instancji i cech. Każda sprawa musi mieć zaakceptowane opisy źródłowe dla ponad 50% skonfigurowanych cech tekstowych: obecnie co najmniej 4 z 6. Metadane i prior_payment nie są wliczane. Sprawy poniżej tego progu są całkowicie odrzucane również z debug. Dla spraw spełniających próg debug zachowuje także próby z niepotwierdzonym targetem. Brak dopasowania judgment pomija ekstrakcję cech tekstowych, co przy ich wybraniu powoduje odrzucenie z powodu niedostatecznej liczby opisów. W pozostałych przypadkach cechy nadal przechodzą kontrolę wycieku, a brakujące wartości pozostają not_available.
 
 1. Basal określa instancję na podstawie początku dokumentu. Poziom sądu nie zastępuje informacji o instancji.
@@ -53,11 +64,11 @@ embedding.yaml wybiera mały model sentence-transformers/paraphrase-multilingual
 
 Wzorce z target_pattern.yaml są kodowane raz. Najpierw tani filtr wybiera tylko zdania zawierające jednocześnie liczbową kwotę PLN z walutą i rdzeń słowa z candidate_keywords. Rdzenie są dopasowywane od początku słowa, bez rozróżniania wielkości liter. Rdzenie judgment/request ograniczają dopuszczalną klasę. Grupa shared dopuszcza obie klasy tylko przy braku rdzeni wskazujących rolę; obecność rdzeni obu ról również pozostawia obie klasy do porównania. Dodatkowe grupy prior_payment (wcześniejsza wypłata), procedural_costs (koszty postępowania) , mixed (żądanie i wynik w jednym zdaniu) oraz other_payments (odsetki, renta i grzywny) mają własne rdzenie i wzorce. Rywalizują z dopuszczalnymi rolami targetu; wygrana grupy wykluczającej usuwa dane zdanie z kandydatów judgment/request, a najlepsze trafienie każdej takiej grupy pozostaje w diagnostyce debug. Dopiero kandydaci otrzymują embedding w batchach i wynik cosine similarity względem dopuszczalnych wzorców. Bez kandydatów nie ładujemy modelu embeddingowego. Kwoty zapisane wyłącznie słownie pozostają nieobsługiwane. Zdanie trafia do najsilniejszej dopuszczalnej klasy. Przy dokładnym remisie pierwszeństwo ma grupa wykluczająca, następnie kolejność grup we wzorcach. W każdej klasie wygrywa najwyższy wynik ściśle większy od progu 0,7; samo 0,7 nie wystarcza. Kilka wyników powyżej progu nadal oznacza jednego zwycięzcę dla danego zdania. Request jest opcjonalny, judgment jest wymagany do poprawnego rekordu. Długie zdania są kodowane we wszystkich oknach tokenów, bez pomijania końcówki. Treść źródła i pozycje kwot pozostają niezmienione.
 
-Podobieństwo nie jest prawdopodobieństwem poprawnej interpretacji prawnej. MiniLM może uznać żądanie lub wcześniejszą wypłatę za podobne do zasądzenia. Basal nie wyszukuje już roli targetu w całym tekście, lecz ustala składniki i kwoty w wybranym zdaniu oraz jego sentencji, jeśli granica sentencji jest dostępna. Koszty, odsetki i renta są wykluczane. Brak jednoznacznej kwoty pozostaje brakiem informacji.
+Podobieństwo nie jest prawdopodobieństwem poprawnej interpretacji prawnej. MiniLM może uznać żądanie lub wcześniejszą wypłatę za podobne do zasądzenia. Basal odróżnia zasądzone świadczenie główne od kwot do pominięcia; nie musi rozdzielać go na zadośćuczynienie i odszkodowanie. Jeśli granica sentencji jest jednoznaczna, uwzględniamy wszystkie jej punkty, również gdy embedding wybrał zdanie z uzasadnienia. Bez tej granicy źródłem pozostaje wybrane zdanie. Nierozdzielone kwoty główne w jednym zdaniu odrzucamy zamiast dodawać sumę do jej składników. Koszty, odsetki i renta są wykluczane. Brak jednoznacznej kwoty pozostaje brakiem informacji.
 
 Obsługujemy wielu poszkodowanych: jeden rekord zawiera łączną kwotę świadczeń. „Po 20 000 zł” dla dwóch osób oznacza 40 000 zł; wspólne 20 000 zł dla dwóch osób pozostaje 20 000 zł. Osobne obowiązki zapłaty są sumowane, a odbiorcy deduplikowani. Nie mnożymy kwoty, jeśli grupa odbiorców pozostaje niejednoznaczna. Liczba odbiorców świadczenia jest cechą injured_party_count.
 
-Kwota request jest zapisywana w award.json tylko wtedy, gdy wybrane zdanie zawiera jedną jednoznaczną kwotę PLN; inaczej pozostaje not_available. Nie jest predyktorem. Końcowe potwierdzenie kwoty przez Basala ma własny próg z basal.yaml, niezależny od podobieństwa 0,7.
+award.json zawiera wyłącznie total i valid. Targetem jest jedna łączna kwota jednorazowych świadczeń głównych zasądzonych wszystkim poszkodowanym. Żądania, składniki i decyzje dotyczące kwot nie są osobnymi targetami; pozostają kontekstem wewnętrznym i diagnostyką debug. W basal.yaml wybieramy target_fields: [total]. Końcowe potwierdzenie kwoty przez Basala ma własny próg, niezależny od podobieństwa embeddingów.
 
 ## Ile jest przebiegów
 
@@ -90,7 +101,7 @@ Poprzedni notebook także klasyfikował akapity osobno. Zapisany przebieg dział
 
 To przykład syntetyczny, nie wynik pomiaru jakości modelu.
 
-Wejście: „Powódka złamała nogę wskutek upadku na oblodzonym chodniku. Przez sześć tygodni chodziła o kulach”. W sentencji: „Zasądza 15 000 zł zadośćuczynienia i 2 000 zł odszkodowania”.
+Wejście: „Powódka upadła na oblodzonym chodniku. Doznała złamania nogi. Przez sześć tygodni utrzymywały się dolegliwości bólowe. Lekarz założył jej opatrunek gipsowy”. W sentencji są dwa osobne punkty: „Zasądza 15 000 zł zadośćuczynienia” oraz „Zasądza 2 000 zł odszkodowania”.
 
 Po przejściu kontroli przykładowy rekord zawiera:
 
@@ -98,9 +109,12 @@ record.json:
 
 ```json
 {
-  "event_circumstances": "Powódka upadła na oblodzonym chodniku.",
-  "harm_type": "Powódka doznała złamania nogi.",
-  "harm_severity_duration": "Przez sześć tygodni chodziła o kulach."
+  "event_description": "Powódka upadła na oblodzonym chodniku.",
+  "harm_description": "Doznała złamania nogi.",
+  "harm_duration": "Przez sześć tygodni utrzymywały się dolegliwości bólowe.",
+  "practical_impact": "not_available",
+  "claimant_context": "not_available",
+  "remedial_actions": "Lekarz założył jej opatrunek gipsowy."
 }
 ```
 
@@ -108,8 +122,6 @@ award.json:
 
 ```json
 {
-  "zadoscuczynienie": "15000",
-  "pozostale_odszkodowanie": "2000",
   "total": "17000",
   "valid": true
 }

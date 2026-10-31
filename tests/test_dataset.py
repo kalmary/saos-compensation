@@ -833,8 +833,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
             ],
             "award": basal.finish_award(
                 {
-                    "zadoscuczynienie": "brak informacji" if missing_target else "100",
-                    "pozostale_odszkodowanie": "brak informacji",
+                    "suma": "brak informacji" if missing_target else "100",
                 },
                 not low_confidence and not missing_target,
                 {} if missing_target else {"noul": 0.4 if low_confidence else 0.9},
@@ -868,10 +867,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         "court_seat": "Płocku",
     }
     assert json.loads((path / "award.json").read_text()) == {
-        "zadoscuczynienie": "not_available" if missing_target else "100",
-        "pozostale_odszkodowanie": "not_available",
-        "total": "not_available",
-        "request": "not_available",
+        "total": "not_available" if missing_target else "100",
         "valid": not low_confidence and not missing_target,
     }
     assert {item.name for item in path.iterdir()} == (
@@ -1654,8 +1650,7 @@ def test_export_contains_only_features_targets_and_requested_debug_files(
         "award": {
             "confirmed": True,
             "verification": {"noul": 0.99},
-            "zadoscuczynienie": "100",
-            "pozostale_odszkodowanie": "brak informacji",
+            "suma": "100",
             "evidence": ["private diagnostics"],
         },
     }
@@ -1664,10 +1659,7 @@ def test_export_contains_only_features_targets_and_requested_debug_files(
         "harm_type": "source sentence"
     }
     assert json.loads((tmp_path / "award.json").read_text()) == {
-        "zadoscuczynienie": "100",
-        "pozostale_odszkodowanie": "not_available",
-        "total": "not_available",
-        "request": "not_available",
+        "total": "100",
         "valid": True,
     }
     assert {p.name for p in tmp_path.iterdir()} == (
@@ -1925,9 +1917,7 @@ def test_debug_export_preserves_low_confidence_proposal_with_invalid_flag(tmp_pa
     config = basal.load_config(overrides={"debug": True})
     award = basal.finish_award(
         {
-            "zadoscuczynienie": "6300",
-            "pozostale_odszkodowanie": "brak informacji",
-            "suma": "brak informacji",
+            "suma": "6300",
         },
         False,
         {"noul": 0.4},
@@ -1936,10 +1926,7 @@ def test_debug_export_preserves_low_confidence_proposal_with_invalid_flag(tmp_pa
     assert get_data.rejection_reason(result, config) is not None
     get_data.write_result(result, tmp_path, config)
     assert json.loads((tmp_path / "award.json").read_text()) == {
-        "zadoscuczynienie": "6300",
-        "pozostale_odszkodowanie": "not_available",
-        "total": "not_available",
-        "request": "not_available",
+        "total": "6300",
         "valid": False,
     }
     assert {path.name for path in tmp_path.iterdir()} == {

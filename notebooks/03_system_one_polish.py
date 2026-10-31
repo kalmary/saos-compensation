@@ -7,6 +7,7 @@ import importlib
 import json
 import math
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from collections import Counter
@@ -16,6 +17,7 @@ from contextvars import ContextVar
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 REQUEST_COUNTS = {"cached": 0, "computed": 0}
 MODEL_CALLS = ContextVar("model_calls", default=None)
 
@@ -167,6 +169,9 @@ def load_config(path=None):
         else Path(__file__).with_name("preprocessing.yaml")
     )
     settings = read_config(path)
+    from src.dataset.processing.basal_filtering import FEATURE_DESCRIPTIONS as current_fields
+
+    descriptions = {**FEATURE_DESCRIPTIONS, **current_fields}
     basal = read_config(path.parent / settings["basal"])
     api = read_config(path.parent / settings["api"])
     required = {
@@ -192,7 +197,7 @@ def load_config(path=None):
         (
             "feature_fields",
             {
-                *FEATURE_DESCRIPTIONS,
+                *descriptions,
                 "judgment_year",
                 "instance",
                 "court_seat",
@@ -201,7 +206,7 @@ def load_config(path=None):
                 "prior_payment",
             },
         ),
-        ("target_fields", AWARD_FIELDS),
+        ("target_fields", {*AWARD_FIELDS, "total"}),
     ):
         fields = basal[key]
         if (
@@ -228,11 +233,11 @@ def load_config(path=None):
         **copy.deepcopy(DEFAULTS),
         "api": api,
         "fields": {
-            key: FEATURE_DESCRIPTIONS[key]
+            key: descriptions[key]
             for key in basal["feature_fields"]
-            if key in FEATURE_DESCRIPTIONS
+            if key in descriptions
         },
-        "target_fields": basal["target_fields"],
+        "target_fields": list(AWARD_FIELDS) if basal["target_fields"] == ["total"] else basal["target_fields"],
     }
     config["system_one"].update(
         model=basal["model"], revision=revisions[basal["model"]]

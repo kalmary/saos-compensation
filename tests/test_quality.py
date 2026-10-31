@@ -120,7 +120,7 @@ def test_target_is_checked_before_any_feature_inference(
     """
     events = []
     award = basal.finish_award(
-        {"zadoscuczynienie": "100", "pozostale_odszkodowanie": "brak informacji"},
+        {"suma": "100"},
         confirmed,
         {"noul": probability},
     )
@@ -258,7 +258,7 @@ def test_target_admission_uses_strict_cosine_threshold(similarity, accepted):
         "target_matches": {"judgment": {"similarity": similarity}},
         "confirmed": True,
         "verification": {"noul": 0.9},
-        "zadoscuczynienie": "100",
+        "suma": "100",
     }
     assert (target_rejection_reason(award, config) is None) is accepted
 

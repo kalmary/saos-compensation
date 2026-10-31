@@ -8,17 +8,16 @@ feature_fields:
 - prior_payment # Earlier principal paid in PLN, rounded to int; 0 without confirmation.
 - injured_party_count # People receiving compensation in this judgment.
 - court_locality_size # Population class of the locality where the court is located (GUGiK).
-- event_circumstances
-- harm_type
-- harm_severity_duration
-- life_impact
-- claimant_circumstances
-- treatment_assistance
+- event_description
+- harm_description
+- harm_duration
+- practical_impact
+- claimant_context
+- remedial_actions
 
-# Awarded principal components, excluding costs, interest and periodic rent.
+# One case-level principal total, excluding costs, interest, rent and earlier payments.
 target_fields:
-- zadoscuczynienie
-- pozostale_odszkodowanie
+- total
 
 # Minimum probability for factual passages and procedural instance.
 minimum_probability: 0.6

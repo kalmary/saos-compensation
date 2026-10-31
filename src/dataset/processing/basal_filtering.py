@@ -41,7 +41,7 @@ MODEL_FILES = [
 
 
 DEFAULTS = {
-    "version": "saos-extraction-18",
+    "version": "saos-extraction-19",
     "chunk_characters": 6000,
     "context_characters": 600,
     "system_one": {
@@ -98,20 +98,11 @@ DEFAULTS = {
             "być targetem; same odsetki nim nie są. Nie przenoś kategorii "
             "sąsiedniej liczby na oznaczoną kwotę.",
             "criteria": {
-                "zadoscuczynienie": "Oznaczona kwota to zadośćuczynienie zasądzone temu "
-                "poszkodowanemu w analizowanym wyroku.",
-                "pozostale_odszkodowanie": "Oznaczona kwota to zasądzone temu "
-                "poszkodowanemu jednorazowe odszkodowanie za "
-                "szkodę majątkową, np. zwrot leczenia lub "
-                "utraconych zarobków.",
-                "suma": "Oznaczona kwota jest zasądzoną sumą świadczeń głównych dla tego "
-                "poszkodowanego, której nie można tutaj przypisać do jednego "
-                "składnika.",
-                "pomin": "Kwota żądana, wcześniej wypłacona, z innego wyroku, dla innego "
-                "odbiorcy, koszty procesu/sądowe/instancji "
-                "odwoławczej/zastępstwa, odsetki lub renta; poza targetami.",
-                "nieustalone": "Nie ma podstaw do przypisania oznaczonej kwoty do "
-                "zasądzonego świadczenia.",
+                "suma": "Oznaczona kwota to zasądzone w tym wyroku jednorazowe świadczenie główne "
+                "dla poszkodowanego: zadośćuczynienie, odszkodowanie albo ich łączna kwota.",
+                "pomin": "Żądanie, wcześniejsza wypłata, kwota z innego wyroku, odsetki, renta "
+                "lub koszty postępowania; poza zasądzonym świadczeniem głównym.",
+                "nieustalone": "Nie można potwierdzić roli oznaczonej kwoty.",
             },
         },
         "award_check": {
@@ -123,14 +114,12 @@ DEFAULTS = {
             "błędu. Nie wymagaj zapisania w sentencji ich obliczonej sumy."
         },
         "extraction": {
-            "instructions": "Wyodrębnij treść pól opisu sprawy zgodnie ze schematem. Zachowaj negacje, osobę "
-            "i czas. Nie dopisuj ocen, nie używaj kwot ani uzasadnienia ich "
-            "wysokości. Każde pole musi odpowiadać własnemu opisowi: leczenie nie "
-            "opisuje okoliczności wypadku, a dane spółki nie opisują krzywdy osoby. "
-            "Opisuj poszkodowanego, nie jego pełnomocnika ani innych osób. "
-            "Nie wypełniaj pola zdaniem tylko dlatego, że jest dostępne. Jeśli brak "
-            "informacji odpowiadającej temu polu, wybierz not stated.",
-            "field_suffix": " Konkretny opis dotyczący poszkodowanego.",
+            "instructions": "Dla każdego pola wybierz fragment źródła odpowiadający na jego pytanie. "
+            "Zachowaj negacje, osobę i czas. Nie dopisuj faktów. Opisuj poszkodowanego. "
+            "Pomiń kwoty, wynik sprawy i uzasadnienie wysokości świadczenia. "
+            "Nie kopiuj fragmentu do pola, na którego pytanie nie odpowiada. "
+            "Jeśli brak odpowiedzi, wybierz not stated.",
+            "field_suffix": "",
         },
         "instance": {
             "instructions": "W której instancji zapadł ten wyrok? Wymagaj informacji o etapie "
@@ -145,12 +134,12 @@ DEFAULTS = {
     },
 }
 FEATURE_DESCRIPTIONS = {
-    "event_circumstances": "Przyczyna i przebieg zdarzenia, bez obrażeń i leczenia.",
-    "harm_type": "Rodzaj krzywdy: uraz, choroba, utrata bliskiego lub naruszenie dóbr osobistych; bez leczenia.",
-    "harm_severity_duration": "Nasilenie i czas trwania cierpienia, trwałość uszczerbku i rokowania.",
-    "life_impact": "Ograniczenia codziennych czynności, pracy i relacji; nie samo leczenie.",
-    "claimant_circumstances": "Wiek, zawód i zdrowie poszkodowanego przed zdarzeniem lub jego więź ze zmarłym.",
-    "treatment_assistance": "Zastosowane lub zalecone leczenie, rehabilitacja i pomoc innych osób.",
+    "event_description": "Co doprowadziło do powstania szkody lub krzywdy?",
+    "harm_description": "Na czym polegała szkoda lub krzywda poszkodowanego?",
+    "harm_duration": "Jak długo trwały negatywne skutki i czy ustąpiły?",
+    "practical_impact": "Jakie czynności, obowiązki lub plany poszkodowanego zostały zakłócone?",
+    "claimant_context": "Jaka była sytuacja osobista, zdrowotna lub zawodowa poszkodowanego przed zdarzeniem?",
+    "remedial_actions": "Jak próbowano usunąć skutki zdarzenia lub ograniczyć ich uciążliwość?",
 }
 
 METADATA_FIELDS = (
@@ -225,7 +214,7 @@ def load_config(directory=None, overrides=None):
         raise ValueError("device must be cpu, cuda or mps")
     for key, allowed in (
         ("feature_fields", {*FEATURE_DESCRIPTIONS, *METADATA_FIELDS}),
-        ("target_fields", AWARD_FIELDS),
+        ("target_fields", {"total"}),
     ):
         fields = basal[key]
         if (
@@ -260,7 +249,7 @@ def load_config(directory=None, overrides=None):
         "metadata_fields": [
             key for key in basal["feature_fields"] if key in METADATA_FIELDS
         ],
-        "target_fields": basal["target_fields"],
+        "target_fields": ["suma"],
     }
     config["system_one"].update(
         model=basal["model"], revision=revisions[basal["model"]]
@@ -923,11 +912,8 @@ async def extract_features(server, text, config, identifier):
                     **{
                         f"fit_{name}": {
                             "type": "noul",
-                            "instructions": "Czy wyłącznie oceniany fragment zawiera konkretną informację "
-                            "odpowiadającą temu polu: "
-                            + fields[name]
-                            + "? Sama prawdziwość zdania nie wystarcza. Nie dopowiadaj informacji "
-                            "z sąsiedniego kontekstu. Jeśli fragment dotyczy innej kwestii, odpowiedz nie.",
+                            "instructions": "Czy oceniany fragment odpowiada na pytanie: "
+                            + fields[name],
                         }
                         for name in sorted(span_fields[start, end])
                     },

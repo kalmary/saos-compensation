@@ -683,21 +683,10 @@ def write_result(result, directory, config):
         for field, value in result["features"].items()
     }
     targets = {
-        field: "not_available"
-        if award.get(field, "brak informacji") == "brak informacji"
-        else award[field]
-        for field in config["target_fields"]
-    }
-    targets["total"] = (
-        "not_available"
+        "total": "not_available"
         if award.get("suma", "brak informacji") == "brak informacji"
-        else award["suma"]
-    )
-    targets["request"] = (
-        "not_available"
-        if award.get("request", "brak informacji") == "brak informacji"
-        else award["request"]
-    )
+        else award["suma"],
+    }
     targets["valid"] = valid
     if config["api"]["debug"]:
         write_json(directory / "model_calls.json", result.get("model_calls", []))

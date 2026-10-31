@@ -89,7 +89,7 @@ def test_joint_awards_are_aggregated_without_request(monkeypatch, per_person, ex
         if "beneficiaries" in questions:
             return {"beneficiaries": {"data": {"people": "A. B. i C. D."}}}
         if "swiadczenie" in questions:
-            return {"swiadczenie": {"choice": "zadoscuczynienie", "confidence": 0.99}}
+            return {"swiadczenie": {"choice": "suma", "confidence": 0.99}}
         assert state["łączna_kwota"] == expected
         assert state["liczba_poszkodowanych"] == 2
         return {"zasadzenie": {"noul": 0.99}}
@@ -202,7 +202,7 @@ def test_distinct_award_clauses_are_summed_without_double_counting_people(
         if "beneficiaries" in questions:
             return {"beneficiaries": {"data": {"people": "A. B."}}}
         if "swiadczenie" in questions:
-            return {"swiadczenie": {"choice": "zadoscuczynienie", "confidence": 0.99}}
+            return {"swiadczenie": {"choice": "suma", "confidence": 0.99}}
         assert state["łączna_kwota"] == "200"
         assert state["liczba_poszkodowanych"] == (1 if second_person == "A. B." else 2)
         return {"zasadzenie": {"noul": 0.99}}
@@ -387,3 +387,127 @@ def test_prior_payment_feature_is_resolved_for_debug_case_without_target(monkeyp
     assert result["fields_evaluated"] is False
     assert "prior_payment" not in result["award"]
     assert result["award"]["confirmed"] is False
+
+
+def test_single_total_uses_all_operative_clauses_when_anchor_is_in_reasoning(
+    monkeypatch,
+):
+    """
+    Sum different principal types from the current ruling while excluding process costs.
+
+    args:
+        monkeypatch: Scoped embedding and model replacements.
+
+    returns:
+        None.
+    """
+    ruling = (
+        "Zasądza na rzecz A. B. kwotę 100 zł zadośćuczynienia.\n"
+        "Zasądza na rzecz A. B. kwotę 50 zł odszkodowania.\n"
+        "Zasądza na rzecz A. B. kwotę 20 zł kosztów procesu.\n"
+    )
+    anchor = "Sąd uznał zasądzone 100 zł za odpowiednie."
+    text = ruling + "UZASADNIENIE\n" + anchor
+    config = basal.load_config()
+    monkeypatch.setattr(
+        extraction,
+        "match_targets",
+        lambda *args: {
+            "judgment": {
+                "text": anchor,
+                "start": text.index(anchor),
+                "end": len(text),
+                "similarity": 0.9,
+            },
+            "request": None,
+        },
+    )
+
+    async def ask(server, state, questions, config):
+        """
+        Confirm principal roles without requiring a compensation subtype.
+
+        args:
+            server: Unused inference server.
+            state: Ruling evidence or assembled total.
+            questions: Requested monetary decision.
+            config: Active single-target configuration.
+
+        returns:
+            Controlled beneficiary, principal-role or aggregate answer.
+        """
+        if "beneficiaries" in questions:
+            assert state == ruling
+            return {"beneficiaries": {"data": {"people": "A. B."}}}
+        if "swiadczenie" in questions:
+            assert set(questions["swiadczenie"]["criteria"]) == {
+                "suma",
+                "pomin",
+                "nieustalone",
+            }
+            assert state["sentencja"] == ruling
+            return {
+                "swiadczenie": {
+                    "choice": "pomin"
+                    if "kosztów procesu" in state["fragment"]
+                    else "suma",
+                    "confidence": 0.99,
+                }
+            }
+        assert state["łączna_kwota"] == "150"
+        assert "skladniki" not in state
+        return {"zasadzenie": {"noul": 0.99}}
+
+    monkeypatch.setattr(basal, "ask", ask)
+    result = asyncio.run(extraction.extract_targets(None, text, config))
+    assert result["confirmed"] is True
+    assert result["suma"] == "150"
+    assert "zadoscuczynienie" not in result
+    assert "pozostale_odszkodowanie" not in result
+
+
+def test_total_and_components_in_one_sentence_are_not_silently_double_counted(
+    monkeypatch,
+):
+    """
+    Reject unresolved overlapping amounts instead of adding a total to its components.
+
+    args:
+        monkeypatch: Scoped matcher and monetary resolver replacements.
+
+    returns:
+        None.
+    """
+    text = "Zasądza 150 zł, w tym 100 zł zadośćuczynienia i 50 zł odszkodowania."
+    monkeypatch.setattr(
+        extraction,
+        "match_targets",
+        lambda *args: {
+            "judgment": {"text": text, "start": 0, "end": len(text), "similarity": 0.9},
+            "request": None,
+        },
+    )
+
+    async def ask(server, state, questions, config):
+        """
+        Mark all unresolved figures as principal and forbid aggregate verification.
+
+        args:
+            server: Unused inference server.
+            state: Source sentence or amount evidence.
+            questions: Requested monetary decision.
+            config: Active extraction settings.
+
+        returns:
+            Source beneficiaries or principal role.
+        """
+        if "beneficiaries" in questions:
+            return {"beneficiaries": {"data": {"people": "powoda"}}}
+        assert "swiadczenie" in questions
+        return {"swiadczenie": {"choice": "suma", "confidence": 0.99}}
+
+    monkeypatch.setattr(basal, "ask", ask)
+    result = asyncio.run(extraction.extract_targets(None, text, basal.load_config()))
+    assert result["confirmed"] is False
+    assert result["suma"] == "brak informacji"
+    assert "require disambiguation" in result["status"]

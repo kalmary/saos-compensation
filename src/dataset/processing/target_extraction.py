@@ -92,7 +92,7 @@ def recipient_group(text):
 
 async def extract_targets(server, text, config):
     """
-    Find award/request sentences with embeddings and resolve principal amounts with Basal.
+    Resolve one principal total from operative clauses after embedding selection.
 
     args:
         server: Local Basal server for amount resolution only.
@@ -126,11 +126,11 @@ async def extract_targets(server, text, config):
     selected = matches["judgment"]
     if selected is None:
         return result
-    # Use the ruling around the winning sentence to include awards to other beneficiaries.
+    # Retain separate awards and beneficiaries from the complete operative ruling.
     reasons = list(REASONS.finditer(text))
     ruling_end = reasons[0].start() if len(reasons) == 1 else 0
-    source = text[:ruling_end] if selected["end"] <= ruling_end else selected["text"]
-    source_start = 0 if selected["end"] <= ruling_end else selected["start"]
+    source = text[:ruling_end] if ruling_end else selected["text"]
+    source_start = 0 if ruling_end else selected["start"]
     request = matches["request"]
     if request is not None:
         requested = list(MONEY.finditer(request["text"]))
@@ -198,6 +198,12 @@ async def extract_targets(server, text, config):
     if not accepted:
         result["status"] = "no established principal amount in the selected ruling"
         return result
+    spans = [(row["start"], row["end"]) for row in accepted]
+    if len(spans) != len(set(spans)):
+        result["status"] = (
+            "multiple principal amounts in one sentence require disambiguation"
+        )
+        return result
     groups = [recipient_group(row["text"]) for row in accepted]
     if all(group and count_people(group) is not None for group in groups):
         names = {
@@ -208,7 +214,7 @@ async def extract_targets(server, text, config):
         if all(re.search(r"[A-ZĄĆĘŁŃÓŚŹŻ]", group) for group in groups):
             count = len(names)
             result["injured_party_count"] = count
-    totals = {}
+    total = Decimal(0)
     for row in accepted:
         amount = Decimal(row["kwota"])
         offset = row["amount_start"] - row["start"]
@@ -227,28 +233,14 @@ async def extract_targets(server, text, config):
                 )
                 return result
             amount *= group_count
-        totals[row["category"]] = totals.get(row["category"], Decimal(0)) + amount
-    component_total = sum(
-        (value for key, value in totals.items() if key != "suma"), Decimal(0)
-    )
-    if "suma" in totals and component_total:
-        complete = all(field in totals for field in config["target_fields"])
-        if component_total > totals["suma"] or (
-            complete and component_total != totals["suma"]
-        ):
-            result["status"] = "components conflict with the explicit total"
-            return result
-    for field in config["target_fields"]:
-        if field in totals:
-            result[field] = str(totals[field])
-    result["suma"] = str(totals.get("suma", component_total))
+        total += amount
+    result["suma"] = str(total)
     result["status"] = "principal summed across awarded beneficiaries"
     verification = (
         await basal.ask(
             server,
             {
                 "sentencja": source,
-                "skladniki": {key: result[key] for key in config["target_fields"]},
                 "łączna_kwota": result["suma"],
                 "poszkodowani": groups
                 if all(groups)
