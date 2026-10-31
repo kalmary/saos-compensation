@@ -178,6 +178,7 @@ def load_config(directory=None, overrides=None):
     api.update(overrides or {})
     search_settings(api)
     required = {
+        "model",
         "device",
         "feature_fields",
         "target_fields",
@@ -189,6 +190,12 @@ def load_config(directory=None, overrides=None):
         raise ValueError(
             "basal.yaml requires device, feature/target selections and three probability thresholds"
         )
+    revisions = {
+        "Remek/basal-2.0-mini": "cb81b32ce89b0b87e62fcdad28f0435e25c953f3",
+        "Remek/basal-2.0-4.5B": "e5ba9149760d99b73b1963d8e0ccf948b58afacb",
+    }
+    if not isinstance(basal["model"], str) or basal["model"] not in revisions:
+        raise ValueError("model must be Remek/basal-2.0-mini or Remek/basal-2.0-4.5B")
     if basal["device"] not in ("cpu", "cuda", "mps"):
         raise ValueError("device must be cpu, cuda or mps")
     for key, allowed in (
@@ -228,6 +235,7 @@ def load_config(directory=None, overrides=None):
         ],
         "target_fields": basal["target_fields"],
     }
+    config["system_one"].update(model=basal["model"], revision=revisions[basal["model"]])
     config["system_one"]["mode"] = "mps" if basal["device"] == "mps" else "eager"
     config["system_one"]["device"] = basal["device"]
     config["system_one"].update(

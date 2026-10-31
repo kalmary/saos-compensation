@@ -879,6 +879,7 @@ def test_dataset_configs_expose_only_requested_controls():
         "timeout",
     }
     assert set(basal) == {
+        "model",
         "device",
         "feature_fields",
         "target_fields",

@@ -74,7 +74,7 @@ YAML provides defaults; explicit CLI arguments override only matching acquisitio
 | Configuration | Controls |
 |---|---|
 | [api.yaml](configs/dataset/api.yaml) | `max_age_years`, `max_pages`, `max_gib`, `download_path`, `debug`, `timeout` |
-| [basal.yaml](configs/dataset/basal.yaml) | `device`, feature/target selection and confidence thresholds |
+| [basal.yaml](configs/dataset/basal.yaml) | `model`, `device`, feature/target selection and confidence thresholds |
 
 Acquisition options use hyphens, e.g. `--max-gib 5`; `--debug` and `--no-debug` select diagnostic output. `--config-dir` selects another configuration directory. `device` defaults to `cpu`; choose `mps` for Apple GPUs or `cuda` for NVIDIA GPUs. Unavailable accelerators fail explicitly.
 

@@ -1,3 +1,4 @@
+model: Remek/basal-2.0-mini
 # Inference device: cpu (default), mps (Apple GPU), or cuda (NVIDIA GPU).
 device: cpu
 
