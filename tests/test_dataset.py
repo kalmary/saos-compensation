@@ -727,7 +727,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         debug: Whether to save diagnostic artifacts.
         low_confidence: Whether target verification falls below the threshold.
         missing_target: Whether no monetary target could be established.
-        sparse_features: Whether insufficient text evidence must discard even debug cases.
+        sparse_features: Whether missing damage must discard even debug cases.
         capsys: Captured console output.
 
     returns:
@@ -742,7 +742,10 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     config["api"]["debug"] = debug
     config["api"]["max_gib"] = 0
     config["metadata_fields"] = ["judgment_year", "instance", "court_seat"]
-    config["fields"] = {"opis": "Description"}
+    config["fields"] = {
+        field: prompts.FEATURE_DESCRIPTIONS[field]
+        for field in ("cause", "damage", "limitations")
+    }
     monkeypatch.setattr(pipeline, "check_device", lambda device: None)
     stopped = []
 
@@ -836,15 +839,19 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         await asyncio.sleep(0)
         return {
             "id": identifier,
-            "features": {"opis": "brak informacji" if sparse_features else text},
+            "features": {
+                "cause": "brak informacji",
+                "damage": "brak informacji" if sparse_features else text,
+                "limitations": "brak informacji",
+            },
             "evidence": {}
             if sparse_features
-            else {"opis": [{"start": 0, "end": len(text)}]},
+            else {"damage": [{"start": 0, "end": len(text)}]},
             "description_reviews": [
                 {
                     "start": 0,
                     "end": len(text),
-                    "answers": {"wyciek": {"noul": 0.01}, "fit_opis": {"noul": 0.9}},
+                    "answers": {"wyciek": {"noul": 0.01}, "fit_damage": {"noul": 0.9}},
                 }
             ],
             "award": amounts.finish_award(
@@ -877,7 +884,9 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         return
     record = json.loads((path / "record.json").read_text())
     assert record == {
-        "opis": "Opis.",
+        "cause": "not_available",
+        "damage": "Opis.",
+        "limitations": "not_available",
         "judgment_year": 2020,
         "instance": "pierwsza",
         "court_seat": "Płocku",
@@ -984,9 +993,9 @@ def test_metadata_selection_and_unknown_instance_do_not_infer_from_court_level()
     assert result["field_status"] == {"instance": "not_available"}
 
 
-def test_config_allows_metadata_only_without_adding_it_to_basal_schema(tmp_path):
+def test_config_requires_damage_with_metadata_selection(tmp_path):
     """
-    Verify config allows metadata only without adding it to basal schema.
+    Require damage while keeping metadata outside the model text schema.
 
     args:
         tmp_path: Isolated temporary directory.
@@ -1002,9 +1011,13 @@ def test_config_allows_metadata_only_without_adding_it_to_basal_schema(tmp_path)
     (tmp_path / "api.yaml").write_text(yaml.safe_dump(CONFIG))
     for name in ("embedding.yaml", "target_pattern.yaml"):
         (tmp_path / name).write_text((ROOT / "configs/dataset" / name).read_text())
+    with pytest.raises(ValueError, match="must include damage"):
+        config_module.load_config(tmp_path)
+    config["feature_fields"].append("damage")
+    (tmp_path / "basal.yaml").write_text(yaml.safe_dump(config))
     loaded = config_module.load_config(tmp_path)
     assert loaded["metadata_fields"] == list(prompts.METADATA_FIELDS)
-    assert loaded["fields"] == {}
+    assert loaded["fields"] == {"damage": prompts.FEATURE_DESCRIPTIONS["damage"]}
 
 
 @pytest.mark.parametrize(
@@ -1656,17 +1669,17 @@ def test_export_contains_only_features_targets_and_requested_debug_files(
         None.
     """
     config = config_module.load_config(overrides={"debug": debug})
-    config["fields"] = {"harm_type": "Injury"}
+    config["fields"] = {"damage": "Injury"}
     result = {
         "id": 42,
-        "features": {"harm_type": "source sentence"},
+        "features": {"damage": "source sentence"},
         "source_text": "source sentence",
-        "evidence": {"harm_type": [{"start": 0, "end": 15}]},
+        "evidence": {"damage": [{"start": 0, "end": 15}]},
         "description_reviews": [
             {
                 "start": 0,
                 "end": 15,
-                "answers": {"wyciek": {"noul": 0.01}, "fit_harm_type": {"noul": 0.9}},
+                "answers": {"wyciek": {"noul": 0.01}, "fit_damage": {"noul": 0.9}},
             }
         ],
         "model_calls": [{"request": "input", "response": "output"}],
@@ -1679,7 +1692,7 @@ def test_export_contains_only_features_targets_and_requested_debug_files(
     }
     records.write_result(result, tmp_path, config)
     assert json.loads((tmp_path / "record.json").read_text()) == {
-        "harm_type": "source sentence"
+        "damage": "source sentence"
     }
     assert json.loads((tmp_path / "award.json").read_text()) == {
         "total": "100",

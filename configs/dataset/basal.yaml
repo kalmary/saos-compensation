@@ -8,12 +8,9 @@ feature_fields:
 - prior_payment # Earlier principal paid in PLN, rounded to int; 0 without confirmation.
 - injured_party_count # People receiving compensation in this judgment.
 - court_locality_size # Population class of the locality where the court is located (GUGiK).
-- event_description
-- harm_description
-- harm_duration
-- practical_impact
-- claimant_context
-- remedial_actions
+- cause
+- damage
+- limitations
 
 # One case-level principal total, excluding costs, interest, rent and earlier payments.
 target_fields:

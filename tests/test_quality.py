@@ -1,6 +1,6 @@
 """Dataset admission boundaries without model inference."""
 
-from src.dataset.extraction.quality import rejection_reason
+from src.dataset.extraction.quality import rejection_reason, target_rejection_reason
 
 
 def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
@@ -14,7 +14,7 @@ def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
         None.
     """
     config = {
-        "fields": {"harm_type": "Krzywda"},
+        "fields": {"damage": "Krzywda"},
         "target_fields": ["zadoscuczynienie"],
         "system_one": {
             "amount_minimum_probability": 0.6,
@@ -28,13 +28,13 @@ def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
             "verification": {"noul": 0.6},
             "zadoscuczynienie": "100",
         },
-        "features": {"harm_type": "Source description"},
-        "evidence": {"harm_type": [{"start": 0, "end": 10}]},
+        "features": {"damage": "Source description"},
+        "evidence": {"damage": [{"start": 0, "end": 10}]},
         "description_reviews": [
             {
                 "start": 0,
                 "end": 10,
-                "answers": {"wyciek": {"noul": 0.2}, "fit_harm_type": {"noul": 0.9}},
+                "answers": {"wyciek": {"noul": 0.2}, "fit_damage": {"noul": 0.9}},
             }
         ],
     }
@@ -45,9 +45,9 @@ def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
     result["description_reviews"][0]["answers"]["wyciek"]["noul"] = 0.21
     assert rejection_reason(result, config) is not None
     result["description_reviews"][0]["answers"]["wyciek"]["noul"] = 0.2
-    result["description_reviews"][0]["answers"]["fit_harm_type"]["noul"] = 0.59
+    result["description_reviews"][0]["answers"]["fit_damage"]["noul"] = 0.59
     assert rejection_reason(result, config) is not None
-    result["description_reviews"][0]["answers"]["fit_harm_type"]["noul"] = 0.6
+    result["description_reviews"][0]["answers"]["fit_damage"]["noul"] = 0.6
     assert rejection_reason(result, config) is None
 
 
@@ -76,13 +76,13 @@ def test_confirmed_component_does_not_require_other_components_to_be_known():
         "zadoscuczynienie": "6300",
         "pozostale_odszkodowanie": "brak informacji",
     }
-    assert rejection_reason({"award": award}, config) is None
+    assert target_rejection_reason(award, config) is None
     award["zadoscuczynienie"] = "brak informacji"
     assert (
-        rejection_reason({"award": award}, config) == "no established selected target"
+        target_rejection_reason(award, config) == "no established selected target"
     )
     award["zadoscuczynienie"] = "NaN"
-    assert rejection_reason({"award": award}, config) == "invalid target"
+    assert target_rejection_reason(award, config) == "invalid target"
 
 
 import asyncio
@@ -210,35 +210,40 @@ def test_award_rejection_reports_probability_and_threshold(
     assert rejection_reason(result, config) == expected
 
 
-@pytest.mark.parametrize("found", [0, 2, 3, 4, 6])
-def test_text_feature_coverage_requires_strict_majority_and_ignores_metadata(found):
-    """
-    Reject exactly half of six text fields despite populated numeric metadata.
+@pytest.mark.parametrize(
+    "damage",
+    [None, "", " ", "brak informacji", "not_available", 123, "Złamana noga."],
+)
+@pytest.mark.parametrize("evidence", [False, True])
+@pytest.mark.parametrize("optional", [False, True])
+def test_only_source_backed_damage_is_required(damage, evidence, optional):
+    """Accept damage alone and reject absent damage despite populated optional fields.
 
     args:
-        found: Number of source-backed text fields.
+        damage: Missing, malformed or usable damage description.
+        evidence: Whether damage has source evidence.
+        optional: Whether cause and limitations are populated.
 
     returns:
         None.
     """
     from src.dataset.extraction.quality import feature_rejection_reason
 
-    fields = {f"field_{index}": "Description" for index in range(6)}
     result = {
-        "features": {
-            **{field: "Source text" for field in list(fields)[:found]},
-            "judgment_year": 2020,
-            "prior_payment": 30000,
-        },
-        "evidence": {
-            field: [{"start": 0, "end": 11}] for field in list(fields)[:found]
-        },
+        "features": {"damage": damage},
+        "evidence": {"damage": [{"start": 0, "end": 12}] if evidence else []},
     }
-    reason = feature_rejection_reason(result, {"fields": fields})
-    if found > 3:
-        assert reason is None
-    else:
-        assert reason == f"insufficient text features ({found}/6; required > 50%)"
+    if optional:
+        for field in ("cause", "limitations"):
+            result["features"][field] = "Source text"
+            result["evidence"][field] = [{"start": 0, "end": 11}]
+    reason = feature_rejection_reason(
+        result,
+        {"fields": {"cause": "Cause", "damage": "Damage", "limitations": "Limitations"}},
+    )
+    assert (reason is None) is (damage == "Złamana noga." and evidence)
+    if reason is not None:
+        assert reason == "missing source-backed damage description"
 
 
 @pytest.mark.parametrize(("similarity", "accepted"), [(0.7, False), (0.7001, True)])

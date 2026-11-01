@@ -179,17 +179,17 @@ async def process(config):
                 finally:
                     decisions.MODEL_CALLS.reset(token)
                     decisions.DECISION_CACHE.reset(cache_token)
-                coverage_reason = feature_rejection_reason(result, config)
+                feature_reason = feature_rejection_reason(result, config)
                 reason = rejection_reason(result, config)
-                if coverage_reason and reason != coverage_reason:
+                if feature_reason and reason != feature_reason:
                     detail = (
-                        coverage_reason
+                        feature_reason
                         if result.get("fields_evaluated", bool(result.get("features")))
                         else "text feature extraction skipped"
                     )
                     reason = f"{reason}; {detail}"
                 if reason is not None and (
-                    not config["api"]["debug"] or coverage_reason
+                    not config["api"]["debug"] or feature_reason
                 ):
                     record["rejected"] = True
                     summary["rejected_records"] += 1

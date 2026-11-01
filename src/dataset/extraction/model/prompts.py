@@ -2,7 +2,7 @@
 
 
 DEFAULTS = {
-    "version": "saos-extraction-20",
+    "version": "saos-extraction-21",
     "chunk_characters": 6000,
     "context_characters": 600,
     "system_one": {
@@ -70,12 +70,9 @@ DEFAULTS = {
 
 
 FEATURE_DESCRIPTIONS = {
-    "event_description": "Co doprowadziło do powstania szkody lub krzywdy?",
-    "harm_description": "Na czym polegała szkoda lub krzywda poszkodowanego?",
-    "harm_duration": "Jak długo trwały negatywne skutki i czy ustąpiły?",
-    "practical_impact": "Jakie czynności, obowiązki lub plany poszkodowanego zostały zakłócone?",
-    "claimant_context": "Jaka była sytuacja osobista, zdrowotna lub zawodowa poszkodowanego przed zdarzeniem?",
-    "remedial_actions": "Jak próbowano usunąć skutki zdarzenia lub ograniczyć ich uciążliwość?",
+    "cause": "Co spowodowało szkodę?",
+    "damage": "Jakiej szkody doznał poszkodowany?",
+    "limitations": "Jakich czynności poszkodowany nie mógł wykonywać?",
 }
 
 

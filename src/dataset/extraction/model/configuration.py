@@ -85,6 +85,8 @@ def load_config(directory=None, overrides=None):
             or len(fields) != len(set(fields))
         ):
             raise ValueError(f"Invalid field names: {key}")
+    if "damage" not in basal["feature_fields"]:
+        raise ValueError("feature_fields must include damage")
     for key in (
         "minimum_probability",
         "maximum_leak_probability",
