@@ -179,7 +179,7 @@ def load_config(directory=None, overrides=None):
     returns:
         Effective validated configuration.
     """
-    from ..get_data import search_settings
+    from ..acquisition.api import search_settings
 
     directory = (
         Path(directory) if directory is not None else ROOT / "configs" / "dataset"

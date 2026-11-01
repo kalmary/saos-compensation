@@ -134,7 +134,7 @@ def test_injured_party_count_is_a_numeric_feature():
     returns:
         None.
     """
-    from src.dataset.get_data import add_metadata_features
+    from src.dataset.records import add_metadata_features
 
     result = {
         "features": {},
@@ -305,7 +305,7 @@ def test_prior_payment_is_exported_only_in_record(tmp_path, prior_payment):
     """
     import json
 
-    from src.dataset.get_data import add_metadata_features, write_result
+    from src.dataset.records import add_metadata_features, write_result
 
     config = basal.load_config(overrides={"debug": True})
     result = {

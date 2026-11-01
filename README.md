@@ -8,7 +8,10 @@ configs/dataset/
   basal.yaml                # device, feature/target selection and thresholds
 src/
   dataset/
-    get_data.py             # dataset CLI entry point
+    get_data.py             # CLI arguments and entry point
+    pipeline.py             # Model lifecycle and pipeline orchestration
+    checkpoints.py          # Resume state and compatibility validation
+    records.py              # Metadata enrichment and record export
     acquisition/            # SAOS access and locality metadata
     extraction/             # Basal features, targets and text validation
     embeddings/             # Sentence encoding and target matching
@@ -64,7 +67,7 @@ uv run --no-sync pytest -q
 
 ## Dataset
 
-[src/dataset/get_data.py](src/dataset/get_data.py) is the entry point. Its supporting modules are grouped under `acquisition/`, `extraction/`, and `embeddings/`, with shared file persistence in `storage.py`. `src.dataset` exports `load_config`, `extract_text` and `extract` for reuse in future inference.
+[src/dataset/get_data.py](src/dataset/get_data.py) is the entry point. Pipeline orchestration lives in `pipeline.py`, resume validation in `checkpoints.py`, and record export in `records.py`. Its supporting modules are grouped under `acquisition/`, `extraction/`, and `embeddings/`, with shared file persistence in `storage.py`. `src.dataset` exports `load_config`, `extract_text` and `extract` for reuse in future inference.
 
 ```bash
 uv run --no-sync src/dataset/get_data.py --help

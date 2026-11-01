@@ -11,7 +11,8 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.dataset import get_data
+from src.dataset import get_data, checkpoints, records, storage, pipeline
+from src.dataset.acquisition import api, download as acquisition
 from src.dataset.extraction import basal_filtering as basal
 from src.dataset.extraction.text import CURRENCY, MONEY, amount_in_pln, extract_text
 
@@ -218,8 +219,8 @@ def test_config_and_path_are_independent_of_working_directory(monkeypatch, tmp_p
     config = basal.load_config()
     assert config == expected
     assert list(config["fields"]) == list(basal.FEATURE_DESCRIPTIONS)
-    assert get_data.ROOT / config["api"]["download_path"] == ROOT / "tmp"
-    start, end, params = get_data.search_settings(CONFIG, date(2024, 2, 29))
+    assert pipeline.ROOT / config["api"]["download_path"] == ROOT / "tmp"
+    start, end, params = api.search_settings(CONFIG, date(2024, 2, 29))
     assert (start, end) == (date(2014, 2, 28), date(2024, 2, 29))
     assert params["judgmentStartDate"] == "2014-02-28"
     assert "all" not in params
@@ -253,7 +254,7 @@ def test_invalid_config_is_rejected(change):
         None.
     """
     with pytest.raises(ValueError):
-        get_data.search_settings({**CONFIG, **change})
+        api.search_settings({**CONFIG, **change})
 
 
 def search_response(params, identifiers, more=False):
@@ -272,12 +273,12 @@ def search_response(params, identifiers, more=False):
         "items": [{"id": identifier} for identifier in identifiers],
         "info": None,
         "queryTemplate": {key: {"value": value} for key, value in params.items()},
-        "links": [{"rel": "self", "href": get_data.BASE_URL + "/dump/judgments"}]
+        "links": [{"rel": "self", "href": api.BASE_URL + "/dump/judgments"}]
         + (
             [
                 {
                     "rel": "next",
-                    "href": get_data.BASE_URL + "/dump/judgments?pageNumber=1",
+                    "href": api.BASE_URL + "/dump/judgments?pageNumber=1",
                 }
             ]
             if more
@@ -319,13 +320,13 @@ def test_pagination_uses_next_without_result_count(
 
         page = int(parse_qs(urlparse(url).query)["pageNumber"][0])
         pages.append(page)
-        _, _, params = get_data.search_settings(CONFIG)
+        _, _, params = api.search_settings(CONFIG)
         params["pageNumber"] = page
         return search_response(params, [page + 1], page < 2)
 
-    monkeypatch.setattr(get_data, "fetch_json", fetch)
+    monkeypatch.setattr(api, "fetch_json", fetch)
     assert len(
-        list(get_data.search_pages({**CONFIG, "max_pages": limit}, tmp_path))
+        list(api.search_pages({**CONFIG, "max_pages": limit}, tmp_path))
     ) == len(expected)
     assert pages == expected
 
@@ -343,7 +344,7 @@ def test_invalid_dump_response_stops_download(monkeypatch, tmp_path, defect):
     returns:
         None.
     """
-    _, _, params = get_data.search_settings(CONFIG)
+    _, _, params = api.search_settings(CONFIG)
     payload = search_response(params, [1, 2], True)
     if defect == "query":
         payload["queryTemplate"]["judgmentStartDate"]["value"] = "2000-01-01"
@@ -355,9 +356,9 @@ def test_invalid_dump_response_stops_download(monkeypatch, tmp_path, defect):
         payload["items"] = []
     else:
         payload["links"] = []
-    monkeypatch.setattr(get_data, "fetch_json", lambda *args: payload)
+    monkeypatch.setattr(api, "fetch_json", lambda *args: payload)
     with pytest.raises(ValueError):
-        get_data.search_judgments(params, tmp_path)
+        api.search_judgments(params, tmp_path)
 
 
 @pytest.mark.parametrize("debug", [False, True])
@@ -434,10 +435,10 @@ def test_http_reads_fresh_data_and_saves_raw_only_in_debug(
         return Response()
 
     monkeypatch.setattr(requests, "get", get)
-    url = get_data.BASE_URL + "/judgments/42"
+    url = api.BASE_URL + "/judgments/42"
     directory = tmp_path if debug else None
-    assert get_data.fetch_json(url, directory, timeout=12) == json.loads(raw)
-    assert get_data.fetch_json(url, directory, timeout=12) == json.loads(raw)
+    assert api.fetch_json(url, directory, timeout=12) == json.loads(raw)
+    assert api.fetch_json(url, directory, timeout=12) == json.loads(raw)
     assert len(calls) == 2 and calls[0]["timeout"] == 12
     assert bool(list(tmp_path.iterdir())) == debug
     if debug:
@@ -477,7 +478,7 @@ def test_http_timeout_is_not_retried(monkeypatch):
 
     monkeypatch.setattr(requests, "get", get)
     with pytest.raises(requests.Timeout):
-        get_data.fetch_json(get_data.BASE_URL + "/dump/judgments", timeout=4)
+        api.fetch_json(api.BASE_URL + "/dump/judgments", timeout=4)
     assert len(calls) == 1
 
 
@@ -538,7 +539,7 @@ def test_invalid_judgments_are_rejected(defect):
     else:
         data["judgmentType"] = "REASONS"
     with pytest.raises(ValueError):
-        get_data.validate_judgment(
+        api.validate_judgment(
             payload, 254930, date(2016, 10, 29), date(2026, 10, 29)
         )
 
@@ -559,28 +560,29 @@ def test_download_deduplicates_filters_and_reports_rejections(
     returns:
         None.
     """
-    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    monkeypatch.setattr(acquisition, "ROOT", tmp_path)
     data = fixture()["data"]
     division = data["division"]
     valid = {**data, "division": {"id": division["id"]}}
     invalid = {**valid, "id": 254931, "textContent": None}
     irrelevant = {**valid, "id": 254932, "textContent": "<p>Inna sprawa.</p>"}
     monkeypatch.setattr(
-        get_data,
+        acquisition,
         "search_pages",
         lambda *args: iter(
             [(0, {"items": [valid, valid, invalid, irrelevant], "links": []})]
         ),
     )
     monkeypatch.setattr(
-        get_data, "load_divisions", lambda *args: {division["id"]: division}
+        acquisition, "load_divisions", lambda *args: {division["id"]: division}
     )
     config = basal.load_config(overrides={**CONFIG, "debug": debug})
-    checkpoint = get_data.load_checkpoint(config)
+    checkpoint = checkpoints.load_checkpoint(config)
     records = []
-    for record in get_data.download(config["api"], checkpoint, "run"):
+    for record in acquisition.download(config["api"], checkpoint, "run"):
         records.append(record)
-        get_data.write_json(
+        storage.write_json(
             tmp_path / "tmp" / str(record["id"]) / "record.json",
             {
                 "id": record["id"],
@@ -613,7 +615,8 @@ def test_partial_network_failure_is_visible(monkeypatch, tmp_path, capsys):
     returns:
         None.
     """
-    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    monkeypatch.setattr(acquisition, "ROOT", tmp_path)
 
     def fail(*args):
         """
@@ -627,12 +630,12 @@ def test_partial_network_failure_is_visible(monkeypatch, tmp_path, capsys):
         """
         raise requests.Timeout("SAOS unavailable")
 
-    monkeypatch.setattr(get_data, "search_pages", fail)
+    monkeypatch.setattr(acquisition, "search_pages", fail)
     config = basal.load_config(overrides=CONFIG)
-    checkpoint = get_data.load_checkpoint(config)
-    get_data.write_json(tmp_path / "tmp/checkpoint.json", checkpoint)
+    checkpoint = checkpoints.load_checkpoint(config)
+    storage.write_json(tmp_path / "tmp/checkpoint.json", checkpoint)
     with pytest.raises(requests.Timeout):
-        list(get_data.download(CONFIG, checkpoint, "run"))
+        list(acquisition.download(CONFIG, checkpoint, "run"))
     report = json.loads(capsys.readouterr().out)
     assert not report["complete"] and report["error"] == "SAOS unavailable"
     assert (tmp_path / "tmp/checkpoint.json").exists()
@@ -721,7 +724,6 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     import sys
     import types
 
-    from src.dataset import get_data as pipeline
 
     config = basal.load_config()
     config["api"]["debug"] = debug
@@ -787,6 +789,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     monkeypatch.setitem(sys.modules, "basal.server", module)
     monkeypatch.setitem(sys.modules, "huggingface_hub", hub)
     monkeypatch.setattr(pipeline, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     monkeypatch.setattr(
         pipeline,
         "download",
@@ -928,7 +931,7 @@ def test_metadata_features_use_judgment_date_instance_and_court_seat(
         "judgmentDate": "2019-12-31",
         "division": {"court": {"name": court_name, "type": "DISTRICT"}},
     }
-    get_data.add_metadata_features(
+    records.add_metadata_features(
         result, record, ["judgment_year", "instance", "court_seat"]
     )
     assert result["features"] == {
@@ -961,7 +964,7 @@ def test_metadata_selection_and_unknown_instance_do_not_infer_from_court_level()
         "judgmentDate": "2020-01-01",
         "division": {"court": {"name": "Sąd Apelacyjny w Krakowie", "type": "APPEAL"}},
     }
-    get_data.add_metadata_features(result, record, ["instance"])
+    records.add_metadata_features(result, record, ["instance"])
     assert result["features"] == {"instance": "not_available"}
     assert result["field_status"] == {"instance": "not_available"}
 
@@ -1141,7 +1144,7 @@ def test_population_feature_uses_official_match_and_preserves_provenance():
         "judgmentDate": "2020-01-01",
         "division": {"court": {"name": "Sąd Okręgowy w Warszawie"}},
     }
-    get_data.add_metadata_features(
+    records.add_metadata_features(
         result,
         record,
         ["court_locality_size"],
@@ -1266,8 +1269,8 @@ def test_court_dump_joins_divisions_across_pages(monkeypatch):
             "links": [{"rel": "next"}] if page == 0 else [],
         }
 
-    monkeypatch.setattr(get_data, "fetch_json", fetch)
-    divisions = get_data.load_divisions(object(), timeout=7)
+    monkeypatch.setattr(api, "fetch_json", fetch)
+    divisions = api.load_divisions(object(), timeout=7)
     assert pages == [0, 1]
     assert divisions[11]["court"] == {"id": 2, "name": "Sąd 1", "type": "REGIONAL"}
 
@@ -1296,9 +1299,9 @@ def test_court_dump_rejects_duplicate_divisions(monkeypatch):
         ],
         "links": [],
     }
-    monkeypatch.setattr(get_data, "fetch_json", lambda *args: payload)
+    monkeypatch.setattr(api, "fetch_json", lambda *args: payload)
     with pytest.raises(ValueError, match="duplicate division"):
-        get_data.load_divisions(object())
+        api.load_divisions(object())
 
 
 @pytest.mark.parametrize(
@@ -1321,10 +1324,10 @@ def test_malformed_court_dump_is_rejected(monkeypatch, court):
         None.
     """
     monkeypatch.setattr(
-        get_data, "fetch_json", lambda *args: {"items": [court], "links": []}
+        api, "fetch_json", lambda *args: {"items": [court], "links": []}
     )
     with pytest.raises(ValueError, match="Invalid court"):
-        get_data.load_divisions(object())
+        api.load_divisions(object())
 
 
 @pytest.mark.parametrize(
@@ -1373,7 +1376,7 @@ def test_explicit_device_configuration_and_availability(
         ),
     )
     monkeypatch.setitem(sys.modules, "torch", fake)
-    get_data.check_device(device)
+    pipeline.check_device(device)
 
 
 @pytest.mark.parametrize("device", ["cuda", "mps"])
@@ -1399,7 +1402,7 @@ def test_unavailable_accelerator_is_reported(monkeypatch, device):
     )
     monkeypatch.setitem(sys.modules, "torch", fake)
     with pytest.raises(RuntimeError, match="unavailable"):
-        get_data.check_device(device)
+        pipeline.check_device(device)
 
 
 def test_missing_pytorch_has_installation_guidance(monkeypatch):
@@ -1414,7 +1417,7 @@ def test_missing_pytorch_has_installation_guidance(monkeypatch):
     """
     monkeypatch.setitem(sys.modules, "torch", None)
     with pytest.raises(RuntimeError, match="pytorch-macos"):
-        get_data.check_device("cpu")
+        pipeline.check_device("cpu")
 
 
 def test_checkpoint_freezes_dates_and_allows_operational_overrides(
@@ -1430,18 +1433,19 @@ def test_checkpoint_freezes_dates_and_allows_operational_overrides(
     returns:
         None.
     """
-    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    monkeypatch.setattr(acquisition, "ROOT", tmp_path)
     config = basal.load_config(overrides=CONFIG)
-    checkpoint = get_data.load_checkpoint(config)
-    checkpoint["request"] = get_data.search_settings(CONFIG, date(2024, 2, 29))[2]
-    get_data.write_json(tmp_path / "tmp/checkpoint.json", checkpoint)
+    checkpoint = checkpoints.load_checkpoint(config)
+    checkpoint["request"] = api.search_settings(CONFIG, date(2024, 2, 29))[2]
+    storage.write_json(tmp_path / "tmp/checkpoint.json", checkpoint)
     changed = basal.load_config(
         overrides={**CONFIG, "debug": True, "timeout": 5, "max_pages": 2, "max_gib": 5}
     )
-    assert get_data.load_checkpoint(changed) == checkpoint
+    assert checkpoints.load_checkpoint(changed) == checkpoint
     changed["system_one"]["minimum_probability"] = 0.8
     with pytest.raises(ValueError, match="Extraction settings changed"):
-        get_data.load_checkpoint(changed)
+        checkpoints.load_checkpoint(changed)
 
 
 def test_resume_skips_committed_records_and_retries_only_unfinished_item(
@@ -1458,9 +1462,10 @@ def test_resume_skips_committed_records_and_retries_only_unfinished_item(
     returns:
         None.
     """
-    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    monkeypatch.setattr(acquisition, "ROOT", tmp_path)
     config = basal.load_config(overrides=CONFIG)
-    checkpoint = get_data.load_checkpoint(config)
+    checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
     items = [
@@ -1482,13 +1487,13 @@ def test_resume_skips_committed_records_and_retries_only_unfinished_item(
         starts.append(args[4])
         return iter([(0, {"items": items, "links": [{"rel": "next"}]})])
 
-    monkeypatch.setattr(get_data, "search_pages", pages)
+    monkeypatch.setattr(acquisition, "search_pages", pages)
     monkeypatch.setattr(
-        get_data, "load_divisions", lambda *args: {division["id"]: division}
+        acquisition, "load_divisions", lambda *args: {division["id"]: division}
     )
-    stream = get_data.download(config["api"], checkpoint, "first")
+    stream = acquisition.download(config["api"], checkpoint, "first")
     assert next(stream)["id"] == 1
-    get_data.write_json(
+    storage.write_json(
         tmp_path / "tmp/1/record.json",
         {
             "id": 1,
@@ -1499,9 +1504,9 @@ def test_resume_skips_committed_records_and_retries_only_unfinished_item(
     )
     assert next(stream)["id"] == 2
     stream.close()
-    resumed = get_data.load_checkpoint(config)
+    resumed = checkpoints.load_checkpoint(config)
     assert resumed["next_item"] == 1
-    stream = get_data.download(config["api"], resumed, "second")
+    stream = acquisition.download(config["api"], resumed, "second")
     assert next(stream)["id"] == 2
     stream.close()
     assert starts == [0, 0]
@@ -1523,23 +1528,24 @@ def test_resume_recognizes_record_saved_before_checkpoint_advance(
     returns:
         None.
     """
-    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    monkeypatch.setattr(acquisition, "ROOT", tmp_path)
     config = basal.load_config(overrides=CONFIG)
-    checkpoint = get_data.load_checkpoint(config)
+    checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
     item = {**data, "division": {"id": division["id"]}}
     monkeypatch.setattr(
-        get_data,
+        acquisition,
         "search_pages",
         lambda *args: iter([(0, {"items": [item], "links": []})]),
     )
     monkeypatch.setattr(
-        get_data, "load_divisions", lambda *args: {division["id"]: division}
+        acquisition, "load_divisions", lambda *args: {division["id"]: division}
     )
-    stream = get_data.download(config["api"], checkpoint, "first")
+    stream = acquisition.download(config["api"], checkpoint, "first")
     assert next(stream)["id"] == data["id"]
-    get_data.write_json(
+    storage.write_json(
         tmp_path / "tmp" / str(data["id"]) / "record.json",
         {
             "id": data["id"],
@@ -1549,8 +1555,8 @@ def test_resume_recognizes_record_saved_before_checkpoint_advance(
         },
     )
     stream.close()
-    resumed = get_data.load_checkpoint(config)
-    assert list(get_data.download(config["api"], resumed, "second")) == []
+    resumed = checkpoints.load_checkpoint(config)
+    assert list(acquisition.download(config["api"], resumed, "second")) == []
     assert resumed["complete"]
     capsys.readouterr()
 
@@ -1567,17 +1573,18 @@ def test_changed_resume_page_is_rejected(monkeypatch, tmp_path, capsys):
     returns:
         None.
     """
-    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    monkeypatch.setattr(acquisition, "ROOT", tmp_path)
     config = basal.load_config(overrides=CONFIG)
-    checkpoint = get_data.load_checkpoint(config)
+    checkpoint = checkpoints.load_checkpoint(config)
     checkpoint["page_ids"] = [1]
     monkeypatch.setattr(
-        get_data,
+        acquisition,
         "search_pages",
         lambda *args: iter([(0, {"items": [{"id": 2}], "links": []})]),
     )
     with pytest.raises(ValueError, match="page contents changed"):
-        list(get_data.download(config["api"], checkpoint, "run"))
+        list(acquisition.download(config["api"], checkpoint, "run"))
     assert not checkpoint["complete"]
     capsys.readouterr()
 
@@ -1596,25 +1603,26 @@ def test_checkpoint_does_not_advance_without_saved_output(
     returns:
         None.
     """
-    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    monkeypatch.setattr(acquisition, "ROOT", tmp_path)
     config = basal.load_config(overrides=CONFIG)
-    checkpoint = get_data.load_checkpoint(config)
+    checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
     item = {**data, "division": {"id": division["id"]}}
     monkeypatch.setattr(
-        get_data,
+        acquisition,
         "search_pages",
         lambda *args: iter([(0, {"items": [item], "links": []})]),
     )
     monkeypatch.setattr(
-        get_data, "load_divisions", lambda *args: {division["id"]: division}
+        acquisition, "load_divisions", lambda *args: {division["id"]: division}
     )
-    stream = get_data.download(config["api"], checkpoint, "run")
+    stream = acquisition.download(config["api"], checkpoint, "run")
     next(stream)
     with pytest.raises(RuntimeError, match="completed record"):
         next(stream)
-    assert get_data.load_checkpoint(config)["next_item"] == 0
+    assert checkpoints.load_checkpoint(config)["next_item"] == 0
     capsys.readouterr()
 
 
@@ -1654,7 +1662,7 @@ def test_export_contains_only_features_targets_and_requested_debug_files(
             "evidence": ["private diagnostics"],
         },
     }
-    get_data.write_result(result, tmp_path, config)
+    records.write_result(result, tmp_path, config)
     assert json.loads((tmp_path / "record.json").read_text()) == {
         "harm_type": "source sentence"
     }
@@ -1755,9 +1763,10 @@ def test_resume_starts_at_next_page_after_network_failure(
     returns:
         None.
     """
-    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    monkeypatch.setattr(acquisition, "ROOT", tmp_path)
     config = basal.load_config(overrides=CONFIG)
-    checkpoint = get_data.load_checkpoint(config)
+    checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
     item = {**data, "division": {"id": division["id"]}}
@@ -1776,13 +1785,13 @@ def test_resume_starts_at_next_page_after_network_failure(
         yield 0, {"items": [item], "links": [{"rel": "next"}]}
         raise requests.Timeout("offline")
 
-    monkeypatch.setattr(get_data, "search_pages", pages)
+    monkeypatch.setattr(acquisition, "search_pages", pages)
     monkeypatch.setattr(
-        get_data, "load_divisions", lambda *args: {division["id"]: division}
+        acquisition, "load_divisions", lambda *args: {division["id"]: division}
     )
-    stream = get_data.download(config["api"], checkpoint, "first")
+    stream = acquisition.download(config["api"], checkpoint, "first")
     next(stream)
-    get_data.write_json(
+    storage.write_json(
         tmp_path / "tmp" / str(data["id"]) / "record.json",
         {
             "id": data["id"],
@@ -1793,15 +1802,15 @@ def test_resume_starts_at_next_page_after_network_failure(
     )
     with pytest.raises(requests.Timeout):
         next(stream)
-    resumed = get_data.load_checkpoint(config)
+    resumed = checkpoints.load_checkpoint(config)
     assert resumed["page"] == 1 and resumed["next_item"] == 0
     starts = []
     monkeypatch.setattr(
-        get_data,
+        acquisition,
         "search_pages",
         lambda *args: starts.append(args[4]) or iter([(1, {"items": [], "links": []})]),
     )
-    assert list(get_data.download(config["api"], resumed, "second")) == []
+    assert list(acquisition.download(config["api"], resumed, "second")) == []
     assert starts == [1] and resumed["complete"]
     capsys.readouterr()
 
@@ -1820,25 +1829,26 @@ def test_rejected_record_advances_checkpoint_without_case_files(
     returns:
         None.
     """
-    monkeypatch.setattr(get_data, "ROOT", tmp_path)
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    monkeypatch.setattr(acquisition, "ROOT", tmp_path)
     config = basal.load_config(overrides=CONFIG)
-    checkpoint = get_data.load_checkpoint(config)
+    checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
     item = {**data, "division": {"id": division["id"]}}
     monkeypatch.setattr(
-        get_data,
+        acquisition,
         "search_pages",
         lambda *args: iter([(0, {"items": [item], "links": []})]),
     )
     monkeypatch.setattr(
-        get_data, "load_divisions", lambda *args: {division["id"]: division}
+        acquisition, "load_divisions", lambda *args: {division["id"]: division}
     )
-    stream = get_data.download(config["api"], checkpoint, "run")
+    stream = acquisition.download(config["api"], checkpoint, "run")
     record = next(stream)
     record["rejected"] = True
     assert list(stream) == []
-    assert get_data.load_checkpoint(config)["complete"]
+    assert checkpoints.load_checkpoint(config)["complete"]
     assert not (tmp_path / "tmp" / str(data["id"])).exists()
     capsys.readouterr()
 
@@ -1923,8 +1933,8 @@ def test_debug_export_preserves_low_confidence_proposal_with_invalid_flag(tmp_pa
         {"noul": 0.4},
     )
     result = {"features": {}, "award": award, "source_text": "Source."}
-    assert get_data.rejection_reason(result, config) is not None
-    get_data.write_result(result, tmp_path, config)
+    assert records.rejection_reason(result, config) is not None
+    records.write_result(result, tmp_path, config)
     assert json.loads((tmp_path / "award.json").read_text()) == {
         "total": "6300",
         "valid": False,
