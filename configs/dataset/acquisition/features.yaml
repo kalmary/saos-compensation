@@ -5,10 +5,8 @@ metadata_fields:
 - injured_party_count # Explicit recipients; defaults to 1 when unavailable.
 - court_locality_size # Population class of the court locality (GUGiK).
 
+# At least one selected text field must have accepted source evidence.
 text_fields:
   cause: "Co spowodowało szkodę?"
   damage: "Jakiej szkody doznał poszkodowany?"
   limitations: "Jakie czynności były utrudnione lub niemożliwe?"
-
-required_fields:
-- damage

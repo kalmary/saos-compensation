@@ -34,7 +34,7 @@ def config_directory(tmp_path):
     [
         ("features.yaml", "metadata_fields", ["unknown"]),
         ("features.yaml", "metadata_fields", ["instance", "instance"]),
-        ("features.yaml", "text_fields", {"cause": "Co się stało?"}),
+        ("features.yaml", "text_fields", {}),
         ("features.yaml", "text_fields", {"damage": " "}),
         ("features.yaml", "text_fields", {"damage": 123}),
         ("features.yaml", "text_fields", {"damage": "Szkoda?", "instance": "Etap?"}),

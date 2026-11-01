@@ -210,19 +210,16 @@ def test_award_rejection_reports_probability_and_threshold(
     assert rejection_reason(result, config) == expected
 
 
-@pytest.mark.parametrize(
-    "damage",
-    [None, "", " ", "brak informacji", "not_available", 123, "Złamana noga."],
-)
+@pytest.mark.parametrize("field", ["cause", "damage", "limitations"])
+@pytest.mark.parametrize("value", [None, "", " ", "brak informacji", "not_available", 123, "Source text"])
 @pytest.mark.parametrize("evidence", [False, True])
-@pytest.mark.parametrize("optional", [False, True])
-def test_only_source_backed_damage_is_required(damage, evidence, optional):
-    """Accept damage alone and reject absent damage despite populated optional fields.
+def test_any_source_backed_text_feature_is_sufficient(field, value, evidence):
+    """Accept each text feature alone and reject absent or ungrounded descriptions.
 
     args:
-        damage: Missing, malformed or usable damage description.
-        evidence: Whether damage has source evidence.
-        optional: Whether cause and limitations are populated.
+        field: Sole populated text field.
+        value: Missing, malformed or usable description.
+        evidence: Whether the description has source evidence.
 
     returns:
         None.
@@ -230,20 +227,32 @@ def test_only_source_backed_damage_is_required(damage, evidence, optional):
     from src.dataset.extraction.quality import feature_rejection_reason
 
     result = {
-        "features": {"damage": damage},
-        "evidence": {"damage": [{"start": 0, "end": 12}] if evidence else []},
+        "features": {field: value, "judgment_year": 2020, "injured_party_count": 1},
+        "evidence": {field: [{"start": 0, "end": 11}] if evidence else []},
     }
-    if optional:
-        for field in ("cause", "limitations"):
-            result["features"][field] = "Source text"
-            result["evidence"][field] = [{"start": 0, "end": 11}]
-    reason = feature_rejection_reason(
-        result,
-        {"fields": {"cause": "Cause", "damage": "Damage", "limitations": "Limitations"}},
-    )
-    assert (reason is None) is (damage == "Złamana noga." and evidence)
+    config = {"fields": {name: "Question" for name in ("cause", "damage", "limitations")}}
+    reason = feature_rejection_reason(result, config)
+    assert (reason is None) is (value == "Source text" and evidence)
     if reason is not None:
-        assert reason == "missing source-backed damage description"
+        assert reason == "no source-backed text feature"
+
+
+def test_metadata_and_unselected_text_do_not_satisfy_admission():
+    """Count only configured text predictors toward the minimum feature requirement.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    from src.dataset.extraction.quality import feature_rejection_reason
+
+    result = {
+        "features": {"judgment_year": 2020, "other": "Source text"},
+        "evidence": {"other": [{"start": 0, "end": 11}]},
+    }
+    assert feature_rejection_reason(result, {"fields": {"cause": "Cause"}}) is not None
 
 
 @pytest.mark.parametrize(("similarity", "accepted"), [(0.7, False), (0.7001, True)])

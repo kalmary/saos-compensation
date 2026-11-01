@@ -51,23 +51,24 @@ def rejection_reason(result, config):
 
 
 def feature_rejection_reason(result, config):
-    """Require a source-backed damage description without a coverage threshold.
+    """Require an accepted source-backed value for at least one selected text field.
 
     args:
         result: Extracted feature values and source evidence.
-        config: Effective feature selection.
+        config: Effective text feature selection; metadata is excluded.
 
     returns:
-        Missing-damage rejection reason, or None when damage is source-backed.
+        Rejection reason when no source-backed text feature exists, otherwise None.
     """
-    value = result.get("features", {}).get("damage")
-    if (
-        not isinstance(value, str)
-        or value.strip() in ("", "brak informacji", "not_available")
-        or not result.get("evidence", {}).get("damage")
-    ):
-        return "missing source-backed damage description"
-    return None
+    for field in config["fields"]:
+        value = result.get("features", {}).get(field)
+        if (
+            isinstance(value, str)
+            and value.strip() not in ("", "brak informacji", "not_available")
+            and result.get("evidence", {}).get(field)
+        ):
+            return None
+    return "no source-backed text feature"
 
 
 

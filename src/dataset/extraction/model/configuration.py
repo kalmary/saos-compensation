@@ -55,9 +55,9 @@ def load_config(directory=None, overrides=None):
     if set(targets) != {"embedding", "patterns"}:
         raise ValueError("targets.yaml requires embedding and patterns")
     embedding, patterns = targets["embedding"], targets["patterns"]
-    if set(features) != {"metadata_fields", "text_fields", "required_fields"}:
+    if set(features) != {"metadata_fields", "text_fields"}:
         raise ValueError(
-            "features.yaml requires metadata_fields, text_fields and required_fields"
+            "features.yaml requires metadata_fields and text_fields"
         )
     metadata = features["metadata_fields"]
     if (
@@ -72,7 +72,7 @@ def load_config(directory=None, overrides=None):
     fields = features["text_fields"]
     if (
         not isinstance(fields, dict)
-        or "damage" not in fields
+        or not fields
         or any(
             not isinstance(name, str)
             or re.fullmatch(r"[a-z][a-z0-9_]*", name) is None
@@ -83,10 +83,8 @@ def load_config(directory=None, overrides=None):
         )
     ):
         raise ValueError(
-            "text_fields must include damage and map field names to nonempty questions"
+            "text_fields must be nonempty and map field names to nonempty questions"
         )
-    if features["required_fields"] != ["damage"]:
-        raise ValueError("required_fields must contain only damage")
     validate_settings(embedding, patterns)
     api.update(overrides or {})
     search_settings(api)

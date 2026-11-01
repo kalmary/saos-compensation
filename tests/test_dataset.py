@@ -706,6 +706,7 @@ def test_basal_validates_historical_requests_and_responses(monkeypatch, tmp_path
     assert len(seen) == len(calls)
 
 
+@pytest.mark.parametrize("text_field", ["cause", "damage", "limitations"])
 @pytest.mark.parametrize("debug", [False, True])
 @pytest.mark.parametrize("low_confidence", [False, True])
 @pytest.mark.parametrize("missing_target", [False, True])
@@ -718,6 +719,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     missing_target,
     sparse_features,
     capsys,
+    text_field,
 ):
     """
     Verify pipeline writes separate outputs and stops worker.
@@ -728,8 +730,9 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         debug: Whether to save diagnostic artifacts.
         low_confidence: Whether target verification falls below the threshold.
         missing_target: Whether no monetary target could be established.
-        sparse_features: Whether missing damage must discard even debug cases.
+        sparse_features: Whether missing text evidence must discard even debug cases.
         capsys: Captured console output.
+        text_field: Sole populated text predictor.
 
     returns:
         None.
@@ -837,18 +840,17 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         return {
             "id": identifier,
             "features": {
-                "cause": "brak informacji",
-                "damage": "brak informacji" if sparse_features else text,
-                "limitations": "brak informacji",
+                **{field: "brak informacji" for field in config["fields"]},
+                text_field: "brak informacji" if sparse_features else text,
             },
             "evidence": {}
             if sparse_features
-            else {"damage": [{"start": 0, "end": len(text)}]},
+            else {text_field: [{"start": 0, "end": len(text)}]},
             "description_reviews": [
                 {
                     "start": 0,
                     "end": len(text),
-                    "answers": {"wyciek": {"noul": 0.01}, "fit_damage": {"noul": 0.9}},
+                    "answers": {"wyciek": {"noul": 0.01}, f"fit_{text_field}": {"noul": 0.9}},
                 }
             ],
             "award": amounts.finish_award(
@@ -881,9 +883,8 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
         return
     record = json.loads((path / "record.json").read_text())
     assert record == {
-        "cause": "not_available",
-        "damage": "Opis.",
-        "limitations": "not_available",
+        **{field: "not_available" for field in config["fields"]},
+        text_field: "Opis.",
         "judgment_year": 2020,
         "instance": "pierwsza",
         "court_seat": "Płocku",
@@ -990,9 +991,9 @@ def test_metadata_selection_and_unknown_instance_do_not_infer_from_court_level()
     assert result["field_status"] == {"instance": "not_available"}
 
 
-def test_config_requires_damage_with_metadata_selection(tmp_path):
+def test_config_requires_text_fields_with_metadata_selection(tmp_path):
     """
-    Require damage while keeping metadata outside the model text schema.
+    Require text questions without requiring a specific field or embedding metadata.
 
     args:
         tmp_path: Isolated temporary directory.
@@ -1007,9 +1008,9 @@ def test_config_requires_damage_with_metadata_selection(tmp_path):
     config["metadata_fields"] = list(prompts.METADATA_FIELDS)
     config["text_fields"] = {}
     (tmp_path / "features.yaml").write_text(yaml.safe_dump(config))
-    with pytest.raises(ValueError, match="must include damage"):
+    with pytest.raises(ValueError, match="must be nonempty"):
         config_module.load_config(tmp_path)
-    config["text_fields"]["damage"] = "Jakiej szkody doznał poszkodowany?"
+    config["text_fields"]["cause"] = "Co spowodowało szkodę?"
     (tmp_path / "features.yaml").write_text(yaml.safe_dump(config))
     loaded = config_module.load_config(tmp_path)
     assert loaded["metadata_fields"] == list(prompts.METADATA_FIELDS)
