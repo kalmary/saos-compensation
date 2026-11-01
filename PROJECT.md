@@ -42,6 +42,8 @@ The second milestone is complete when target extraction and the feature schema r
 
 ### 3. Vectorize and train
 
+`from src.dataset.embeddings import create_embeddings` exposes reusable encoding in src/dataset/embeddings/encoding.py. Call create_embeddings(texts, settings) with a nonempty list of nonblank strings and encoder settings (model, revision, device, batch_size, max_length); matcher-specific settings are optional and ignored by the encoder. It returns an N-by-D float32 PyTorch tensor on the selected device, preserving text and input order and pooling every token window. Encoding settings and input batches are validated before model loading. The last loaded encoder is cached by encoding settings only. The target matcher uses this function for patterns and candidates; monetary normalization remains in target_matching.py, so unrelated callers embed their original text. No model is loaded on import. This extraction of the encoder preserves vector values, configuration, output schema and checkpoint compatibility; it does not implement feature-vector persistence or regressor preprocessing.
+
 `src/dataset/embeddings/cosine_similarity.py` compares existing embedding vectors or matrices using PyTorch on explicit cpu, mps or cuda devices. It returns an N-by-M float32 similarity tensor on the selected device, validates finite nonzero real vectors and matching dimensions, and rejects unavailable accelerators. It does not generate embeddings or connect target phrase templates to acquisition.
 
 1. Create reproducible train, validation, and test splits before fitting preprocessing.

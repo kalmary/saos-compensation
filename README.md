@@ -123,6 +123,18 @@ The workflow avoids preliminary passage classification and checks only field can
 
 Research experiments can be kept locally in `notebooks/`; only `.gitkeep` is tracked. Tests for those experiments skip when local files or their legacy configuration are absent. See [PROJECT.md](PROJECT.md) for the full workflow.
 
+## Reusable embeddings
+
+```python
+from src.dataset import load_config
+from src.dataset.embeddings import create_embeddings
+
+settings = load_config()["embedding"]
+vectors = create_embeddings(["Opis szkody.", "Ograniczenia w pracy."], settings)
+```
+
+The function also accepts an independent settings mapping containing only `model`, `revision`, `device`, `batch_size` and `max_length`. It returns an `(N, D)` float32 PyTorch tensor on the selected device, retaining input order and original text, including monetary values. It uses all token windows and the existing mean pooling. Empty batches and blank/non-string inputs are rejected before model loading. Models load lazily and the last encoder is reused for unchanged encoding settings; target thresholds, keywords and patterns do not affect this cache. The target matcher calls the same function, applying its own amount neutralization beforehand. Importing the function does not load weights or require target patterns.
+
 ## ML pipeline
 
 _To be implemented: reviewed labels, leakage checks, grouped splits and field vectorization._

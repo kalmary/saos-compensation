@@ -178,7 +178,7 @@ def test_long_sentence_windows_are_pooled_without_dropping_tokens():
     """
     from types import SimpleNamespace
 
-    from src.dataset.embeddings.target_matching import SentenceEncoder
+    from src.dataset.embeddings.encoding import SentenceEncoder
 
     encoder = SentenceEncoder.__new__(SentenceEncoder)
     encoder.settings = {**SETTINGS, "batch_size": 2}
