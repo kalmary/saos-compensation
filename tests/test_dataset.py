@@ -11,7 +11,9 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.dataset import get_data, checkpoints, records, storage, pipeline
+from src.dataset import get_data
+from src.dataset.acquisition import checkpoints, pipeline
+from src.dataset.storage import files as storage, records
 from src.dataset.acquisition import api, download as acquisition
 from src.dataset.extraction import basal_filtering as basal
 from src.dataset.extraction.text import CURRENCY, MONEY, amount_in_pln, extract_text
@@ -1701,7 +1703,7 @@ def test_output_limit_counts_existing_files_and_persists_across_resumes(tmp_path
     returns:
         None.
     """
-    from src.dataset.storage import (
+    from src.dataset.storage.files import (
         StorageLimitError,
         output_limit,
         write_bytes,
@@ -1731,7 +1733,7 @@ def test_output_limit_preserves_existing_record_and_counts_atomic_temporary_file
     returns:
         None.
     """
-    from src.dataset.storage import (
+    from src.dataset.storage.files import (
         StorageLimitError,
         output_limit,
         write_bytes,

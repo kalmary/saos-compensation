@@ -8,7 +8,7 @@ from pathlib import Path
 
 import requests
 
-from ..storage import write_bytes, write_json
+from ..storage.files import write_bytes, write_json
 from ..extraction.text import extract_text
 
 BASE_URL = "https://www.saos.org.pl/api"

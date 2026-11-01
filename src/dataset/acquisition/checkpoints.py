@@ -6,9 +6,9 @@ from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
-from .acquisition.api import search_settings
+from .api import search_settings
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def load_checkpoint(config):

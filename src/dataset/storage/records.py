@@ -3,8 +3,8 @@
 import re
 from datetime import date
 
-from .extraction.quality import rejection_reason
-from .storage import write_bytes, write_json
+from ..extraction.quality import rejection_reason
+from .files import write_bytes, write_json
 
 
 def add_metadata_features(result, record, fields, localities=None):

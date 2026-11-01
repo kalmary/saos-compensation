@@ -75,7 +75,7 @@ Expose only values deliberately selected between experiments. Keep model prompts
 ## Initial technical decisions
 
 - Runtime: Python 3.12 managed with `uv`; sync groups/extras first, then execute with `uv run --no-sync`.
-- Dataset entry point: src/dataset/get_data.py handles CLI arguments only. src/dataset/pipeline.py coordinates model lifecycle and extraction; acquisition/api.py validates SAOS responses and settings; acquisition/download.py handles resumable downloads; checkpoints.py validates progress; records.py enriches and exports records. Extraction and embedding code have separate packages; storage.py provides shared atomic writes and size limits. CLI flags, checkpoint compatibility and local record schemas are unchanged by this organization.
+- Dataset entry point: src/dataset/get_data.py handles CLI arguments only. src/dataset/acquisition/pipeline.py coordinates model lifecycle and extraction; acquisition/api.py validates SAOS responses and settings; acquisition/download.py handles resumable downloads; acquisition/checkpoints.py validates progress; storage/records.py enriches and exports records. Extraction and embedding code have separate packages; storage/files.py provides shared atomic writes and size limits. CLI flags, checkpoint compatibility and local record schemas are unchanged by this organization.
 - Current outputs: local per-judgment records and a resume checkpoint; diagnostic artifacts only in debug mode.
 - Planned database: PostgreSQL with JSONB and pgvector.
 - Configuration: YAML.

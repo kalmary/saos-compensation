@@ -1302,7 +1302,7 @@ async def run(texts=None, config=None):
 
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
-    from src.dataset.pipeline import check_device
+    from src.dataset.acquisition.pipeline import check_device
 
     check_device(model["device"])
     print(

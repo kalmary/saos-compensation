@@ -10,7 +10,7 @@ from pathlib import Path
 
 import requests
 
-from ..storage import write_bytes, write_json
+from ..storage.files import write_bytes, write_json
 
 SOURCE = "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/OT_ADMS_P.gpkg"
 
