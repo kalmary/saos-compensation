@@ -30,8 +30,9 @@ def add_metadata_features(result, record, fields, localities=None):
         "court_seat": locality[1].strip() if locality else "not_available",
     }
     if "injured_party_count" in fields:
-        values["injured_party_count"] = result["award"].get(
-            "injured_party_count", "not_available"
+        count = result["award"].get("injured_party_count")
+        values["injured_party_count"] = (
+            1 if count in (None, "not_available", "brak informacji") else count
         )
     if "prior_payment" in fields:
         values["prior_payment"] = result.get("prior_payment", 0)
@@ -58,7 +59,9 @@ def add_metadata_features(result, record, fields, localities=None):
         }
     if "injured_party_count" in fields:
         sources["injured_party_count"] = {
-            "source": "explicit recipients in the embedding-selected judgment sentence"
+            "source": "defaulted to one; recipient count unavailable"
+            if count in (None, "not_available", "brak informacji")
+            else "explicit recipients in the embedding-selected judgment sentence"
         }
     if "prior_payment" in fields:
         sources["prior_payment"] = {
@@ -76,6 +79,8 @@ def add_metadata_features(result, record, fields, localities=None):
         result["field_status"][field] = (
             "earlier principal payment in whole PLN; zero without confirmation"
             if field == "prior_payment"
+            else sources[field]["source"]
+            if field == "injured_party_count"
             else "not_available"
             if values[field] == "not_available"
             else "review required"

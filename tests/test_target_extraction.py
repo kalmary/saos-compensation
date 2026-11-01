@@ -60,12 +60,24 @@ def test_missing_judgment_never_reaches_basal(monkeypatch):
     assert result["target_matches"]["judgment"] is None
 
 
-def test_injured_party_count_is_a_numeric_feature():
+@pytest.mark.parametrize(
+    ("award", "expected"),
+    [
+        ({}, 1),
+        ({"injured_party_count": None}, 1),
+        ({"injured_party_count": "not_available"}, 1),
+        ({"injured_party_count": "brak informacji"}, 1),
+        ({"injured_party_count": 1}, 1),
+        ({"injured_party_count": 2}, 2),
+    ],
+)
+def test_injured_party_count_is_a_numeric_feature(award, expected):
     """
-    Expose the resolved recipient count as a configured predictor feature.
+    Default missing recipient counts to one without replacing known counts.
 
     args:
-        None.
+        award: Resolved or missing recipient count.
+        expected: Exported numeric predictor value.
 
     returns:
         None.
@@ -77,7 +89,7 @@ def test_injured_party_count_is_a_numeric_feature():
         "evidence": {},
         "confidence": {},
         "field_status": {},
-        "award": {"injured_party_count": 2},
+        "award": award,
         "instance": {"value": "pierwsza", "decision": {"confidence": 0.9}},
     }
     record = {
@@ -85,7 +97,8 @@ def test_injured_party_count_is_a_numeric_feature():
         "division": {"court": {"name": "Sąd w Warszawie"}},
     }
     add_metadata_features(result, record, ["injured_party_count"], None)
-    assert result["features"] == {"injured_party_count": 2}
+    assert result["features"] == {"injured_party_count": expected}
+    assert type(result["features"]["injured_party_count"]) is int
 
 
 @pytest.mark.parametrize(
