@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+The acquisition work is split into stacked pull requests: #5 (`feature/inspect-data` → `main`) retains 24 commits through 20a33fb; #6 (`freature/inspect-data/refactor` → `feature/inspect-data`) contains the November 1 refactor. Existing commits are preserved, and backup/inspect-data-before-stack-20261101 retains the full pre-split history locally and remotely. Merge #5 before #6; application tests were not rerun for the branch split.
+
 Reusable embedding creation is available as src.dataset.embeddings.create_embeddings(texts, settings). Encoding/model caching is separate from target matching; generic callers retain original text while the matcher applies its own monetary normalization. Runtime configuration, vectors, output schema and extraction version remain unchanged by this refactor.
 
 The exported injured_party_count predictor defaults to integer 1 when unavailable, preserving explicit counts. This default is applied only during feature enrichment and does not resolve unknown per-person target counts. Extraction version 23 requires a fresh output path for older checkpoints.
@@ -44,8 +46,6 @@ The v19 comparison on the same four saved cases produced 4/6, 0/6, 2/6 and 3/6 t
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-10-30: Implemented dump-based acquisition and court metadata joins, YAML-default CLI overrides, one-request HTTP Session access with timeout, combined per-judgment feature/target exports, debug-only source/model/evidence persistence and GUGiK population-class enrichment. Preserved source text/amount boundaries and all ten saved Basal replays. Passed 170 tests; independent extraction quality, historical demographics and downstream modeling remain unverified.
 
 - 2026-10-30: Hardened dump/court metadata validation and applied the configured timeout to GUGiK as well. Passed 175 tests and static import/name checks. Live one-page SAOS acquisition selected 8 of 100 documents and reported 3 empty-text rejections; a fresh Basal run for 294466 completed 101 uncached calls and verified that debug=false leaves only record.json. The case produced three descriptions and explicitly unallocated targets for multiple beneficiaries. Full-corpus inference and independent extraction accuracy were not evaluated.
 
@@ -144,3 +144,5 @@ The v19 comparison on the same four saved cases produced 4/6, 0/6, 2/6 and 3/6 t
 - 2026-11-01: Replaced damage-specific admission with at least one accepted source-backed configured text feature. Removed required_fields from features.yaml and the requirement to select damage, while retaining nonempty question mappings. Metadata does not count; target, source, relevance and leakage checks remain active. Updated normal/debug pipeline tests for cause-only, damage-only, limitations-only and no-text records. Advanced extractor to version 23, requiring a fresh output path for older checkpoints. Validation: 367 tests passed, three skipped; no live inference or existing-record rewrite.
 
 - 2026-11-01: Moved SentenceEncoder and encoder-only validation into embeddings/encoding.py and exported create_embeddings(texts, settings) from src.dataset.embeddings. Target matching reuses the function with its existing normalization and pattern cache. Added input/settings validation and lazy reuse keyed only by encoder settings, preserving long-text window pooling and vector order. Validation: 380 tests passed, three skipped; cached CPU inference produced exactly identical 2-by-384 float32 vectors before/after extraction. MPS/CUDA and Basal inference were not rerun.
+
+- 2026-11-01: Split PR #5 at 20a33fb using an exact-SHA force-with-lease after pushing backup/inspect-data-before-stack-20261101. Retained the existing freature/inspect-data/refactor branch and opened PR #6 against feature/inspect-data, preserving all 17 existing November 1 commits and PR #5 history. Verified branch ancestry, clean application files and both open PR bases. No application source changes, tests or inference runs; a documentation-only commit records this operational change.
