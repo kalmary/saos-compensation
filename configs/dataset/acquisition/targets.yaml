@@ -4,7 +4,7 @@ embedding:
   device: mps # cpu, mps or cuda.
   batch_size: 64
   max_length: 128 # Longer sentences use all token windows, without dropping the tail.
-  minimum_cosine_similarity: 0.7 # Winning score must be strictly greater.
+  minimum_cosine_similarity: 0.7 # Winning score must be strictly greater. If more than one is, highest score wins
 
   # Target and exclusion groups compete by similarity; shared stems enable target roles.
   candidate_keywords:
