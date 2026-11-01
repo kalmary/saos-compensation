@@ -3,7 +3,7 @@
 import re
 from decimal import Decimal
 
-from .target_matching import match_targets
+from ..embeddings.target_matching import match_targets
 from .text import MONEY, REASONS, amount_in_pln
 
 

@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.dataset.processing import basal_filtering as basal
+from src.dataset.extraction import basal_filtering as basal
 
 
 @pytest.mark.parametrize(

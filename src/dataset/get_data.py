@@ -17,15 +17,15 @@ import requests
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.dataset.processing.quality import feature_rejection_reason, rejection_reason
-from src.dataset.processing.storage import (
+from src.dataset.extraction.quality import feature_rejection_reason, rejection_reason
+from src.dataset.storage import (
     StorageLimitError,
     output_limit,
     remove_tree,
     write_bytes,
     write_json,
 )
-from src.dataset.processing.text import MONEY, extract_text
+from src.dataset.extraction.text import MONEY, extract_text
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_URL = "https://www.saos.org.pl/api"
@@ -612,7 +612,7 @@ def add_metadata_features(result, record, fields, localities=None):
     if "prior_payment" in fields:
         values["prior_payment"] = result.get("prior_payment", 0)
     if "court_locality_size" in fields:
-        from src.dataset.processing.localities import locality_class, match_locality
+        from src.dataset.acquisition.localities import locality_class, match_locality
 
         rows, morphology, metadata = localities
         matched, reason = match_locality(court["name"], rows, morphology)
@@ -756,7 +756,7 @@ async def process(config):
     returns:
         None.
     """
-    from src.dataset.processing import basal_filtering as basal
+    from src.dataset.extraction import basal_filtering as basal
 
     directory = ROOT / config["api"]["download_path"]
     checkpoint = load_checkpoint(config)
@@ -780,7 +780,7 @@ async def process(config):
     if "court_locality_size" in config["metadata_fields"]:
         import morfeusz2
 
-        from src.dataset.processing.localities import load_localities
+        from src.dataset.acquisition.localities import load_localities
 
         rows, metadata = load_localities(
             ROOT / "tmp" / "gugik",
@@ -983,7 +983,7 @@ def main():
     returns:
         None.
     """
-    from src.dataset.processing.basal_filtering import load_config
+    from src.dataset.extraction.basal_filtering import load_config
 
     options = vars(parse_arguments())
     directory = options.pop("config_dir")

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from src.dataset.processing import target_matching
+from src.dataset.embeddings import target_matching
 
 KEYWORDS = {
     "judgment": ["zasądz"],
@@ -155,7 +155,7 @@ def test_configured_cost_keywords_distinguish_treatment_from_procedure():
     returns:
         None.
     """
-    from src.dataset.processing.basal_filtering import load_config
+    from src.dataset.extraction.basal_filtering import load_config
 
     keywords = load_config()["embedding"]["candidate_keywords"]
     (treatment,) = target_matching.candidate_sentences(

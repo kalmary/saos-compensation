@@ -42,7 +42,7 @@ The second milestone is complete when target extraction and the feature schema r
 
 ### 3. Vectorize and train
 
-`src/dataset/processing/cosine_similarity.py` compares existing embedding vectors or matrices using PyTorch on explicit cpu, mps or cuda devices. It returns an N-by-M float32 similarity tensor on the selected device, validates finite nonzero real vectors and matching dimensions, and rejects unavailable accelerators. It does not generate embeddings or connect target phrase templates to acquisition.
+`src/dataset/embeddings/cosine_similarity.py` compares existing embedding vectors or matrices using PyTorch on explicit cpu, mps or cuda devices. It returns an N-by-M float32 similarity tensor on the selected device, validates finite nonzero real vectors and matching dimensions, and rejects unavailable accelerators. It does not generate embeddings or connect target phrase templates to acquisition.
 
 1. Create reproducible train, validation, and test splits before fitting preprocessing.
 2. Encode each configured field appropriately: embeddings for free text, categorical encoders for categories, and scaled numeric values where needed.
@@ -75,7 +75,7 @@ Expose only values deliberately selected between experiments. Keep model prompts
 ## Initial technical decisions
 
 - Runtime: Python 3.12 managed with `uv`; sync groups/extras first, then execute with `uv run --no-sync`.
-- Dataset entry point: src/dataset/get_data.py; supporting modules live under src/dataset/processing/.
+- Dataset entry point: src/dataset/get_data.py; supporting modules are grouped by acquisition, extraction and embeddings, with shared file persistence in src/dataset/storage.py.
 - Current outputs: local per-judgment records and a resume checkpoint; diagnostic artifacts only in debug mode.
 - Planned database: PostgreSQL with JSONB and pgvector.
 - Configuration: YAML.

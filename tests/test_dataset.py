@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.dataset import get_data
-from src.dataset.processing import basal_filtering as basal
-from src.dataset.processing.text import CURRENCY, MONEY, amount_in_pln, extract_text
+from src.dataset.extraction import basal_filtering as basal
+from src.dataset.extraction.text import CURRENCY, MONEY, amount_in_pln, extract_text
 
 FIELD_NAMES = {
     "zdarzenie_i_okolicznosci": "event_circumstances",
@@ -1166,7 +1166,7 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
     """
     import sqlite3
 
-    from src.dataset.processing import localities
+    from src.dataset.acquisition import localities
 
     source = tmp_path / "source.gpkg"
     with sqlite3.connect(source) as connection:
@@ -1693,7 +1693,7 @@ def test_output_limit_counts_existing_files_and_persists_across_resumes(tmp_path
     returns:
         None.
     """
-    from src.dataset.processing.storage import (
+    from src.dataset.storage import (
         StorageLimitError,
         output_limit,
         write_bytes,
@@ -1723,7 +1723,7 @@ def test_output_limit_preserves_existing_record_and_counts_atomic_temporary_file
     returns:
         None.
     """
-    from src.dataset.processing.storage import (
+    from src.dataset.storage import (
         StorageLimitError,
         output_limit,
         write_bytes,

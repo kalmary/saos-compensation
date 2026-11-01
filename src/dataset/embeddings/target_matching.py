@@ -6,7 +6,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from .text import MONEY, sentence_fragments
+from ..extraction.text import MONEY, sentence_fragments
 
 ROOT = Path(__file__).resolve().parents[3]
 TARGET_CLASSES = ("judgment", "request")

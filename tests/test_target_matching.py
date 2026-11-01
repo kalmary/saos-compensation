@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 torch = pytest.importorskip("torch")
-from src.dataset.processing.target_matching import (
+from src.dataset.embeddings.target_matching import (
     PATTERN_CLASSES,
     TargetMatcher,
     prepare_text,
@@ -178,7 +178,7 @@ def test_long_sentence_windows_are_pooled_without_dropping_tokens():
     """
     from types import SimpleNamespace
 
-    from src.dataset.processing.target_matching import SentenceEncoder
+    from src.dataset.embeddings.target_matching import SentenceEncoder
 
     encoder = SentenceEncoder.__new__(SentenceEncoder)
     encoder.settings = {**SETTINGS, "batch_size": 2}

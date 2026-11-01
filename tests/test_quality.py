@@ -1,6 +1,6 @@
 """Dataset admission boundaries without model inference."""
 
-from src.dataset.processing.quality import rejection_reason
+from src.dataset.extraction.quality import rejection_reason
 
 
 def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
@@ -89,7 +89,7 @@ import asyncio
 
 import pytest
 
-from src.dataset.processing import basal_filtering as basal
+from src.dataset.extraction import basal_filtering as basal
 
 
 @pytest.mark.parametrize(
@@ -219,7 +219,7 @@ def test_text_feature_coverage_requires_strict_majority_and_ignores_metadata(fou
     returns:
         None.
     """
-    from src.dataset.processing.quality import feature_rejection_reason
+    from src.dataset.extraction.quality import feature_rejection_reason
 
     fields = {f"field_{index}": "Description" for index in range(6)}
     result = {
@@ -251,7 +251,7 @@ def test_target_admission_uses_strict_cosine_threshold(similarity, accepted):
     returns:
         None.
     """
-    from src.dataset.processing.quality import target_rejection_reason
+    from src.dataset.extraction.quality import target_rejection_reason
 
     config = basal.load_config()
     award = {
@@ -273,7 +273,7 @@ def test_unverified_target_reports_amount_classification_instead_of_missing_prob
     returns:
         None.
     """
-    from src.dataset.processing.quality import target_rejection_reason
+    from src.dataset.extraction.quality import target_rejection_reason
 
     award = {
         "target_matches": {"judgment": {"similarity": 0.85}},

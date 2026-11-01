@@ -13,9 +13,9 @@ import yaml
 
 from . import text as api
 from .quality import target_rejection_reason
-from .target_matching import validate_settings
+from ..embeddings.target_matching import validate_settings
 from .text import sentence_fragments
-from .storage import write_json
+from ..storage import write_json
 
 ROOT = Path(__file__).resolve().parents[3]
 REQUEST_COUNTS = {"cached": 0, "computed": 0}

@@ -9,7 +9,10 @@ configs/dataset/
 src/
   dataset/
     get_data.py             # dataset CLI entry point
-    processing/             # Basal extraction, text, locality and storage modules
+    acquisition/            # SAOS access and locality metadata
+    extraction/             # Basal features, targets and text validation
+    embeddings/             # Sentence encoding and target matching
+    storage.py              # Atomic writes and output-size limits
   main.py                   # package startup placeholder
 basal_weights/              # ignored per-model weight cache
 notebooks/                  # exploratory scripts
@@ -61,7 +64,7 @@ uv run --no-sync pytest -q
 
 ## Dataset
 
-[src/dataset/get_data.py](src/dataset/get_data.py) is the entry point. Its supporting modules are in `processing/`. `src.dataset` exports `load_config`, `extract_text` and `extract` for reuse in future inference.
+[src/dataset/get_data.py](src/dataset/get_data.py) is the entry point. Its supporting modules are grouped under `acquisition/`, `extraction/`, and `embeddings/`, with shared file persistence in `storage.py`. `src.dataset` exports `load_config`, `extract_text` and `extract` for reuse in future inference.
 
 ```bash
 uv run --no-sync src/dataset/get_data.py --help
