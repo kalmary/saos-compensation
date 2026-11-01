@@ -38,72 +38,6 @@ def test_explicit_beneficiary_count(source, expected):
     assert extraction.count_people(source) == expected
 
 
-@pytest.mark.parametrize(
-    ("per_person", "expected"), [(True, "40000"), (False, "20000")]
-)
-def test_joint_awards_are_aggregated_without_request(monkeypatch, per_person, expected):
-    """
-    Distinguish per-person amounts from one shared amount after embedding selection.
-
-    args:
-        monkeypatch: Scoped matcher and model replacements.
-        per_person: Whether the ruling uses a per-recipient amount.
-        expected: Total principal for the case.
-
-    returns:
-        None.
-    """
-    sentence = (
-        "Zasądza na rzecz A. B. i C. D. "
-        + ("kwoty po " if per_person else "kwotę ")
-        + "20000 zł zadośćuczynienia."
-    )
-    config = config_module.load_config()
-    monkeypatch.setattr(
-        extraction,
-        "match_targets",
-        lambda text, config: {
-            "judgment": {
-                "text": sentence,
-                "start": 0,
-                "end": len(sentence),
-                "similarity": 0.9,
-            },
-            "request": None,
-        },
-    )
-    events = []
-
-    async def ask(server, state, questions, config):
-        """
-        Supply recipient evidence, principal category and aggregate verification.
-
-        args:
-            server: Unused server.
-            state: Selected sentence or verification input.
-            questions: Requested amount-resolution decision.
-            config: Effective settings.
-
-        returns:
-            Controlled model answer.
-        """
-        events.extend(questions)
-        if "beneficiaries" in questions:
-            return {"beneficiaries": {"data": {"people": "A. B. i C. D."}}}
-        if "swiadczenie" in questions:
-            return {"swiadczenie": {"choice": "suma", "confidence": 0.99}}
-        assert state["łączna_kwota"] == expected
-        assert state["liczba_poszkodowanych"] == 2
-        return {"zasadzenie": {"noul": 0.99}}
-
-    monkeypatch.setattr(decisions, "ask", ask)
-    award = asyncio.run(extraction.extract_targets(None, sentence, config))
-    assert award["suma"] == expected
-    assert award["injured_party_count"] == 2
-    assert award["confirmed"]
-    assert events == ["beneficiaries", "swiadczenie", "zasadzenie"]
-
-
 def test_missing_judgment_never_reaches_basal(monkeypatch):
     """
     Reject an optional-request-only match before any Basal decision.
@@ -152,67 +86,6 @@ def test_injured_party_count_is_a_numeric_feature():
     }
     add_metadata_features(result, record, ["injured_party_count"], None)
     assert result["features"] == {"injured_party_count": 2}
-
-
-@pytest.mark.parametrize("second_person", ["A. B.", "C. D."])
-def test_distinct_award_clauses_are_summed_without_double_counting_people(
-    monkeypatch, second_person
-):
-    """
-    Sum separate operative obligations while deduplicating recipient identities.
-
-    args:
-        monkeypatch: Scoped matcher/model replacements.
-        second_person: Repeated or distinct beneficiary of the second obligation.
-
-    returns:
-        None.
-    """
-    first = "Zasądza na rzecz A. B. kwotę 100 zł zadośćuczynienia."
-    text = (
-        first
-        + f"\nZasądza na rzecz {second_person} kwotę 100 zł zadośćuczynienia.\nUZASADNIENIE\nOpis."
-    )
-    config = config_module.load_config()
-    monkeypatch.setattr(
-        extraction,
-        "match_targets",
-        lambda text, config: {
-            "judgment": {
-                "text": first,
-                "start": 0,
-                "end": len(first),
-                "similarity": 0.9,
-            },
-            "request": None,
-        },
-    )
-
-    async def ask(server, state, questions, config):
-        """
-        Resolve two principal clauses and confirm their case total.
-
-        args:
-            server: Unused server.
-            state: Source evidence or assembled proposal.
-            questions: Requested resolver decision.
-            config: Effective configuration.
-
-        returns:
-            Deterministic resolver answer.
-        """
-        if "beneficiaries" in questions:
-            return {"beneficiaries": {"data": {"people": "A. B."}}}
-        if "swiadczenie" in questions:
-            return {"swiadczenie": {"choice": "suma", "confidence": 0.99}}
-        assert state["łączna_kwota"] == "200"
-        assert state["liczba_poszkodowanych"] == (1 if second_person == "A. B." else 2)
-        return {"zasadzenie": {"noul": 0.99}}
-
-    monkeypatch.setattr(decisions, "ask", ask)
-    result = asyncio.run(extraction.extract_targets(None, text, config))
-    assert result["suma"] == "200"
-    assert result["confirmed"]
 
 
 @pytest.mark.parametrize(
@@ -391,125 +264,63 @@ def test_prior_payment_feature_is_resolved_for_debug_case_without_target(monkeyp
     assert result["award"]["confirmed"] is False
 
 
-def test_single_total_uses_all_operative_clauses_when_anchor_is_in_reasoning(
-    monkeypatch,
-):
-    """
-    Sum different principal types from the current ruling while excluding process costs.
+@pytest.mark.parametrize(
+    ("sentence", "expected", "count"),
+    [
+        ("Zasądza na rzecz A. B. kwotę 100 zł.", "100", 1),
+        ("Zasądza na rzecz A. B. i C. D. kwotę 20000 zł.", "20000", 2),
+        ("Zasądza na rzecz A. B. i C. D. kwoty po 20000 zł.", "40000", 2),
+        ("Orzeka na rzecz A. B. nawiązkę w wysokości 10.000 (dziesięciu tysięcy) złotych;", "10000", 1),
+        ("Zasądza 1,5 tys. zł.", "1500", "not_available"),
+        ("Zasądza 700,50 zł.", "700.50", "not_available"),
+        ("Zasądza powodom po 100 zł.", None, "not_available"),
+        ("Zasądza 150 zł, w tym 100 zł i 50 zł.", None, "not_available"),
+        ("Zasądza 100 zł z odsetkami od 50 zł.", None, "not_available"),
+        ("Zasądza kwotę stu złotych.", None, "not_available"),
+    ],
+)
+def test_selected_sentence_is_the_only_target_source(monkeypatch, sentence, expected, count):
+    """Parse selected evidence without model decisions or other ruling amounts.
 
     args:
-        monkeypatch: Scoped embedding and model replacements.
+        monkeypatch: Scoped matcher and model replacements.
+        sentence: Embedding-selected judgment sentence.
+        expected: Total, or None for an ambiguous or missing amount.
+        count: Known recipient count, or missing-value marker.
 
     returns:
         None.
     """
-    ruling = (
-        "Zasądza na rzecz A. B. kwotę 100 zł zadośćuczynienia.\n"
-        "Zasądza na rzecz A. B. kwotę 50 zł odszkodowania.\n"
-        "Zasądza na rzecz A. B. kwotę 20 zł kosztów procesu.\n"
-    )
-    anchor = "Sąd uznał zasądzone 100 zł za odpowiednie."
-    text = ruling + "UZASADNIENIE\n" + anchor
+    text = "Zasądza 999 zł kosztów.\nUZASADNIENIE\n" + sentence + "\nŻąda 90000 zł."
+    start = text.index(sentence)
     config = config_module.load_config()
-    monkeypatch.setattr(
-        extraction,
-        "match_targets",
-        lambda *args: {
-            "judgment": {
-                "text": anchor,
-                "start": text.index(anchor),
-                "end": len(text),
-                "similarity": 0.9,
-            },
-            "request": None,
-        },
-    )
-
-    async def ask(server, state, questions, config):
-        """
-        Confirm principal roles without requiring a compensation subtype.
-
-        args:
-            server: Unused inference server.
-            state: Ruling evidence or assembled total.
-            questions: Requested monetary decision.
-            config: Active single-target configuration.
-
-        returns:
-            Controlled beneficiary, principal-role or aggregate answer.
-        """
-        if "beneficiaries" in questions:
-            assert state == ruling
-            return {"beneficiaries": {"data": {"people": "A. B."}}}
-        if "swiadczenie" in questions:
-            assert set(questions["swiadczenie"]["criteria"]) == {
-                "suma",
-                "pomin",
-                "nieustalone",
-            }
-            assert state["sentencja"] == ruling
-            return {
-                "swiadczenie": {
-                    "choice": "pomin"
-                    if "kosztów procesu" in state["fragment"]
-                    else "suma",
-                    "confidence": 0.99,
-                }
-            }
-        assert state["łączna_kwota"] == "150"
-        assert "skladniki" not in state
-        return {"zasadzenie": {"noul": 0.99}}
-
-    monkeypatch.setattr(decisions, "ask", ask)
+    monkeypatch.setattr(extraction, "match_targets", lambda *args: {
+        "judgment": {"text": sentence, "start": start, "end": start + len(sentence), "similarity": 0.9},
+        "request": {"text": "Żąda 90000 zł."},
+    })
+    monkeypatch.setattr(decisions, "ask", lambda *args: pytest.fail("Target extraction must not call Basal"))
     result = asyncio.run(extraction.extract_targets(None, text, config))
-    assert result["confirmed"] is True
-    assert result["suma"] == "150"
-    assert "zadoscuczynienie" not in result
-    assert "pozostale_odszkodowanie" not in result
+    assert result["confirmed"] is (expected is not None)
+    assert result["suma"] == (expected if expected is not None else "brak informacji")
+    assert result["injured_party_count"] == count
+    if expected is not None:
+        assert result["request"] == "90000"
+        assert "verification" not in result
+        assert "amount_decisions" not in result
 
 
-def test_total_and_components_in_one_sentence_are_not_silently_double_counted(
-    monkeypatch,
-):
-    """
-    Reject unresolved overlapping amounts instead of adding a total to its components.
+def test_selected_target_must_match_source_offsets(monkeypatch):
+    """Reject matcher evidence that does not match the original judgment.
 
     args:
-        monkeypatch: Scoped matcher and monetary resolver replacements.
+        monkeypatch: Scoped matcher replacement.
 
     returns:
         None.
     """
-    text = "Zasądza 150 zł, w tym 100 zł zadośćuczynienia i 50 zł odszkodowania."
-    monkeypatch.setattr(
-        extraction,
-        "match_targets",
-        lambda *args: {
-            "judgment": {"text": text, "start": 0, "end": len(text), "similarity": 0.9},
-            "request": None,
-        },
-    )
-
-    async def ask(server, state, questions, config):
-        """
-        Mark all unresolved figures as principal and forbid aggregate verification.
-
-        args:
-            server: Unused inference server.
-            state: Source sentence or amount evidence.
-            questions: Requested monetary decision.
-            config: Active extraction settings.
-
-        returns:
-            Source beneficiaries or principal role.
-        """
-        if "beneficiaries" in questions:
-            return {"beneficiaries": {"data": {"people": "powoda"}}}
-        assert "swiadczenie" in questions
-        return {"swiadczenie": {"choice": "suma", "confidence": 0.99}}
-
-    monkeypatch.setattr(decisions, "ask", ask)
-    result = asyncio.run(extraction.extract_targets(None, text, config_module.load_config()))
-    assert result["confirmed"] is False
-    assert result["suma"] == "brak informacji"
-    assert "require disambiguation" in result["status"]
+    monkeypatch.setattr(extraction, "match_targets", lambda *args: {
+        "judgment": {"text": "Zasądza 100 zł.", "start": 0, "end": 15, "similarity": 0.9},
+        "request": None,
+    })
+    with pytest.raises(ValueError, match="does not match its source"):
+        asyncio.run(extraction.extract_targets(None, "Different source.", config_module.load_config()))

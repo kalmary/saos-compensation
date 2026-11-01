@@ -58,7 +58,7 @@ def add_metadata_features(result, record, fields, localities=None):
         }
     if "injured_party_count" in fields:
         sources["injured_party_count"] = {
-            "source": "embedding-selected ruling; Basal beneficiary extraction"
+            "source": "explicit recipients in the embedding-selected judgment sentence"
         }
     if "prior_payment" in fields:
         sources["prior_payment"] = {

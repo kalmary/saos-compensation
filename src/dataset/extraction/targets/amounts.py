@@ -81,16 +81,16 @@ def finish_award(proposal, accepted, decision):
 
 async def extract_award(server, text, diagnostics, config):
     """
-    Resolve monetary targets from embedding-selected sentences.
+    Parse a target directly from the embedding-selected sentence.
 
     args:
-        server: Local Basal amount resolver.
+        server: Unused server retained by the extraction interface.
         text: Full normalized judgment.
         diagnostics: Retained compatibility argument; not used for target selection.
         config: Effective pipeline settings.
 
     returns:
-        Award values, beneficiary count and target-match diagnostics.
+        Parsed amount, explicit recipient count and target-match diagnostics.
     """
     from .target_extraction import extract_targets
 

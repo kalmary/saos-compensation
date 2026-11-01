@@ -265,9 +265,8 @@ def test_target_admission_uses_strict_cosine_threshold(similarity, accepted):
     assert (target_rejection_reason(award, config) is None) is accepted
 
 
-def test_unverified_target_reports_amount_classification_instead_of_missing_probability():
-    """
-    Distinguish an earlier amount rejection from an unexecuted final verification.
+def test_target_parse_failure_reports_status_without_model_probability():
+    """Report selected-sentence ambiguity without obsolete model diagnostics.
 
     args:
         None.
@@ -280,14 +279,6 @@ def test_unverified_target_reports_amount_classification_instead_of_missing_prob
     award = {
         "target_matches": {"judgment": {"similarity": 0.85}},
         "confirmed": False,
-        "status": "no established principal amount in the selected ruling",
-        "amount_decisions": [
-            {"category": "pozostale_odszkodowanie", "confidence": 0.2874}
-        ],
+        "status": "selected judgment sentence requires exactly one numeric PLN amount",
     }
-    reason = target_rejection_reason(award, config_module.load_config())
-    assert "no established principal amount" in reason
-    assert "pozostale_odszkodowanie" in reason
-    assert "probability=0.287" in reason
-    assert "final award verification not run" in reason
-    assert "unavailable" not in reason
+    assert target_rejection_reason(award, config_module.load_config()) == award["status"]

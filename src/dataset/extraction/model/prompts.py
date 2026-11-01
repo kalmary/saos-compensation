@@ -2,7 +2,7 @@
 
 
 DEFAULTS = {
-    "version": "saos-extraction-19",
+    "version": "saos-extraction-20",
     "chunk_characters": 6000,
     "context_characters": 600,
     "system_one": {
@@ -45,34 +45,6 @@ DEFAULTS = {
             "kwotę żądaną, zasądzoną lub wcześniej wypłaconą, wynik postępowania, "
             "albo wyjaśnia wybór wysokości świadczenia? Także bez podania liczby. "
             "Sam opis urazu i jego skutków nie jest uzasadnieniem wysokości."
-        },
-        "amount": {
-            "instructions": "Czego dotyczy wyłącznie kwota oznaczona <KWOTA>? Przeczytaj jej "
-            "otoczenie i sentencję. Wybierz zasądzone świadczenie tylko dla tego "
-            "wyroku i wskazanych poszkodowanych. Zwroty «wnosi o zasądzenie», "
-            "«żąda» i «domaga się», lub podobne, opisują żądanie strony, nie zasądzenie przez "
-            "sąd; dla takiej wzmianki wybierz pomin. Nie pomyl wcześniejszej "
-            "wypłaty z zasądzeniem. Jeżeli sąd uznaje za odpowiednie "
-            "7000 zł, ale po odjęciu wypłaty zasądza 6300 zł, targetem jest 6300 "
-            "zł. Zwrot kosztów instancji odwoławczej jest kosztem postępowania, "
-            "nigdy pozostałym odszkodowaniem. Kwota główna z odsetkami nadal może "
-            "być targetem; same odsetki nim nie są. Nie przenoś kategorii "
-            "sąsiedniej liczby na oznaczoną kwotę.",
-            "criteria": {
-                "suma": "Oznaczona kwota to zasądzone w tym wyroku jednorazowe świadczenie główne "
-                "dla poszkodowanego: zadośćuczynienie, odszkodowanie albo ich łączna kwota.",
-                "pomin": "Żądanie, wcześniejsza wypłata, kwota z innego wyroku, odsetki, renta "
-                "lub koszty postępowania; poza zasądzonym świadczeniem głównym.",
-                "nieustalone": "Nie można potwierdzić roli oznaczonej kwoty.",
-            },
-        },
-        "award_check": {
-            "instructions": "Czy sentencja i przytoczone dowody potwierdzają zasądzenie "
-            "wymienionych składników w podanych kwotach dla wskazanego poszkodowanego "
-            "w tym wyroku? Odróżnij zasądzenie od żądania, wcześniejszej wypłaty "
-            "i kosztów postępowania. Nie oceniaj, czy kwota jest słuszna. "
-            "Sprawdzaj tylko wskazane składniki; brak innego składnika nie oznacza "
-            "błędu. Nie wymagaj zapisania w sentencji ich obliczonej sumy."
         },
         "extraction": {
             "instructions": "Dla każdego pola wybierz fragment źródła odpowiadający na jego pytanie. "

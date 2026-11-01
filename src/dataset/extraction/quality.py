@@ -90,6 +90,13 @@ def target_rejection_reason(award, config):
         threshold = config["embedding"]["minimum_cosine_similarity"]
         if match is None or match["similarity"] <= threshold:
             return f"no judgment sentence with cosine similarity > {threshold}"
+        if not award.get("confirmed"):
+            return award.get("status", "no established judgment amount")
+        try:
+            total = Decimal(award.get("suma", ""))
+        except (InvalidOperation, TypeError, ValueError):
+            return "invalid target"
+        return None if total.is_finite() and total >= 0 else "invalid target"
     threshold = config["system_one"]["amount_minimum_probability"]
     probability = award.get("verification", {}).get("noul")
     low_confidence = probability is not None and probability < threshold

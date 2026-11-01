@@ -25,5 +25,5 @@ minimum_probability: 0.6
 # Maximum leakage probability; lower values are stricter.
 maximum_leak_probability: 0.2
 
-# Minimum probability for amount assignment and final award confirmation.
+# Minimum confidence for the prior_payment predictor; targets use embedding similarity only.
 amount_minimum_probability: 0.6
