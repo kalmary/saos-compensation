@@ -2,8 +2,9 @@
 
 import hashlib
 
-from . import amounts, decisions
-from . import text as api
+from .targets import amounts
+from .model import decisions
+from .source import text as api
 from .features import extract_features
 from .quality import target_rejection_reason
 

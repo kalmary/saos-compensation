@@ -76,8 +76,9 @@ async def process(config):
     returns:
         None.
     """
-    from src.dataset.extraction import basal_filtering as basal, decisions
-    from src.dataset.extraction.prompts import MODEL_FILES
+    from src.dataset.extraction import basal_filtering as basal
+    from src.dataset.extraction.model import decisions
+    from src.dataset.extraction.model.prompts import MODEL_FILES
 
     directory = ROOT / config["api"]["download_path"]
     checkpoint = load_checkpoint(config)

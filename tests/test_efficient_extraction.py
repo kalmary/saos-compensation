@@ -7,13 +7,10 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from src.dataset.extraction import (
-    configuration as config_module,
-    decisions,
-    features as features_module,
-    passages,
-)
-from src.dataset.extraction.text import MONEY, amount_in_pln
+from src.dataset.extraction.model import configuration as config_module, decisions
+from src.dataset.extraction import features as features_module
+from src.dataset.extraction.source import passages
+from src.dataset.extraction.source.text import MONEY, amount_in_pln
 
 
 @pytest.mark.parametrize(

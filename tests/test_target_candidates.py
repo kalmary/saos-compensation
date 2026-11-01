@@ -155,7 +155,7 @@ def test_configured_cost_keywords_distinguish_treatment_from_procedure():
     returns:
         None.
     """
-    from src.dataset.extraction.configuration import load_config
+    from src.dataset.extraction.model.configuration import load_config
 
     keywords = load_config()["embedding"]["candidate_keywords"]
     (treatment,) = target_matching.candidate_sentences(

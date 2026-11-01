@@ -1,8 +1,8 @@
 """Feature extraction with source, relevance and leakage checks."""
 
-from . import decisions
-from . import text as api
-from .passages import feature_input, source_blocks, extraction_batches
+from .model import decisions
+from .source import text as api
+from .source.passages import extraction_batches, feature_input, source_blocks
 
 
 def select_facts(diagnostics, threshold, maximum_leak):

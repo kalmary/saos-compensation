@@ -64,7 +64,7 @@ uv run --no-sync pytest -q
 
 ## Dataset
 
-[src/dataset/get_data.py](src/dataset/get_data.py) is the entry point. Pipeline orchestration and checkpoint validation live under `acquisition/`; record export and atomic writes live under `storage/`. Feature extraction and sentence encoding have their own `extraction/` and `embeddings/` packages. Within `extraction/`, `basal_filtering.py` coordinates extraction; `configuration.py` and `prompts.py` define validated settings and pinned prompts; `decisions.py` handles model calls and caching; `passages.py`, `features.py` and `amounts.py` handle source spans, factual features and monetary values. `src.dataset` exports `load_config`, `extract_text` and `extract` for reuse in future inference.
+[src/dataset/get_data.py](src/dataset/get_data.py) is the entry point. Pipeline orchestration and checkpoint validation live under `acquisition/`; record export and atomic writes live under `storage/`. Feature extraction and sentence encoding have their own `extraction/` and `embeddings/` packages. Within `extraction/`, `basal_filtering.py` coordinates extraction and `features.py` reviews predictors. Model configuration, prompts and decision caching live under `model/`; normalization and source batching under `source/`; monetary evidence and target resolution under `targets/`. `src.dataset` exports `load_config`, `extract_text` and `extract` for reuse in future inference.
 
 ```bash
 uv run --no-sync src/dataset/get_data.py --help

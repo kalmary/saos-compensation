@@ -169,7 +169,9 @@ def load_config(path=None):
         else Path(__file__).with_name("preprocessing.yaml")
     )
     settings = read_config(path)
-    from src.dataset.extraction.prompts import FEATURE_DESCRIPTIONS as current_fields
+    from src.dataset.extraction.model.prompts import (
+        FEATURE_DESCRIPTIONS as current_fields,
+    )
 
     descriptions = {**FEATURE_DESCRIPTIONS, **current_fields}
     basal = read_config(path.parent / settings["basal"])
@@ -1317,7 +1319,7 @@ async def run(texts=None, config=None):
         ),
         flush=True,
     )
-    from src.dataset.extraction.prompts import MODEL_FILES
+    from src.dataset.extraction.model.prompts import MODEL_FILES
 
     model_path = snapshot_download(
         model["model"],

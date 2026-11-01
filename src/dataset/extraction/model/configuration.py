@@ -6,10 +6,10 @@ from pathlib import Path
 
 import yaml
 
-from ..embeddings.target_matching import validate_settings
+from ...embeddings.target_matching import validate_settings
 from .prompts import DEFAULTS, FEATURE_DESCRIPTIONS, METADATA_FIELDS
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 
 
 def read_config(path):
@@ -40,7 +40,7 @@ def load_config(directory=None, overrides=None):
     returns:
         Effective validated configuration.
     """
-    from ..acquisition.api import search_settings
+    from ...acquisition.api import search_settings
 
     directory = (
         Path(directory) if directory is not None else ROOT / "configs" / "dataset"

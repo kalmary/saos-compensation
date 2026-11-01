@@ -1,9 +1,9 @@
 """Monetary contexts, award verification and earlier-payment extraction."""
 
-from . import decisions
-from . import text as api
-from .passages import fragments
-from .text import sentence_fragments
+from ..model import decisions
+from ..source import text as api
+from ..source.passages import fragments
+from ..source.text import sentence_fragments
 
 
 AWARD_FIELDS = ("zadoscuczynienie", "pozostale_odszkodowanie")

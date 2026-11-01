@@ -3,10 +3,10 @@
 import re
 from decimal import Decimal
 
-from ..embeddings.target_matching import match_targets
-from . import decisions
+from ...embeddings.target_matching import match_targets
+from ..model import decisions
 from .amounts import amount_contexts
-from .text import MONEY, REASONS, amount_in_pln
+from ..source.text import MONEY, REASONS, amount_in_pln
 
 
 def count_people(value):

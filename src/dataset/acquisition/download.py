@@ -10,7 +10,7 @@ import requests
 from .api import BASE_URL, search_pages, load_divisions, validate_judgment
 from .checkpoints import record_complete
 from ..storage.files import remove_tree, write_json
-from ..extraction.text import MONEY, extract_text
+from ..extraction.source.text import MONEY, extract_text
 
 ROOT = Path(__file__).resolve().parents[3]
 

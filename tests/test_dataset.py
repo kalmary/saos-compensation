@@ -16,13 +16,18 @@ from src.dataset.acquisition import checkpoints, pipeline
 from src.dataset.storage import files as storage, records
 from src.dataset.acquisition import api, download as acquisition
 from src.dataset.extraction import basal_filtering as basal
-from src.dataset.extraction import (
-    amounts,
+from src.dataset.extraction.targets import amounts
+from src.dataset.extraction.model import (
     configuration as config_module,
     decisions,
     prompts,
 )
-from src.dataset.extraction.text import CURRENCY, MONEY, amount_in_pln, extract_text
+from src.dataset.extraction.source.text import (
+    CURRENCY,
+    MONEY,
+    amount_in_pln,
+    extract_text,
+)
 
 FIELD_NAMES = {
     "zdarzenie_i_okolicznosci": "event_circumstances",

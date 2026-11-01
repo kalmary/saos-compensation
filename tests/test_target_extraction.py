@@ -8,12 +8,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.dataset.extraction import basal_filtering as basal
-from src.dataset.extraction import (
-    amounts,
-    configuration as config_module,
-    decisions,
-)
-from src.dataset.extraction import target_extraction as extraction
+from src.dataset.extraction.targets import amounts
+from src.dataset.extraction.model import configuration as config_module, decisions
+from src.dataset.extraction.targets import target_extraction as extraction
 
 
 @pytest.mark.parametrize(
