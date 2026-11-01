@@ -51,6 +51,7 @@ embedding:
     - komorn
     - egzekuc
     - zaliczk
+    - spis
     other_payments:
     - odset
     - rent
@@ -84,6 +85,8 @@ patterns:
     - "nakazuje {defendant} zapłacić na rzecz {claimant} kwotę {amount}"
     - "zobowiązuje {defendant} do naprawienia szkody poprzez zapłatę kwoty {amount}"
     - "zmienia zaskarżony wyrok przez zastąpienie kwoty {previous_amount} kwotą {amount}"
+    - "orzeka na rzecz {claimant} nawiązkę w wysokości {amount}"
+    - "zasądza na rzecz każdego z powodów po {amount}"
 
   # A requested amount remains a request even when it equals the eventual award.
   request:
@@ -96,6 +99,7 @@ patterns:
     - "wzywa do zapłaty kwoty {amount}"
     - "pełnomocnik powoda ostatecznie zażądał jako zadośćuczynienia sumy {amount}"
     - "w pozwie określono dochodzone świadczenie na {amount}"
+    - "powód ograniczył żądanie do kwoty {amount}"
 
   # These groups compete with target roles; their winners are not target amounts.
   prior_payment:
@@ -105,6 +109,7 @@ patterns:
     - "dotychczas przyznane przez pozwanego zadośćuczynienie wynosi {amount}"
     - "roszczenie zostało częściowo zaspokojone przez dobrowolną zapłatę {amount}"
     - "sąd ocenił dotychczasową wypłatę {amount} jako symboliczną i niewystarczającą"
+    - "poszkodowany otrzymał łącznie z kilku wypłat kwotę {amount}"
 
   procedural_costs:
     - "zasądza od pozwanego na rzecz powoda {amount} tytułem zwrotu kosztów procesu"
@@ -116,6 +121,8 @@ patterns:
     - "strona przegrywająca zwróci przeciwnikowi {amount} kosztów postępowania apelacyjnego"
     - "komornik ustalił koszty postępowania egzekucyjnego na {amount}"
     - "zwraca stronie niewykorzystaną zaliczkę na wydatki sądowe w kwocie {amount}"
+    - "kwotę {amount} sąd zasądził zgodnie z przedstawionym spisem kosztów"
+    - "odstępuje od obciążania powoda kosztami procesu w wysokości {amount}"
 
   mixed:
     - "powód żądał {previous_amount}, lecz sąd zasądził tylko {amount}"
@@ -123,6 +130,7 @@ patterns:
     - "powód utrzymał się z żądaniem do kwoty {amount}, a w pozostałej części powództwo oddalono"
     - "sąd obniżył żądaną sumę {previous_amount} do należnego zadośćuczynienia {amount}"
     - "w miejsce wnioskowanych {previous_amount} przyznano poszkodowanemu {amount}"
+    - "oddala w całości żądanie zapłaty kwoty {amount}"
 
   # Non-principal payments outside the selected one-off compensation targets.
   other_payments:
@@ -131,3 +139,4 @@ patterns:
     - "zasądza rentę w wysokości {amount} miesięcznie płatną do dziesiątego dnia miesiąca"
     - "zaległe raty renty za wskazany okres wynoszą łącznie {amount}"
     - "wymierza karę grzywny w wysokości {amount}"
+    - "ustala wysokość jednej stawki dziennej grzywny na kwotę {amount}"

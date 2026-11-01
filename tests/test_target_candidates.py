@@ -167,3 +167,34 @@ def test_configured_cost_keywords_distinguish_treatment_from_procedure():
     assert "judgment" in treatment["classes"]
     assert "procedural_costs" not in treatment["classes"]
     assert "procedural_costs" in procedure["classes"]
+
+
+@pytest.mark.parametrize(
+    ("text", "group"),
+    [
+        ("Orzeka na rzecz A. B. nawiązkę w wysokości 100 zł.", "judgment"),
+        ("Zasądza na rzecz każdego z powodów po 100 zł.", "judgment"),
+        ("Powód ograniczył żądanie do kwoty 100 zł.", "request"),
+        ("Poszkodowany otrzymał łącznie z kilku wypłat kwotę 100 zł.", "prior_payment"),
+        ("Kwotę 100 zł sąd zasądził zgodnie z przedstawionym spisem kosztów.", "procedural_costs"),
+        ("Odstępuje od obciążania powoda kosztami procesu w wysokości 100 zł.", "procedural_costs"),
+        ("Oddala w całości żądanie zapłaty kwoty 100 zł.", "mixed"),
+        ("Ustala wysokość jednej stawki dziennej grzywny na kwotę 100 zł.", "other_payments"),
+    ],
+)
+def test_additional_constructions_reach_their_configured_group(text, group):
+    """Keep new structural patterns eligible before embedding comparison.
+
+    args:
+        text: Representative monetary sentence.
+        group: Expected eligible target or exclusion group.
+
+    returns:
+        None.
+    """
+    from src.dataset.extraction.model.configuration import load_config
+
+    keywords = load_config()["embedding"]["candidate_keywords"]
+    (candidate,) = target_matching.candidate_sentences(text, keywords)
+    assert group in candidate["classes"]
+    assert candidate["text"] == text

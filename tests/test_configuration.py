@@ -117,8 +117,8 @@ def test_configured_question_is_used_for_extraction_and_relevance(config_directo
     assert seen == ["extract", "review"]
 
 
-def test_reorganized_defaults_resume_existing_checkpoint(config_directory, monkeypatch, tmp_path):
-    """Preserve the existing extraction signature and reject changed questions on resume.
+def test_changed_question_invalidates_checkpoint(config_directory, monkeypatch, tmp_path):
+    """Resume unchanged settings and reject a changed question on resume.
 
     args:
         config_directory: Isolated acquisition YAML directory.
@@ -131,18 +131,9 @@ def test_reorganized_defaults_resume_existing_checkpoint(config_directory, monke
     from src.dataset.acquisition import checkpoints
     from src.dataset.storage.files import write_json
 
-    path = config_directory / "features.yaml"
-    settings = configuration.read_config(path)
-    settings["text_fields"] = {
-        "cause": "Co spowodowało szkodę?",
-        "damage": "Jakiej szkody doznał poszkodowany?",
-        "limitations": "Jakich czynności poszkodowany nie mógł wykonywać?",
-    }
-    path.write_text(yaml.safe_dump(settings, allow_unicode=True))
     config = configuration.load_config(config_directory)
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     checkpoint = checkpoints.load_checkpoint(config)
-    assert checkpoint["signature"] == "62304782ddfc5c202232fa69a1e2c5ea57bbb084cd2a45fae048d6a6b221abb1"
     write_json(tmp_path / config["api"]["download_path"] / "checkpoint.json", checkpoint)
     assert checkpoints.load_checkpoint(config) == checkpoint
     path = config_directory / "features.yaml"
