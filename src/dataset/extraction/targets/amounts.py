@@ -8,8 +8,6 @@ from ..source.text import sentence_fragments
 
 AWARD_FIELDS = ("zadoscuczynienie", "pozostale_odszkodowanie")
 
-
-
 def amount_contexts(text):
     """
     Yield complete sentence contexts with each PLN occurrence marked.

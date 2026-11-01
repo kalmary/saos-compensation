@@ -7,10 +7,10 @@ from pathlib import Path
 
 import requests
 
-from .api import BASE_URL, search_pages, load_divisions, validate_judgment
-from .checkpoints import record_complete
-from ..storage.files import remove_tree, write_json
 from ..extraction.source.text import MONEY, extract_text
+from ..storage.files import remove_tree, write_json
+from .api import BASE_URL, load_divisions, search_pages, validate_judgment
+from .checkpoints import record_complete
 
 ROOT = Path(__file__).resolve().parents[3]
 
