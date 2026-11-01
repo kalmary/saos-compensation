@@ -69,14 +69,6 @@ DEFAULTS = {
 
 
 
-FEATURE_DESCRIPTIONS = {
-    "cause": "Co spowodowało szkodę?",
-    "damage": "Jakiej szkody doznał poszkodowany?",
-    "limitations": "Jakich czynności poszkodowany nie mógł wykonywać?",
-}
-
-
-
 METADATA_FIELDS = (
     "judgment_year",
     "instance",

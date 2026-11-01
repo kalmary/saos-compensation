@@ -35,7 +35,7 @@ def validate_settings(settings, patterns):
         "candidate_keywords",
     }
     if not isinstance(settings, dict) or set(settings) != required:
-        raise ValueError(f"embedding.yaml requires {sorted(required)}")
+        raise ValueError(f"targets.yaml embedding requires {sorted(required)}")
     for key in ("model", "revision"):
         if not isinstance(settings[key], str) or not settings[key].strip():
             raise ValueError(f"Invalid embedding {key}")
@@ -69,7 +69,7 @@ def validate_settings(settings, patterns):
             "candidate_keywords groups must contain word stems, with at least one nonempty group"
         )
     if not isinstance(patterns, dict) or set(patterns) != set(PATTERN_CLASSES):
-        raise ValueError(f"target_pattern.yaml requires {list(PATTERN_CLASSES)} lists")
+        raise ValueError(f"targets.yaml patterns requires {list(PATTERN_CLASSES)} lists")
     for label, phrases in patterns.items():
         if (
             not isinstance(phrases, list)
@@ -87,7 +87,7 @@ def candidate_sentences(text, keywords):
 
     args:
         text: Full normalized judgment text.
-        keywords: Target, exclusion and shared word-prefix groups from embedding.yaml.
+        keywords: Target, exclusion and shared word-prefix groups from targets.yaml.
 
     returns:
         Candidate sentences with unchanged source offsets and eligible classes.

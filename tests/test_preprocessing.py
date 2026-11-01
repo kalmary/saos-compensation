@@ -8,6 +8,8 @@ import morfeusz2
 import pytest
 
 notebooks = Path(__file__).resolve().parents[1] / "notebooks"
+if not (notebooks.parent / "configs/dataset/api.yaml").is_file():
+    pytest.skip("Legacy notebook configuration is unavailable", allow_module_level=True)
 if any(
     not (notebooks / name).is_file()
     for name in (

@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import shutil
 import sys
 from datetime import date
 from pathlib import Path
@@ -231,7 +232,7 @@ def test_config_and_path_are_independent_of_working_directory(monkeypatch, tmp_p
     monkeypatch.chdir(tmp_path)
     config = config_module.load_config()
     assert config == expected
-    assert list(config["fields"]) == list(prompts.FEATURE_DESCRIPTIONS)
+    assert list(config["fields"]) == ["cause", "damage", "limitations"]
     assert pipeline.ROOT / config["api"]["download_path"] == ROOT / "tmp"
     start, end, params = api.search_settings(CONFIG, date(2024, 2, 29))
     assert (start, end) == (date(2014, 2, 28), date(2024, 2, 29))
@@ -742,10 +743,6 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     config["api"]["debug"] = debug
     config["api"]["max_gib"] = 0
     config["metadata_fields"] = ["judgment_year", "instance", "court_seat"]
-    config["fields"] = {
-        field: prompts.FEATURE_DESCRIPTIONS[field]
-        for field in ("cause", "damage", "limitations")
-    }
     monkeypatch.setattr(pipeline, "check_device", lambda device: None)
     stopped = []
 
@@ -915,7 +912,7 @@ def test_notebooks_accept_shared_dataset_config():
     """
     import importlib
 
-    if not (ROOT / "notebooks/01_saos_feasibility.py").is_file():
+    if not (ROOT / "notebooks/01_saos_feasibility.py").is_file() or not (ROOT / "configs/dataset/api.yaml").is_file():
         pytest.skip("Local notebook experiment is unavailable")
     sys.path.insert(0, str(ROOT / "notebooks"))
     feasibility = importlib.import_module("01_saos_feasibility")
@@ -1005,19 +1002,18 @@ def test_config_requires_damage_with_metadata_selection(tmp_path):
     """
     import yaml
 
-    config = config_module.read_config(ROOT / "configs/dataset/basal.yaml")
-    config["feature_fields"] = list(prompts.METADATA_FIELDS)
-    (tmp_path / "basal.yaml").write_text(yaml.safe_dump(config))
-    (tmp_path / "api.yaml").write_text(yaml.safe_dump(CONFIG))
-    for name in ("embedding.yaml", "target_pattern.yaml"):
-        (tmp_path / name).write_text((ROOT / "configs/dataset" / name).read_text())
+    shutil.copytree(ROOT / "configs/dataset/acquisition", tmp_path, dirs_exist_ok=True)
+    config = config_module.read_config(tmp_path / "features.yaml")
+    config["metadata_fields"] = list(prompts.METADATA_FIELDS)
+    config["text_fields"] = {}
+    (tmp_path / "features.yaml").write_text(yaml.safe_dump(config))
     with pytest.raises(ValueError, match="must include damage"):
         config_module.load_config(tmp_path)
-    config["feature_fields"].append("damage")
-    (tmp_path / "basal.yaml").write_text(yaml.safe_dump(config))
+    config["text_fields"]["damage"] = "Jakiej szkody doznał poszkodowany?"
+    (tmp_path / "features.yaml").write_text(yaml.safe_dump(config))
     loaded = config_module.load_config(tmp_path)
     assert loaded["metadata_fields"] == list(prompts.METADATA_FIELDS)
-    assert loaded["fields"] == {"damage": prompts.FEATURE_DESCRIPTIONS["damage"]}
+    assert loaded["fields"] == config["text_fields"]
 
 
 @pytest.mark.parametrize(
@@ -1072,12 +1068,13 @@ def test_cli_can_override_yaml_before_validation(tmp_path):
     """
     import yaml
 
+    shutil.copytree(ROOT / "configs/dataset/acquisition", tmp_path, dirs_exist_ok=True)
     api = {**CONFIG, "max_pages": -1, "debug": True}
     (tmp_path / "api.yaml").write_text(yaml.safe_dump(api))
-    for name in ("embedding.yaml", "target_pattern.yaml"):
-        (tmp_path / name).write_text((ROOT / "configs/dataset" / name).read_text())
+    for name in ("features.yaml", "targets.yaml"):
+        (tmp_path / name).write_text((ROOT / "configs/dataset/acquisition" / name).read_text())
     (tmp_path / "basal.yaml").write_text(
-        (ROOT / "configs/dataset/basal.yaml").read_text()
+        (ROOT / "configs/dataset/acquisition/basal.yaml").read_text()
     )
     options = vars(
         get_data.parse_arguments(
@@ -1387,12 +1384,12 @@ def test_explicit_device_configuration_and_availability(
 
     import yaml
 
-    settings = config_module.read_config(ROOT / "configs/dataset/basal.yaml")
+    settings = config_module.read_config(ROOT / "configs/dataset/acquisition/basal.yaml")
     settings["device"] = device
     (tmp_path / "basal.yaml").write_text(yaml.safe_dump(settings))
     (tmp_path / "api.yaml").write_text(yaml.safe_dump(CONFIG))
-    for name in ("embedding.yaml", "target_pattern.yaml"):
-        (tmp_path / name).write_text((ROOT / "configs/dataset" / name).read_text())
+    for name in ("features.yaml", "targets.yaml"):
+        (tmp_path / name).write_text((ROOT / "configs/dataset/acquisition" / name).read_text())
     config = config_module.load_config(tmp_path)
     assert config["system_one"]["mode"] == mode
     assert config["system_one"]["device"] == device

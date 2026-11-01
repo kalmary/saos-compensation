@@ -1,0 +1,12 @@
+model: Remek/basal-2.0-4.5B
+# cpu, mps (Apple GPU), or cuda (NVIDIA GPU).
+device: mps
+
+# Minimum probability for factual passages and procedural instance.
+minimum_probability: 0.6
+
+# Maximum leakage probability; lower values are stricter.
+maximum_leak_probability: 0.2
+
+# Minimum confidence for the prior_payment predictor; targets use embedding similarity only.
+amount_minimum_probability: 0.6

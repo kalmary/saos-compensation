@@ -27,7 +27,7 @@ def parse_arguments(arguments=None):
     )
     parser.add_argument(
         "--config-dir",
-        help="Directory with api.yaml and basal.yaml (default: configs/dataset)",
+        help="Acquisition configuration directory (default: configs/dataset/acquisition)",
     )
     parser.add_argument(
         "--max-age-years",
