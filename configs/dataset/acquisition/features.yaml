@@ -6,9 +6,9 @@ metadata_fields:
 - court_locality_size # Population class of the court locality (GUGiK).
 
 text_fields:
-  cause: "Co spowodowało szkodę? Przyczyna: zdarzenie lub działanie."
-  damage: "Jakiej szkody doznał poszkodowany? Szkoda: uraz, uszkodzenie lub strata."
-  limitations: "Jakich czynności poszkodowany nie mógł wykonywać? Ograniczenie: konkretna czynność."
+  cause: "Co spowodowało szkodę?"
+  damage: "Jakiej szkody doznał poszkodowany?"
+  limitations: "Jakie czynności były utrudnione lub niemożliwe?"
 
 required_fields:
 - damage
