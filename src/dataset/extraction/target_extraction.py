@@ -4,6 +4,8 @@ import re
 from decimal import Decimal
 
 from ..embeddings.target_matching import match_targets
+from . import decisions
+from .amounts import amount_contexts
 from .text import MONEY, REASONS, amount_in_pln
 
 
@@ -102,10 +104,8 @@ async def extract_targets(server, text, config):
     returns:
         Award components, total across beneficiaries, optional request and match diagnostics.
     """
-    from . import basal_filtering as basal
-
     matches = match_targets(text, config)
-    calls = basal.MODEL_CALLS.get()
+    calls = decisions.MODEL_CALLS.get()
     if calls is not None:
         calls.append(
             {
@@ -137,7 +137,7 @@ async def extract_targets(server, text, config):
         if len(requested) == 1:
             result["request"] = amount_in_pln(requested[0])
     beneficiaries = (
-        await basal.ask(
+        await decisions.ask(
             server,
             source,
             {
@@ -163,7 +163,7 @@ async def extract_targets(server, text, config):
     count = count_people(beneficiaries["data"]["people"])
     result["injured_party_count"] = count if count is not None else "not_available"
     rows = []
-    for row in basal.amount_contexts(source):
+    for row in amount_contexts(source):
         state = {
             "fragment": row["marked"],
             "sekcja": "zdanie wybrane przez embedding lub jego sentencja",
@@ -171,7 +171,7 @@ async def extract_targets(server, text, config):
             "żądanie": request["text"] if request else "brak informacji",
         }
         answer = (
-            await basal.ask(
+            await decisions.ask(
                 server,
                 state,
                 {"swiadczenie": {"type": "choice", **config["questions"]["amount"]}},
@@ -237,7 +237,7 @@ async def extract_targets(server, text, config):
     result["suma"] = str(total)
     result["status"] = "principal summed across awarded beneficiaries"
     verification = (
-        await basal.ask(
+        await decisions.ask(
             server,
             {
                 "sentencja": source,

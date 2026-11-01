@@ -7,7 +7,12 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from src.dataset.extraction import basal_filtering as basal
+from src.dataset.extraction import (
+    configuration as config_module,
+    decisions,
+    features as features_module,
+    passages,
+)
 from src.dataset.extraction.text import MONEY, amount_in_pln
 
 
@@ -47,7 +52,7 @@ def test_factual_heading_preserves_offsets_and_excludes_party_requests(heading):
         None.
     """
     text = f"WYROK\nUZASADNIENIE\nPowód żąda 500 zł.\n{heading}\nPowód złamał nogę.\nSąd zważył:\nKwota jest odpowiednia."
-    selected = basal.feature_input(text, {})
+    selected = passages.feature_input(text, {})
     assert selected["text"].strip() == "Powód złamał nogę."
     assert text[selected["start"] : selected["end"]] == selected["text"]
 
@@ -69,7 +74,7 @@ def test_missing_fields_do_not_trigger_fallback(monkeypatch, treatment_in_findin
         text = text.replace(
             "Powód złamał nogę.", "Powód złamał nogę. Wymagał rehabilitacji."
         )
-    config = basal.load_config()
+    config = config_module.load_config()
     config["fields"] = {"harm_type": "Obrażenia", "treatment_assistance": "Leczenie"}
     schemas = []
 
@@ -112,8 +117,8 @@ def test_missing_fields_do_not_trigger_fallback(monkeypatch, treatment_in_findin
             **{key: {"noul": 0.99} for key in questions if key.startswith("fit_")},
         }
 
-    monkeypatch.setattr(basal, "ask", ask)
-    result = asyncio.run(basal.extract_features(None, text, config, 1))
+    monkeypatch.setattr(decisions, "ask", ask)
+    result = asyncio.run(features_module.extract_features(None, text, config, 1))
     assert schemas == [{"harm_type", "treatment_assistance"}]
     assert result["features"] == {
         "harm_type": "Powód złamał nogę.",
@@ -158,7 +163,7 @@ def test_feature_logs_report_existing_decision_failures_without_extra_calls(
         None.
     """
     source = text or "Powód złamał nogę."
-    config = basal.load_config()
+    config = config_module.load_config()
     config["fields"] = {"harm_type": "Injury"}
     events = []
 
@@ -196,8 +201,8 @@ def test_feature_logs_report_existing_decision_failures_without_extra_calls(
             "fit_harm_type": {"noul": fit},
         }
 
-    monkeypatch.setattr(basal, "ask", ask)
-    result = asyncio.run(basal.extract_features(None, source, config, 42))
+    monkeypatch.setattr(decisions, "ask", ask)
+    result = asyncio.run(features_module.extract_features(None, source, config, 42))
     assert reason in capsys.readouterr().out
     assert len(events) == calls
     if reason != "accepted":

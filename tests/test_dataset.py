@@ -16,6 +16,12 @@ from src.dataset.acquisition import checkpoints, pipeline
 from src.dataset.storage import files as storage, records
 from src.dataset.acquisition import api, download as acquisition
 from src.dataset.extraction import basal_filtering as basal
+from src.dataset.extraction import (
+    amounts,
+    configuration as config_module,
+    decisions,
+    prompts,
+)
 from src.dataset.extraction.text import CURRENCY, MONEY, amount_in_pln, extract_text
 
 FIELD_NAMES = {
@@ -157,7 +163,7 @@ def test_scaled_amounts_are_converted_without_losing_source_offsets(text, expect
     assert match is not None
     assert amount_in_pln(match) == expected
     source = f"Zasądza {text} na rzecz powódki. Koszty rozlicza osobno."
-    rows = list(basal.amount_contexts(source))
+    rows = list(amounts.amount_contexts(source))
     assert len(rows) == 1
     row = rows[0]
     assert row["kwota"] == expected
@@ -216,11 +222,11 @@ def test_config_and_path_are_independent_of_working_directory(monkeypatch, tmp_p
     returns:
         None.
     """
-    expected = basal.load_config()
+    expected = config_module.load_config()
     monkeypatch.chdir(tmp_path)
-    config = basal.load_config()
+    config = config_module.load_config()
     assert config == expected
-    assert list(config["fields"]) == list(basal.FEATURE_DESCRIPTIONS)
+    assert list(config["fields"]) == list(prompts.FEATURE_DESCRIPTIONS)
     assert pipeline.ROOT / config["api"]["download_path"] == ROOT / "tmp"
     start, end, params = api.search_settings(CONFIG, date(2024, 2, 29))
     assert (start, end) == (date(2014, 2, 28), date(2024, 2, 29))
@@ -579,7 +585,7 @@ def test_download_deduplicates_filters_and_reports_rejections(
     monkeypatch.setattr(
         acquisition, "load_divisions", lambda *args: {division["id"]: division}
     )
-    config = basal.load_config(overrides={**CONFIG, "debug": debug})
+    config = config_module.load_config(overrides={**CONFIG, "debug": debug})
     checkpoint = checkpoints.load_checkpoint(config)
     records = []
     for record in acquisition.download(config["api"], checkpoint, "run"):
@@ -633,7 +639,7 @@ def test_partial_network_failure_is_visible(monkeypatch, tmp_path, capsys):
         raise requests.Timeout("SAOS unavailable")
 
     monkeypatch.setattr(acquisition, "search_pages", fail)
-    config = basal.load_config(overrides=CONFIG)
+    config = config_module.load_config(overrides=CONFIG)
     checkpoint = checkpoints.load_checkpoint(config)
     storage.write_json(tmp_path / "tmp/checkpoint.json", checkpoint)
     with pytest.raises(requests.Timeout):
@@ -661,8 +667,8 @@ def test_basal_validates_historical_requests_and_responses(monkeypatch, tmp_path
     returns:
         None.
     """
-    config = basal.load_config()
-    monkeypatch.setattr(basal, "ROOT", tmp_path)
+    config = config_module.load_config()
+    monkeypatch.setattr(decisions, "ROOT", tmp_path)
     calls = translate_fields(json.loads(path.read_text()))
     responses = {
         json.dumps(call["request"], sort_keys=True, ensure_ascii=False): call[
@@ -690,7 +696,7 @@ def test_basal_validates_historical_requests_and_responses(monkeypatch, tmp_path
 
     for call in calls:
         request = call["request"]
-        asyncio.run(basal.ask(Server(), request["state"], request["questions"], config))
+        asyncio.run(decisions.ask(Server(), request["state"], request["questions"], config))
     assert len(seen) == len(calls)
 
 
@@ -727,7 +733,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
     import types
 
 
-    config = basal.load_config()
+    config = config_module.load_config()
     config["api"]["debug"] = debug
     config["api"]["max_gib"] = 0
     config["metadata_fields"] = ["judgment_year", "instance", "court_seat"]
@@ -836,7 +842,7 @@ def test_pipeline_writes_separate_outputs_and_stops_worker(
                     "answers": {"wyciek": {"noul": 0.01}, "fit_opis": {"noul": 0.9}},
                 }
             ],
-            "award": basal.finish_award(
+            "award": amounts.finish_award(
                 {
                     "suma": "brak informacji" if missing_target else "100",
                 },
@@ -983,14 +989,14 @@ def test_config_allows_metadata_only_without_adding_it_to_basal_schema(tmp_path)
     """
     import yaml
 
-    config = basal.read_config(ROOT / "configs/dataset/basal.yaml")
-    config["feature_fields"] = list(basal.METADATA_FIELDS)
+    config = config_module.read_config(ROOT / "configs/dataset/basal.yaml")
+    config["feature_fields"] = list(prompts.METADATA_FIELDS)
     (tmp_path / "basal.yaml").write_text(yaml.safe_dump(config))
     (tmp_path / "api.yaml").write_text(yaml.safe_dump(CONFIG))
     for name in ("embedding.yaml", "target_pattern.yaml"):
         (tmp_path / name).write_text((ROOT / "configs/dataset" / name).read_text())
-    loaded = basal.load_config(tmp_path)
-    assert loaded["metadata_fields"] == list(basal.METADATA_FIELDS)
+    loaded = config_module.load_config(tmp_path)
+    assert loaded["metadata_fields"] == list(prompts.METADATA_FIELDS)
     assert loaded["fields"] == {}
 
 
@@ -1029,8 +1035,8 @@ def test_cli_overrides_only_explicit_arguments(arguments, expected):
     options = vars(get_data.parse_arguments(arguments))
     assert options.pop("config_dir") is None
     assert options == expected
-    original = basal.load_config()
-    merged = basal.load_config(overrides=options)
+    original = config_module.load_config()
+    merged = config_module.load_config(overrides=options)
     assert merged["api"] == {**original["api"], **expected}
 
 
@@ -1058,7 +1064,7 @@ def test_cli_can_override_yaml_before_validation(tmp_path):
             ["--config-dir", str(tmp_path), "--max-pages", "1", "--no-debug"]
         )
     )
-    config = basal.load_config(options.pop("config_dir"), options)
+    config = config_module.load_config(options.pop("config_dir"), options)
     assert config["api"] == {**api, "max_pages": 1, "debug": False}
 
 
@@ -1075,8 +1081,8 @@ def test_model_request_cache_is_debug_only(monkeypatch, tmp_path, debug):
     returns:
         None.
     """
-    config = basal.load_config(overrides={"debug": debug})
-    monkeypatch.setattr(basal, "ROOT", tmp_path)
+    config = config_module.load_config(overrides={"debug": debug})
+    monkeypatch.setattr(decisions, "ROOT", tmp_path)
     calls = []
 
     class Server:
@@ -1109,8 +1115,8 @@ def test_model_request_cache_is_debug_only(monkeypatch, tmp_path, debug):
         returns:
             Validated model answers.
         """
-        await basal.ask(Server(), "Opis.", questions, config)
-        await basal.ask(Server(), "Opis.", questions, config)
+        await decisions.ask(Server(), "Opis.", questions, config)
+        await decisions.ask(Server(), "Opis.", questions, config)
 
     asyncio.run(ask())
     assert len(calls) == (1 if debug else 2)
@@ -1361,13 +1367,13 @@ def test_explicit_device_configuration_and_availability(
 
     import yaml
 
-    settings = basal.read_config(ROOT / "configs/dataset/basal.yaml")
+    settings = config_module.read_config(ROOT / "configs/dataset/basal.yaml")
     settings["device"] = device
     (tmp_path / "basal.yaml").write_text(yaml.safe_dump(settings))
     (tmp_path / "api.yaml").write_text(yaml.safe_dump(CONFIG))
     for name in ("embedding.yaml", "target_pattern.yaml"):
         (tmp_path / name).write_text((ROOT / "configs/dataset" / name).read_text())
-    config = basal.load_config(tmp_path)
+    config = config_module.load_config(tmp_path)
     assert config["system_one"]["mode"] == mode
     assert config["system_one"]["device"] == device
     fake = types.SimpleNamespace(
@@ -1437,11 +1443,11 @@ def test_checkpoint_freezes_dates_and_allows_operational_overrides(
     """
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     monkeypatch.setattr(acquisition, "ROOT", tmp_path)
-    config = basal.load_config(overrides=CONFIG)
+    config = config_module.load_config(overrides=CONFIG)
     checkpoint = checkpoints.load_checkpoint(config)
     checkpoint["request"] = api.search_settings(CONFIG, date(2024, 2, 29))[2]
     storage.write_json(tmp_path / "tmp/checkpoint.json", checkpoint)
-    changed = basal.load_config(
+    changed = config_module.load_config(
         overrides={**CONFIG, "debug": True, "timeout": 5, "max_pages": 2, "max_gib": 5}
     )
     assert checkpoints.load_checkpoint(changed) == checkpoint
@@ -1466,7 +1472,7 @@ def test_resume_skips_committed_records_and_retries_only_unfinished_item(
     """
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     monkeypatch.setattr(acquisition, "ROOT", tmp_path)
-    config = basal.load_config(overrides=CONFIG)
+    config = config_module.load_config(overrides=CONFIG)
     checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
@@ -1532,7 +1538,7 @@ def test_resume_recognizes_record_saved_before_checkpoint_advance(
     """
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     monkeypatch.setattr(acquisition, "ROOT", tmp_path)
-    config = basal.load_config(overrides=CONFIG)
+    config = config_module.load_config(overrides=CONFIG)
     checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
@@ -1577,7 +1583,7 @@ def test_changed_resume_page_is_rejected(monkeypatch, tmp_path, capsys):
     """
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     monkeypatch.setattr(acquisition, "ROOT", tmp_path)
-    config = basal.load_config(overrides=CONFIG)
+    config = config_module.load_config(overrides=CONFIG)
     checkpoint = checkpoints.load_checkpoint(config)
     checkpoint["page_ids"] = [1]
     monkeypatch.setattr(
@@ -1607,7 +1613,7 @@ def test_checkpoint_does_not_advance_without_saved_output(
     """
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     monkeypatch.setattr(acquisition, "ROOT", tmp_path)
-    config = basal.load_config(overrides=CONFIG)
+    config = config_module.load_config(overrides=CONFIG)
     checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
@@ -1642,7 +1648,7 @@ def test_export_contains_only_features_targets_and_requested_debug_files(
     returns:
         None.
     """
-    config = basal.load_config(overrides={"debug": debug})
+    config = config_module.load_config(overrides={"debug": debug})
     config["fields"] = {"harm_type": "Injury"}
     result = {
         "id": 42,
@@ -1767,7 +1773,7 @@ def test_resume_starts_at_next_page_after_network_failure(
     """
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     monkeypatch.setattr(acquisition, "ROOT", tmp_path)
-    config = basal.load_config(overrides=CONFIG)
+    config = config_module.load_config(overrides=CONFIG)
     checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
@@ -1833,7 +1839,7 @@ def test_rejected_record_advances_checkpoint_without_case_files(
     """
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     monkeypatch.setattr(acquisition, "ROOT", tmp_path)
-    config = basal.load_config(overrides=CONFIG)
+    config = config_module.load_config(overrides=CONFIG)
     checkpoint = checkpoints.load_checkpoint(config)
     data = fixture()["data"]
     division = data["division"]
@@ -1868,7 +1874,7 @@ def test_interrupted_extraction_reuses_completed_decisions_without_debug(
     returns:
         None.
     """
-    config = basal.load_config(overrides={"debug": False})
+    config = config_module.load_config(overrides={"debug": False})
     questions = {"q": {"type": "noul", "instructions": "Czy to fakt?"}}
     response = {
         "answers": {"q": {"noul": 0.8, "probabilities": {"true": 0.8, "false": 0.2}}}
@@ -1901,15 +1907,15 @@ def test_interrupted_extraction_reuses_completed_decisions_without_debug(
         returns:
             None.
         """
-        token = basal.DECISION_CACHE.set(tmp_path / "pending/decisions")
+        token = decisions.DECISION_CACHE.set(tmp_path / "pending/decisions")
         try:
-            await basal.ask(Server(), "first", questions, config)
+            await decisions.ask(Server(), "first", questions, config)
             with pytest.raises(asyncio.CancelledError):
-                await basal.ask(Server(), "second", questions, config)
-            await basal.ask(Server(), "first", questions, config)
-            await basal.ask(Server(), "second", questions, config)
+                await decisions.ask(Server(), "second", questions, config)
+            await decisions.ask(Server(), "first", questions, config)
+            await decisions.ask(Server(), "second", questions, config)
         finally:
-            basal.DECISION_CACHE.reset(token)
+            decisions.DECISION_CACHE.reset(token)
 
     asyncio.run(execute())
     assert calls == ["first", "second", "second"]
@@ -1926,8 +1932,8 @@ def test_debug_export_preserves_low_confidence_proposal_with_invalid_flag(tmp_pa
     returns:
         None.
     """
-    config = basal.load_config(overrides={"debug": True})
-    award = basal.finish_award(
+    config = config_module.load_config(overrides={"debug": True})
+    award = amounts.finish_award(
         {
             "suma": "6300",
         },

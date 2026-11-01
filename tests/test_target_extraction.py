@@ -8,6 +8,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.dataset.extraction import basal_filtering as basal
+from src.dataset.extraction import (
+    amounts,
+    configuration as config_module,
+    decisions,
+)
 from src.dataset.extraction import target_extraction as extraction
 
 
@@ -56,7 +61,7 @@ def test_joint_awards_are_aggregated_without_request(monkeypatch, per_person, ex
         + ("kwoty po " if per_person else "kwotę ")
         + "20000 zł zadośćuczynienia."
     )
-    config = basal.load_config()
+    config = config_module.load_config()
     monkeypatch.setattr(
         extraction,
         "match_targets",
@@ -94,7 +99,7 @@ def test_joint_awards_are_aggregated_without_request(monkeypatch, per_person, ex
         assert state["liczba_poszkodowanych"] == 2
         return {"zasadzenie": {"noul": 0.99}}
 
-    monkeypatch.setattr(basal, "ask", ask)
+    monkeypatch.setattr(decisions, "ask", ask)
     award = asyncio.run(extraction.extract_targets(None, sentence, config))
     assert award["suma"] == expected
     assert award["injured_party_count"] == 2
@@ -118,7 +123,7 @@ def test_missing_judgment_never_reaches_basal(monkeypatch):
         lambda text, config: {"judgment": None, "request": {"text": "Żąda zapłaty."}},
     )
     result = asyncio.run(
-        extraction.extract_targets(None, "Żąda zapłaty.", basal.load_config())
+        extraction.extract_targets(None, "Żąda zapłaty.", config_module.load_config())
     )
     assert not result["confirmed"]
     assert result["target_matches"]["judgment"] is None
@@ -171,7 +176,7 @@ def test_distinct_award_clauses_are_summed_without_double_counting_people(
         first
         + f"\nZasądza na rzecz {second_person} kwotę 100 zł zadośćuczynienia.\nUZASADNIENIE\nOpis."
     )
-    config = basal.load_config()
+    config = config_module.load_config()
     monkeypatch.setattr(
         extraction,
         "match_targets",
@@ -207,7 +212,7 @@ def test_distinct_award_clauses_are_summed_without_double_counting_people(
         assert state["liczba_poszkodowanych"] == (1 if second_person == "A. B." else 2)
         return {"zasadzenie": {"noul": 0.99}}
 
-    monkeypatch.setattr(basal, "ask", ask)
+    monkeypatch.setattr(decisions, "ask", ask)
     result = asyncio.run(extraction.extract_targets(None, text, config))
     assert result["suma"] == "200"
     assert result["confirmed"]
@@ -263,10 +268,10 @@ def test_prior_payment_resolves_only_selected_principal_as_integer(
             }
         }
 
-    monkeypatch.setattr(basal, "ask", ask)
+    monkeypatch.setattr(decisions, "ask", ask)
     result = asyncio.run(
-        basal.extract_prior_payment(
-            None, {"text": "Wypłacono 700 zł, pozostaje 6300 zł."}, basal.load_config()
+        amounts.extract_prior_payment(
+            None, {"text": "Wypłacono 700 zł, pozostaje 6300 zł."}, config_module.load_config()
         )
     )
     assert type(result) is int
@@ -284,10 +289,10 @@ def test_missing_prior_payment_requires_no_model_call(monkeypatch):
         None.
     """
     monkeypatch.setattr(
-        basal, "ask", lambda *args: pytest.fail("Unexpected model call")
+        decisions, "ask", lambda *args: pytest.fail("Unexpected model call")
     )
     assert (
-        asyncio.run(basal.extract_prior_payment(None, None, basal.load_config())) == 0
+        asyncio.run(amounts.extract_prior_payment(None, None, config_module.load_config())) == 0
     )
 
 
@@ -307,7 +312,7 @@ def test_prior_payment_is_exported_only_in_record(tmp_path, prior_payment):
 
     from src.dataset.storage.records import add_metadata_features, write_result
 
-    config = basal.load_config(overrides={"debug": True})
+    config = config_module.load_config(overrides={"debug": True})
     result = {
         "features": {},
         "evidence": {},
@@ -376,11 +381,11 @@ def test_prior_payment_feature_is_resolved_for_debug_case_without_target(monkeyp
         assert match["text"] == "Wypłacono 700 zł."
         return 700
 
-    monkeypatch.setattr(basal, "extract_award", extract_award)
-    monkeypatch.setattr(basal, "extract_prior_payment", prior_payment)
+    monkeypatch.setattr(amounts, "extract_award", extract_award)
+    monkeypatch.setattr(amounts, "extract_prior_payment", prior_payment)
     result = asyncio.run(
         basal.extract(
-            None, "Wypłacono 700 zł.", basal.load_config(overrides={"debug": True}), 42
+            None, "Wypłacono 700 zł.", config_module.load_config(overrides={"debug": True}), 42
         )
     )
     assert result["prior_payment"] == 700
@@ -408,7 +413,7 @@ def test_single_total_uses_all_operative_clauses_when_anchor_is_in_reasoning(
     )
     anchor = "Sąd uznał zasądzone 100 zł za odpowiednie."
     text = ruling + "UZASADNIENIE\n" + anchor
-    config = basal.load_config()
+    config = config_module.load_config()
     monkeypatch.setattr(
         extraction,
         "match_targets",
@@ -458,7 +463,7 @@ def test_single_total_uses_all_operative_clauses_when_anchor_is_in_reasoning(
         assert "skladniki" not in state
         return {"zasadzenie": {"noul": 0.99}}
 
-    monkeypatch.setattr(basal, "ask", ask)
+    monkeypatch.setattr(decisions, "ask", ask)
     result = asyncio.run(extraction.extract_targets(None, text, config))
     assert result["confirmed"] is True
     assert result["suma"] == "150"
@@ -506,8 +511,8 @@ def test_total_and_components_in_one_sentence_are_not_silently_double_counted(
         assert "swiadczenie" in questions
         return {"swiadczenie": {"choice": "suma", "confidence": 0.99}}
 
-    monkeypatch.setattr(basal, "ask", ask)
-    result = asyncio.run(extraction.extract_targets(None, text, basal.load_config()))
+    monkeypatch.setattr(decisions, "ask", ask)
+    result = asyncio.run(extraction.extract_targets(None, text, config_module.load_config()))
     assert result["confirmed"] is False
     assert result["suma"] == "brak informacji"
     assert "require disambiguation" in result["status"]

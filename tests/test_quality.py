@@ -90,6 +90,11 @@ import asyncio
 import pytest
 
 from src.dataset.extraction import basal_filtering as basal
+from src.dataset.extraction import (
+    amounts,
+    configuration as config_module,
+    decisions,
+)
 
 
 @pytest.mark.parametrize(
@@ -119,7 +124,7 @@ def test_target_is_checked_before_any_feature_inference(
         None.
     """
     events = []
-    award = basal.finish_award(
+    award = amounts.finish_award(
         {"suma": "100"},
         confirmed,
         {"noul": probability},
@@ -160,9 +165,9 @@ def test_target_is_checked_before_any_feature_inference(
         events.append("instance")
         return {"instancja": {"choice": "nieustalona", "confidence": 0.9}}
 
-    monkeypatch.setattr(basal, "extract_award", extract_award)
-    monkeypatch.setattr(basal, "ask", ask)
-    config = basal.load_config()
+    monkeypatch.setattr(amounts, "extract_award", extract_award)
+    monkeypatch.setattr(decisions, "ask", ask)
+    config = config_module.load_config()
     config["fields"] = {}
     config["api"]["debug"] = debug
     result = asyncio.run(basal.extract(None, "Source judgment.", config, 42))
@@ -253,7 +258,7 @@ def test_target_admission_uses_strict_cosine_threshold(similarity, accepted):
     """
     from src.dataset.extraction.quality import target_rejection_reason
 
-    config = basal.load_config()
+    config = config_module.load_config()
     award = {
         "target_matches": {"judgment": {"similarity": similarity}},
         "confirmed": True,
@@ -283,7 +288,7 @@ def test_unverified_target_reports_amount_classification_instead_of_missing_prob
             {"category": "pozostale_odszkodowanie", "confidence": 0.2874}
         ],
     }
-    reason = target_rejection_reason(award, basal.load_config())
+    reason = target_rejection_reason(award, config_module.load_config())
     assert "no established principal amount" in reason
     assert "pozostale_odszkodowanie" in reason
     assert "probability=0.287" in reason

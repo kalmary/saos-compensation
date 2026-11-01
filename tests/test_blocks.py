@@ -9,6 +9,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.dataset.extraction import basal_filtering as basal
+from src.dataset.extraction import (
+    amounts,
+    configuration as config_module,
+    decisions,
+    passages,
+)
 
 
 @pytest.mark.parametrize(
@@ -31,7 +37,7 @@ def test_blocks_preserve_source_text_and_character_budget(text, limit):
     returns:
         None.
     """
-    blocks = list(basal.source_blocks(text, limit))
+    blocks = list(passages.source_blocks(text, limit))
     previous_end = 0
     for block in blocks:
         assert previous_end <= block["start"] < block["end"]
@@ -73,7 +79,7 @@ def test_direct_extraction_reviews_only_selected_source_sentences(
     """
     text = "Powódka wymagała rehabilitacji.\nSąd uznał żądanie za zasadne."
     sentence = "Powódka wymagała rehabilitacji."
-    config = basal.load_config()
+    config = config_module.load_config()
     config["fields"] = {"harm_type": "Krzywda", "life_impact": "Wpływ na życie"}
     events = []
 
@@ -141,8 +147,8 @@ def test_direct_extraction_reviews_only_selected_source_sentences(
             **{name: {"noul": fit} for name in questions if name.startswith("fit_")},
         }
 
-    monkeypatch.setattr(basal, "extract_award", extract_award)
-    monkeypatch.setattr(basal, "ask", ask)
+    monkeypatch.setattr(amounts, "extract_award", extract_award)
+    monkeypatch.setattr(decisions, "ask", ask)
     result = asyncio.run(basal.extract(None, text, config, 42))
     assert events == ["target", "instance", "extract", "review"]
     for field in config["fields"]:

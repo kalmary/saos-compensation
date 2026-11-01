@@ -77,7 +77,7 @@ def main():
     returns:
         None.
     """
-    from src.dataset.extraction.basal_filtering import load_config
+    from src.dataset.extraction.configuration import load_config
 
     options = vars(parse_arguments())
     directory = options.pop("config_dir")

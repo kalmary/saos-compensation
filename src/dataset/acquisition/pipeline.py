@@ -76,7 +76,8 @@ async def process(config):
     returns:
         None.
     """
-    from src.dataset.extraction import basal_filtering as basal
+    from src.dataset.extraction import basal_filtering as basal, decisions
+    from src.dataset.extraction.prompts import MODEL_FILES
 
     directory = ROOT / config["api"]["download_path"]
     checkpoint = load_checkpoint(config)
@@ -122,7 +123,7 @@ async def process(config):
         model["model"],
         revision=model["revision"],
         cache_dir=model_cache,
-        allow_patterns=basal.MODEL_FILES,
+        allow_patterns=MODEL_FILES,
         max_workers=1,
     )
     args = parser().parse_args(
@@ -143,7 +144,7 @@ async def process(config):
     )
     server = Server(args)
     worker = asyncio.create_task(server.worker())
-    basal.REQUEST_COUNTS.update(cached=0, computed=0)
+    decisions.REQUEST_COUNTS.update(cached=0, computed=0)
     summary = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "run_id": run_id,
@@ -166,17 +167,17 @@ async def process(config):
                 write_bytes(
                     pending / "source.txt", (record["text"] + "\n").encode("utf-8")
                 )
-                cache_token = basal.DECISION_CACHE.set(pending / "decisions")
-                token = basal.MODEL_CALLS.set([] if config["api"]["debug"] else None)
+                cache_token = decisions.DECISION_CACHE.set(pending / "decisions")
+                token = decisions.MODEL_CALLS.set([] if config["api"]["debug"] else None)
                 try:
                     result = await basal.extract(
                         server, record["text"], config, identifier
                     )
                     if config["api"]["debug"]:
-                        result["model_calls"] = basal.MODEL_CALLS.get()
+                        result["model_calls"] = decisions.MODEL_CALLS.get()
                 finally:
-                    basal.MODEL_CALLS.reset(token)
-                    basal.DECISION_CACHE.reset(cache_token)
+                    decisions.MODEL_CALLS.reset(token)
+                    decisions.DECISION_CACHE.reset(cache_token)
                 coverage_reason = feature_rejection_reason(result, config)
                 reason = rejection_reason(result, config)
                 if coverage_reason and reason != coverage_reason:
@@ -223,7 +224,7 @@ async def process(config):
     finally:
         worker.cancel()
         await asyncio.gather(worker, return_exceptions=True)
-        summary["requests"] = basal.REQUEST_COUNTS.copy()
+        summary["requests"] = decisions.REQUEST_COUNTS.copy()
         print(
             json.dumps(
                 {
