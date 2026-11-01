@@ -7,7 +7,18 @@ from pathlib import Path
 import morfeusz2
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "notebooks"))
+notebooks = Path(__file__).resolve().parents[1] / "notebooks"
+if any(
+    not (notebooks / name).is_file()
+    for name in (
+        "01_saos_feasibility.py",
+        "03_system_one_polish.py",
+        "04_gemma.py",
+        "preprocessing.yaml",
+    )
+):
+    pytest.skip("Local notebook experiments are unavailable", allow_module_level=True)
+sys.path.insert(0, str(notebooks))
 feasibility = importlib.import_module("01_saos_feasibility")
 extraction = importlib.import_module("03_system_one_polish")
 gemma = importlib.import_module("04_gemma")

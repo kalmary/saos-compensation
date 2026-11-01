@@ -76,6 +76,7 @@ Expose only values deliberately selected between experiments. Keep model prompts
 
 - Runtime: Python 3.12 managed with `uv`; sync groups/extras first, then execute with `uv run --no-sync`.
 - Dataset entry point: src/dataset/get_data.py handles CLI arguments only. src/dataset/acquisition/pipeline.py coordinates model lifecycle and extraction; acquisition/api.py validates SAOS responses and settings; acquisition/download.py handles resumable downloads; acquisition/checkpoints.py validates progress; storage/records.py enriches and exports records. Extraction and embedding code have separate packages. Within extraction/, basal_filtering.py coordinates the flow and features.py extracts and reviews predictors. The model/ package contains configuration, prompts and decision caching; source/ contains text normalization and passage batching; targets/ contains monetary evidence, principal resolution and prior-payment extraction; storage/files.py provides shared atomic writes and size limits. CLI flags, checkpoint compatibility and local record schemas are unchanged by this organization.
+- Local experiments: notebooks/ contents are ignored; only .gitkeep is tracked. Notebook-specific tests skip when their local inputs are absent.
 - Current outputs: local per-judgment records and a resume checkpoint; diagnostic artifacts only in debug mode.
 - Planned database: PostgreSQL with JSONB and pgvector.
 - Configuration: YAML.

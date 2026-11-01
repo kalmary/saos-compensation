@@ -23,7 +23,6 @@ htmlcov/
 
 # Notebooks
 .ipynb_checkpoints/
-/notebooks/
 
 # Local configuration and secrets
 .env
@@ -56,3 +55,7 @@ Thumbs.db
 # Keep only the data directory placeholder
 /data/*
 !/data/.gitkeep
+
+# Keep only the notebook directory placeholder.
+/notebooks/*
+!/notebooks/.gitkeep

@@ -906,6 +906,8 @@ def test_notebooks_accept_shared_dataset_config():
     """
     import importlib
 
+    if not (ROOT / "notebooks/01_saos_feasibility.py").is_file():
+        pytest.skip("Local notebook experiment is unavailable")
     sys.path.insert(0, str(ROOT / "notebooks"))
     feasibility = importlib.import_module("01_saos_feasibility")
     feasibility.search_settings(CONFIG)

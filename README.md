@@ -15,7 +15,7 @@ src/
     storage/                # Record export, atomic writes and output-size limits
   main.py                   # package startup placeholder
 basal_weights/              # ignored per-model weight cache
-notebooks/                  # exploratory scripts
+notebooks/                  # local experiments; only .gitkeep is tracked
 fixtures/                   # development snapshots, when available
 tests/                     # automated checks
 PROJECT.md                  # workflow and design
@@ -116,7 +116,7 @@ The only regression target is `total`: all awarded one-off principal payments ac
 
 The workflow avoids preliminary passage classification and checks only field candidates. Local comparisons of pinned mini and 4.5B models use the same saved judgments; results are inspection artifacts, not a validated accuracy estimate.
 
-Research experiments remain in `notebooks/`; their outputs are separate from the dataset CLI. See [PROJECT.md](PROJECT.md) for the full workflow.
+Research experiments can be kept locally in `notebooks/`; only `.gitkeep` is tracked. Tests for those experiments skip when the local files are absent. See [PROJECT.md](PROJECT.md) for the full workflow.
 
 ## ML pipeline
 
