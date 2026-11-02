@@ -14,7 +14,6 @@ from ..storage.files import write_bytes, write_json
 
 SOURCE = "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/OT_ADMS_P.gpkg"
 
-
 def locality_class(kind, population):
     """
     Map an official locality type and population to a size category.

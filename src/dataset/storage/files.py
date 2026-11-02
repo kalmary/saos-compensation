@@ -41,7 +41,7 @@ def output_limit(directory, max_gib):
         _OUTPUT.reset(token)
 
 
-def write_bytes(path, content):
+def write_bytes(path, content) -> None:
     """
     Atomically replace an output file without exceeding the active size budget.
 
