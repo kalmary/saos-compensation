@@ -44,11 +44,10 @@ def cosine_similarity(embeddings, reference_embeddings, device="cpu"):
             scale = tensor.abs().amax(dim=1, keepdim=True)
             if (scale == 0).any():
                 raise ValueError(f"{name} must not contain zero vectors")
-            tensor = tensor / scale
-            normalized.append(
-                tensor / torch.linalg.vector_norm(tensor, dim=1, keepdim=True)
-            )
+            normalized.append(tensor / scale)
         left, right = normalized
         if left.shape[1] != right.shape[1]:
             raise ValueError("Embedding dimensions must match")
-        return (left @ right.T).clamp(-1, 1)
+        return torch.stack(
+            [torch.nn.functional.cosine_similarity(row, right, dim=1) for row in left]
+        ).clamp(-1, 1)

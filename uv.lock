@@ -1362,11 +1362,11 @@ dependencies = [
     { name = "numpy" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "torch" },
 ]
 
 [package.optional-dependencies]
 embedding = [
-    { name = "torch" },
     { name = "transformers" },
 ]
 extraction = [
@@ -1377,11 +1377,9 @@ gemma = [
 ]
 pytorch-cuda-linux = [
     { name = "basal", marker = "sys_platform == 'linux'" },
-    { name = "torch", marker = "sys_platform == 'linux'" },
 ]
 pytorch-macos = [
     { name = "basal", marker = "sys_platform == 'darwin'" },
-    { name = "torch", marker = "sys_platform == 'darwin'" },
 ]
 
 [package.dev-dependencies]
@@ -1399,9 +1397,7 @@ requires-dist = [
     { name = "ollama", marker = "extra == 'gemma'", specifier = ">=0.6.3" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.34.2" },
-    { name = "torch", marker = "sys_platform == 'darwin' and extra == 'pytorch-macos'", specifier = ">=2.11" },
-    { name = "torch", marker = "sys_platform == 'linux' and extra == 'pytorch-cuda-linux'", specifier = ">=2.11" },
-    { name = "torch", marker = "extra == 'embedding'", specifier = ">=2.11" },
+    { name = "torch", specifier = ">=2.11" },
     { name = "transformers", marker = "extra == 'embedding'", specifier = ">=4.41" },
 ]
 provides-extras = ["embedding", "extraction", "pytorch-macos", "pytorch-cuda-linux", "gemma"]

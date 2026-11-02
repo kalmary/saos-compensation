@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Target matching now uses PyTorch cosine similarity with existing input validation and explicit device selection. PyTorch is a base dependency. Extractor version 24 requires a fresh output path because floating-point scores may differ near selection thresholds. Offline validation: 380 passed, three skipped.
+
 The acquisition work is split into stacked pull requests: #5 (`feature/inspect-data` → `main`) retains 24 commits through 20a33fb; #6 (`freature/inspect-data/refactor` → `feature/inspect-data`) contains the November 1 refactor. Existing commits are preserved, and backup/inspect-data-before-stack-20261101 retains the full pre-split history locally and remotely. Merge #5 before #6; application tests were not rerun for the branch split.
 
 Reusable embedding creation is available as src.dataset.embeddings.create_embeddings(texts, settings). Encoding/model caching is separate from target matching; generic callers retain original text while the matcher applies its own monetary normalization. Runtime configuration, vectors, output schema and extraction version remain unchanged by this refactor.
@@ -46,8 +48,6 @@ The v19 comparison on the same four saved cases produced 4/6, 0/6, 2/6 and 3/6 t
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-10-30: Hardened dump/court metadata validation and applied the configured timeout to GUGiK as well. Passed 175 tests and static import/name checks. Live one-page SAOS acquisition selected 8 of 100 documents and reported 3 empty-text rejections; a fresh Basal run for 294466 completed 101 uncached calls and verified that debug=false leaves only record.json. The case produced three descriptions and explicitly unallocated targets for multiple beneficiaries. Full-corpus inference and independent extraction accuracy were not evaluated.
 
 - 2026-10-30: Added device selection with CPU default, explicit MPS/CUDA checks, and separate pytorch-macos/pytorch-cuda-linux extras with platform markers; refreshed uv.lock without installation. Converted implementation comments, active metadata identifiers and diagnostics to English while preserving Polish Basal interaction and original fixtures. Replaced outdated PROJECT.md acquisition/configuration sections and added language/project-maintenance rules to AGENTS.md. Updated regression expectations and added device checks as unexecuted tests. No installation, inference or test run after the request not to test these changes; CUDA hardware remains unavailable locally.
 
@@ -146,3 +146,5 @@ The v19 comparison on the same four saved cases produced 4/6, 0/6, 2/6 and 3/6 t
 - 2026-11-01: Moved SentenceEncoder and encoder-only validation into embeddings/encoding.py and exported create_embeddings(texts, settings) from src.dataset.embeddings. Target matching reuses the function with its existing normalization and pattern cache. Added input/settings validation and lazy reuse keyed only by encoder settings, preserving long-text window pooling and vector order. Validation: 380 tests passed, three skipped; cached CPU inference produced exactly identical 2-by-384 float32 vectors before/after extraction. MPS/CUDA and Basal inference were not rerun.
 
 - 2026-11-01: Split PR #5 at 20a33fb using an exact-SHA force-with-lease after pushing backup/inspect-data-before-stack-20261101. Retained the existing freature/inspect-data/refactor branch and opened PR #6 against feature/inspect-data, preserving all 17 existing November 1 commits and PR #5 history. Verified branch ancestry, clean application files and both open PR bases. No application source changes, tests or inference runs; a documentation-only commit records this operational change.
+
+- 2026-11-02: Replaced manual cosine calculation with PyTorch cosine similarity, retaining scaling, validation and accelerator selection. Moved PyTorch to base dependencies, updated the lockfile and advanced extraction to version 24. Validation: 380 offline tests passed, three skipped. Live inference and CUDA were not checked.
