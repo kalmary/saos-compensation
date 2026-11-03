@@ -1,10 +1,7 @@
 """Target admission and multiple-recipient arithmetic without model downloads."""
 
-
 import asyncio
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -12,13 +9,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.extraction.targets import amounts
-
 from src.dataset.extraction.model import configuration as config_module
-
 from src.dataset.extraction.model import decisions
-
+from src.dataset.extraction.targets import amounts
 from src.dataset.extraction.targets import target_extraction as extraction
+
 
 @pytest.mark.parametrize(
     ("award", "expected"),
@@ -100,4 +95,3 @@ def test_prior_payment_is_exported_only_in_record(tmp_path, prior_payment):
     assert type(features["prior_payment"]) is int
     assert "prior_payment" not in award
     assert award["total"] == "65600"
-

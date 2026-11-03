@@ -1,10 +1,7 @@
 """Embedding routing, winner selection and multi-person principal aggregation."""
 
-
 import math
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -80,4 +77,3 @@ def test_long_sentence_windows_are_pooled_without_dropping_tokens():
         encoder.encode(["long sentence", "short sentence"]),
         torch.tensor([[2.0, 2.0], [5.0, 5.0]]),
     )
-

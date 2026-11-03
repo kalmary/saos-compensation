@@ -1,8 +1,6 @@
 """Pairwise embedding similarity and input boundaries."""
 
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -14,6 +12,7 @@ torch = pytest.importorskip("torch")
 
 
 from src.dataset.embeddings.cosine_similarity import cosine_similarity
+
 
 def test_pairwise_similarity_matches_known_angles_without_gradients():
     """
@@ -111,4 +110,3 @@ def test_unknown_device_is_rejected():
     """
     with pytest.raises(ValueError, match="device must be"):
         cosine_similarity([1.0, 0.0], [1.0, 0.0], device="auto")
-
