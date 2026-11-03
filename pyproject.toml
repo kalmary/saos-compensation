@@ -6,6 +6,8 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
+    "pyyaml>=6.0.3",
+
     "torch>=2.11",
     "transformers>=4.41",
 
