@@ -4,7 +4,7 @@
 
 The project should provide a reproducible pipeline that:
 
-- downloads only relevant judgments through a narrowly scoped SAOS API query,
+- acquires date-bounded judgments through the official SAOS dump API and selects compensation cases,
 - validates, filters, and stores the source JSON without losing its structure,
 - uses PostgreSQL with pgvector for relational data, JSON payloads, and embeddings,
 - extracts the target amount and a repeatable set of judgment features,
@@ -19,20 +19,21 @@ This is a regression problem. Do not turn it into judgment classification or gen
 
 ## 1. Data acquisition and storage
 
-- Inspect the current SAOS API schema before implementing the client.
-- Select the narrowest supported query that returns judgments concerning compensation; avoid downloading the entire corpus and filtering it only locally.
-- Preserve the request parameters and acquisition timestamp so a dataset can be reproduced.
-- Validate identifiers, court metadata, dates, judgment text, and pagination before persistence.
-- Deduplicate judgments by their stable SAOS identifier and make ingestion restartable.
-- Keep the original response payload in a PostgreSQL JSON/JSONB column and materialize fields needed for filtering and analysis as ordinary columns.
-- Use pgvector for generated embeddings. Do not introduce a separate vector database without evidence that PostgreSQL is insufficient.
-- Keep raw, validated, and model-ready data distinguishable so preprocessing never overwrites source data.
+- Read `PROJECT.md` before changing behavior. It is the authoritative description of the current acquisition, output and configuration workflow.
+- Use the official SAOS dump endpoints and validate their current schema. Apply supported date filters, select relevant compensation cases locally, join court metadata and deduplicate by stable SAOS ID.
+- Keep CLI and `configs/dataset/api.yaml` aligned: YAML supplies defaults; explicit CLI arguments override only their corresponding values.
+- Produce per-judgment feature/target records and an atomic checkpoint.json under download_path. Resume from the saved position and advance only after the final record is durable. Preserve the dataset date bounds and reject incompatible extraction settings. Completed case folders contain only record.json feature values and award.json with one total monetary target and a boolean valid. Sum the awarded one-off principal across beneficiaries; exclude procedural costs, interest, rent and earlier payments. Require source-backed descriptions for strictly more than 50% of configured text features after the primary extraction pass; discard insufficient-coverage cases even under debug, without a fallback pass. Among cases passing coverage, debug retains completed extraction attempts with missing/unconfirmed targets as valid=false; normal records use valid=true. Keep source and leakage validation active for debug records. With debug enabled, add only source.txt and model_calls.json; keep diagnostics out of the basic files. Temporary pending state supports interruption recovery and is removed after acceptance or rejection. Preserve existing artifacts; do not add persistent reports or other diagnostic files.
+- Enforce max_gib on the total output directory across resumptions, including existing files and debug history. Refuse writes that exceed the limit and keep the model cache outside a size-limited output directory.
+- Use explicit HTTP timeouts and a shared session. Surface failures without manual retry loops or silently missing records.
+- Target sentence selection first filters for a numeric PLN amount and a configured word stem in the same sentence, then embeds only eligible candidates in batches. It uses embedding.yaml and target_pattern.yaml: cosine similarity must be strictly above the configured minimum (default 0.7); each candidate has one highest-scoring eligible group, with exclusion priority on exact ties. The best judgment match is required and request is optional. Basal resolves amounts afterward. Support multiple beneficiaries with one case-level total and injured_party_count; do not reject a case solely because multiple people receive an award. Keep embedding weights in embedding_weights/, separate from basal_weights/.
+- Keep API access, extraction and future PostgreSQL/pgvector ingestion separable. Raw, validated and model-ready representations must not overwrite one another.
 
 ## 2. Target and feature definition
 
 - Define one target value precisely: the awarded compensation amount in PLN for the modeled claim.
 - Record how multiple claimants, multiple awards, partial awards, currencies, interest, and rejected claims are handled before training.
 - Exclude ambiguous examples rather than silently assigning an uncertain target.
+- Use general text axes for cause, nature of harm/loss, duration, disrupted activities/plans, pre-event circumstances and remedial actions; do not assume bodily injury.
 - Build a repeatable representation of facts available for prediction, initially including the cause of harm, region, court type, court level, judgment date, claimant characteristics, injury or harm characteristics, and other supported case facts.
 - Treat feature extraction as a separate, versioned preprocessing step. A Polish-language information-extraction model may be evaluated, including a free model with Polish weights, but no specific model is assumed before a small labeled evaluation.
 
@@ -40,6 +41,7 @@ This is a regression problem. Do not turn it into judgment classification or gen
 
 - Extract labels separately from predictor features.
 - Do not use the awarded amount, requested amount, calculations based on that amount, or passages explaining why that amount was selected as model input.
+- `prior_payment` is an explicitly allowed numeric predictor for confirmed earlier principal payments, never a target. Keep its source passage and all other monetary evidence out of text features.
 - Split data before fitting encoders or other learned preprocessing.
 - Group related judgments, appeals, or duplicate proceedings in the same split.
 - Review extracted features and nearest-neighbor results for indirect disclosure of the target.
@@ -57,35 +59,25 @@ This is a regression problem. Do not turn it into judgment classification or gen
 
 YAML configuration is the public experiment interface. Keep data access, preprocessing, feature selection, model choice, and training values out of source code when they vary between experiments.
 
-Use this layout as functionality is implemented:
-
-```text
-configs/
-  data.yaml
-  preprocessing.yaml
-  train.yaml
-  models/
-    <model-name>.yaml
-```
-
-- `data.yaml` defines the SAOS request, validation rules, database connection environment-variable name, and dataset split.
-- `preprocessing.yaml` defines target extraction, the feature allowlist, leakage exclusions, field encoders, and embedding model.
-- `train.yaml` defines training-only settings such as seed, batch size, epochs, optimizer, scheduler, and early stopping when the selected model needs them. It must not duplicate model structure or data configuration.
-- Each file in `configs/models/` defines one regression model and its parameters, whether it is a classical ML model or a neural network.
-- References between configuration files must be explicit. Do not add a configuration option until two real experiments need different values.
+The current interface is `configs/dataset/api.yaml` for acquisition and `configs/dataset/basal.yaml` for device, feature/target selection and confidence thresholds. Future training settings belong in `configs/train.yaml`, with regression model choices and parameters under `configs/models/` when implemented. Keep references explicit and add a configuration option only when real experiments need different values.
 
 # Engineering rules
 
-- Read the relevant implementation, tests, fixtures, configuration, and documentation before editing.
+- Read `PROJECT.md` and the relevant implementation, tests, fixtures, configuration, and documentation before editing.
+- Keep `PROJECT.md` current after behavior or design changes. Edit or replace outdated statements in their existing sections; do not append contradictory updates or maintain a history there. Dated history belongs in `STATUS.md`.
+- Use English for implementation identifiers, configuration keys, comments, docstrings, errors and diagnostics. Retain Polish only where required by model-facing prompts/schema identifiers, source-text matching, original evidence or Polish-text analysis. New metadata names and machine-readable status values must be English.
+- Use `pytorch-macos` for local PyTorch work on macOS and `pytorch-cuda-linux` for Linux CUDA dependencies. The current macOS experiment uses MPS; CPU and CUDA remain explicit alternatives. Selected accelerators must be available before inference starts.
+- Comments and parameter descriptions should explain non-obvious behavior or constraints, not restate names.
+- Every function, including helpers and methods, must have a short English triple-quoted docstring with a description, an `args:` section listing its parameters, and a `returns:` section describing its result. Use `None` when there are no arguments or return value.
 - Make the smallest complete change and reuse existing project patterns.
 - Use descriptive, general names. Do not over-modify unrelated code.
 - Do not add comments or metadata referring to AI tools or the development conversation.
 - Keep API access, database access, feature extraction, vectorization, and model training separable and testable.
 - Validate external API data and model configuration at their boundaries. Do not hide malformed records or partial failures.
 - Keep secrets out of YAML and source files; configurations may name environment variables only.
-- Preserve raw source data and avoid destructive migrations without an explicit migration and backup plan.
+- Preserve existing source and diagnostic artifacts; create additional diagnostic data only when debug is enabled. Avoid destructive migrations without an explicit migration and backup plan.
 - Add focused tests for non-trivial parsing, target extraction, leakage filtering, and configuration-driven model selection.
-- Use Python 3.12, the repository `.venv`, `uv`, and the committed `uv.lock`. Run project commands with `uv run`.
+- Use Python 3.12, the repository `.venv`, `uv`, and the committed `uv.lock`. Sync dependencies separately with `uv sync --locked` and the required groups/extras, then execute commands with `uv run --no-sync`; do not sync or select extras during execution.
 - Do not add a dependency until the implementation imports it.
 - After each task, update the summary in `STATUS.md` and append a dated entry describing completed changes, findings, and remaining work. Keep only the latest 50 log entries in chronological order.
 - Never run Git operations, including commit, push, pull, branch, merge, or reset, without explicit user approval.
