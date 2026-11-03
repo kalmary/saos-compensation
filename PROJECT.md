@@ -84,5 +84,6 @@ Configuration files may reference secrets through environment-variable names, bu
 - Match award sentences against target and payment patterns.
 - Validate extraction settings and cache model decisions.
 - Resolve awarded principal and earlier payments separately.
+- Validate admission and export separate feature and award records.
 
 Remaining components are introduced by subsequent dependent changes. The complete acquisition command is available after pipeline integration.
