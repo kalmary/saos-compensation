@@ -1,0 +1,12 @@
+# for later, dont touch when working with dataset
+
+feature_fields: # change them so that less/ more fields are used for classifier model. handy fater feature importance examination
+- judgment_year
+- instance
+- court_locality_size # Population class of the locality where the court is located (GUGiK).
+- event_circumstances
+- harm_type
+- harm_severity_duration
+- life_impact
+- claimant_circumstances
+- treatment_assistance
