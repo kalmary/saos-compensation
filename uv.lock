@@ -1029,6 +1029,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "morfeusz2" },
     { name = "numpy" },
+    { name = "pyyaml" },
     { name = "requests" },
     { name = "torch" },
     { name = "transformers" },
@@ -1043,6 +1044,7 @@ test = [
 requires-dist = [
     { name = "morfeusz2", specifier = ">=1.99.15" },
     { name = "numpy", specifier = ">=2.5.4" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "torch", specifier = ">=2.11" },
     { name = "transformers", specifier = ">=4.41" },
