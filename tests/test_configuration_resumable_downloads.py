@@ -1,16 +1,11 @@
 """Acquisition configuration boundaries and checkpoint compatibility."""
 
-
 import asyncio
-
 import shutil
-
 import sys
-
 from pathlib import Path
 
 import pytest
-
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,10 +15,8 @@ sys.path.insert(0, str(ROOT))
 
 
 from src.dataset.extraction import features
+from src.dataset.extraction.model import configuration, decisions
 
-from src.dataset.extraction.model import configuration
-
-from src.dataset.extraction.model import decisions
 
 @pytest.fixture
 def config_directory(tmp_path):
@@ -39,7 +32,9 @@ def config_directory(tmp_path):
     return tmp_path
 
 
-def test_changed_question_invalidates_checkpoint(config_directory, monkeypatch, tmp_path):
+def test_changed_question_invalidates_checkpoint(
+    config_directory, monkeypatch, tmp_path
+):
     """Resume unchanged settings and reject a changed question on resume.
 
     args:
@@ -56,7 +51,9 @@ def test_changed_question_invalidates_checkpoint(config_directory, monkeypatch, 
     config = configuration.load_config(config_directory)
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     checkpoint = checkpoints.load_checkpoint(config)
-    write_json(tmp_path / config["api"]["download_path"] / "checkpoint.json", checkpoint)
+    write_json(
+        tmp_path / config["api"]["download_path"] / "checkpoint.json", checkpoint
+    )
     assert checkpoints.load_checkpoint(config) == checkpoint
     path = config_directory / "features.yaml"
     settings = configuration.read_config(path)
@@ -65,4 +62,3 @@ def test_changed_question_invalidates_checkpoint(config_directory, monkeypatch, 
     changed = configuration.load_config(config_directory)
     with pytest.raises(ValueError, match="Extraction settings changed"):
         checkpoints.load_checkpoint(changed)
-

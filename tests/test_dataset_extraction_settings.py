@@ -1,19 +1,12 @@
 import asyncio
-
 import hashlib
-
 import json
-
 import shutil
-
 import sys
-
 from datetime import date
-
 from pathlib import Path
 
 import pytest
-
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,23 +15,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.storage import files as storage
-
 from src.dataset.acquisition import api
-
 from src.dataset.extraction.model import configuration as config_module
-
-from src.dataset.extraction.model import decisions
-
-from src.dataset.extraction.model import prompts
-
-from src.dataset.extraction.source.text import CURRENCY
-
-from src.dataset.extraction.source.text import MONEY
-
-from src.dataset.extraction.source.text import amount_in_pln
-
-from src.dataset.extraction.source.text import extract_text
+from src.dataset.extraction.model import decisions, prompts
+from src.dataset.extraction.source.text import (
+    CURRENCY,
+    MONEY,
+    amount_in_pln,
+    extract_text,
+)
+from src.dataset.storage import files as storage
 
 FIELD_NAMES = {
     "zdarzenie_i_okolicznosci": "event_circumstances",
@@ -116,7 +102,9 @@ def test_basal_validates_historical_requests_and_responses(monkeypatch, tmp_path
 
     for call in calls:
         request = call["request"]
-        asyncio.run(decisions.ask(Server(), request["state"], request["questions"], config))
+        asyncio.run(
+            decisions.ask(Server(), request["state"], request["questions"], config)
+        )
     assert len(seen) == len(calls)
 
 
@@ -260,4 +248,3 @@ def test_interrupted_extraction_reuses_completed_decisions_without_debug(
     asyncio.run(execute())
     assert calls == ["first", "second", "second"]
     assert len(list((tmp_path / "pending/decisions").glob("*.json"))) == 2
-

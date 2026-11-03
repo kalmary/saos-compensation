@@ -1,10 +1,7 @@
 """Reusable embedding API boundaries and encoder reuse without downloads."""
 
-
 import sys
-
 from pathlib import Path
-
 from types import SimpleNamespace
 
 import pytest
@@ -12,9 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.embeddings import create_embeddings
-
-from src.dataset.embeddings import encoding
+from src.dataset.embeddings import create_embeddings, encoding
 
 SETTINGS = {
     "model": "test",
@@ -51,7 +46,9 @@ def test_invalid_texts_fail_before_model_loading(monkeypatch, texts):
     returns:
         None.
     """
-    monkeypatch.setattr(encoding, "SentenceEncoder", lambda *args: pytest.fail("Unexpected model load"))
+    monkeypatch.setattr(
+        encoding, "SentenceEncoder", lambda *args: pytest.fail("Unexpected model load")
+    )
     with pytest.raises(ValueError, match="texts must"):
         create_embeddings(texts, SETTINGS)
 
@@ -77,7 +74,9 @@ def test_invalid_encoder_settings_fail_before_loading(monkeypatch, change):
     returns:
         None.
     """
-    monkeypatch.setattr(encoding, "SentenceEncoder", lambda *args: pytest.fail("Unexpected model load"))
+    monkeypatch.setattr(
+        encoding, "SentenceEncoder", lambda *args: pytest.fail("Unexpected model load")
+    )
     with pytest.raises(ValueError):
         create_embeddings(["Text"], {**SETTINGS, **change})
 
@@ -121,9 +120,11 @@ def test_original_texts_and_order_are_preserved_and_models_reused(monkeypatch):
     monkeypatch.setattr(encoding, "SentenceEncoder", load)
     texts = ["Zasądza 10000 zł.", "Ograniczenia w pracy."]
     assert create_embeddings(texts, SETTINGS) is vectors
-    assert create_embeddings([texts[1]], {**SETTINGS, "minimum_cosine_similarity": 0.9}) is vectors
+    assert (
+        create_embeddings([texts[1]], {**SETTINGS, "minimum_cosine_similarity": 0.9})
+        is vectors
+    )
     assert loaded == [SETTINGS]
     assert batches == [texts, [texts[1]]]
     create_embeddings(texts, {**SETTINGS, "revision": "other"})
     assert len(loaded) == 2
-

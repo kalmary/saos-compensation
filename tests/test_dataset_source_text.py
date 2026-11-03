@@ -1,19 +1,12 @@
 import asyncio
-
 import hashlib
-
 import json
-
 import shutil
-
 import sys
-
 from datetime import date
-
 from pathlib import Path
 
 import pytest
-
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,13 +15,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.extraction.source.text import CURRENCY
+from src.dataset.extraction.source.text import (
+    CURRENCY,
+    MONEY,
+    amount_in_pln,
+    extract_text,
+)
 
-from src.dataset.extraction.source.text import MONEY
-
-from src.dataset.extraction.source.text import amount_in_pln
-
-from src.dataset.extraction.source.text import extract_text
 
 @pytest.mark.parametrize(
     "text, amount",
@@ -122,4 +115,3 @@ def test_compound_amounts_require_descending_units(text):
     """
     with pytest.raises(ValueError, match="largest to smallest"):
         amount_in_pln(MONEY.fullmatch(text))
-

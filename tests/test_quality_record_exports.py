@@ -1,9 +1,7 @@
 """Dataset admission boundaries without model inference."""
 
+from src.dataset.extraction.quality import rejection_reason, target_rejection_reason
 
-from src.dataset.extraction.quality import rejection_reason
-
-from src.dataset.extraction.quality import target_rejection_reason
 
 def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
     """
@@ -80,9 +78,7 @@ def test_confirmed_component_does_not_require_other_components_to_be_known():
     }
     assert target_rejection_reason(award, config) is None
     award["zadoscuczynienie"] = "brak informacji"
-    assert (
-        target_rejection_reason(award, config) == "no established selected target"
-    )
+    assert target_rejection_reason(award, config) == "no established selected target"
     award["zadoscuczynienie"] = "NaN"
     assert target_rejection_reason(award, config) == "invalid target"
 
@@ -91,11 +87,10 @@ import asyncio
 
 import pytest
 
+from src.dataset.extraction.model import configuration as config_module
+from src.dataset.extraction.model import decisions
 from src.dataset.extraction.targets import amounts
 
-from src.dataset.extraction.model import configuration as config_module
-
-from src.dataset.extraction.model import decisions
 
 @pytest.mark.parametrize(
     ("confirmed", "verification", "expected"),
@@ -134,7 +129,9 @@ def test_award_rejection_reports_probability_and_threshold(
 
 
 @pytest.mark.parametrize("field", ["cause", "damage", "limitations"])
-@pytest.mark.parametrize("value", [None, "", " ", "brak informacji", "not_available", 123, "Source text"])
+@pytest.mark.parametrize(
+    "value", [None, "", " ", "brak informacji", "not_available", 123, "Source text"]
+)
 @pytest.mark.parametrize("evidence", [False, True])
 def test_any_source_backed_text_feature_is_sufficient(field, value, evidence):
     """Accept each text feature alone and reject absent or ungrounded descriptions.
@@ -153,7 +150,9 @@ def test_any_source_backed_text_feature_is_sufficient(field, value, evidence):
         "features": {field: value, "judgment_year": 2020, "injured_party_count": 1},
         "evidence": {field: [{"start": 0, "end": 11}] if evidence else []},
     }
-    config = {"fields": {name: "Question" for name in ("cause", "damage", "limitations")}}
+    config = {
+        "fields": {name: "Question" for name in ("cause", "damage", "limitations")}
+    }
     reason = feature_rejection_reason(result, config)
     assert (reason is None) is (value == "Source text" and evidence)
     if reason is not None:
@@ -218,5 +217,6 @@ def test_target_parse_failure_reports_status_without_model_probability():
         "confirmed": False,
         "status": "selected judgment sentence requires exactly one numeric PLN amount",
     }
-    assert target_rejection_reason(award, config_module.load_config()) == award["status"]
-
+    assert (
+        target_rejection_reason(award, config_module.load_config()) == award["status"]
+    )

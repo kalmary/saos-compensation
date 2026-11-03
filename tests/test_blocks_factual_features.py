@@ -1,10 +1,7 @@
 """Bounded classification inputs without model inference."""
 
-
 import asyncio
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -13,14 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from src.dataset.extraction import basal_filtering as basal
-
+from src.dataset.extraction.model import configuration as config_module
+from src.dataset.extraction.model import decisions
+from src.dataset.extraction.source import passages
 from src.dataset.extraction.targets import amounts
 
-from src.dataset.extraction.model import configuration as config_module
-
-from src.dataset.extraction.model import decisions
-
-from src.dataset.extraction.source import passages
 
 @pytest.mark.parametrize(
     ("section", "confidence", "leak", "fit", "accepted"),
@@ -131,4 +125,3 @@ def test_direct_extraction_reviews_only_selected_source_sentences(
         for quote in result["evidence"][field]:
             assert text[quote["start"] : quote["end"]] == sentence
     assert len(result["description_reviews"]) == 1
-

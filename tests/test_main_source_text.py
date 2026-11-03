@@ -1,8 +1,7 @@
 import subprocess
-
 import sys
-
 from pathlib import Path
+
 
 def test_main():
     """
@@ -22,4 +21,3 @@ def test_main():
     )
 
     assert result.stdout == "Hello from saos-compensation!\n"
-

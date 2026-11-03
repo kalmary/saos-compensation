@@ -1,10 +1,7 @@
 """Target admission and multiple-recipient arithmetic without model downloads."""
 
-
 import asyncio
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -13,14 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from src.dataset.extraction import basal_filtering as basal
-
-from src.dataset.extraction.targets import amounts
-
 from src.dataset.extraction.model import configuration as config_module
-
 from src.dataset.extraction.model import decisions
-
+from src.dataset.extraction.targets import amounts
 from src.dataset.extraction.targets import target_extraction as extraction
+
 
 def test_prior_payment_feature_is_resolved_for_debug_case_without_target(monkeypatch):
     """
@@ -70,11 +64,13 @@ def test_prior_payment_feature_is_resolved_for_debug_case_without_target(monkeyp
     monkeypatch.setattr(amounts, "extract_prior_payment", prior_payment)
     result = asyncio.run(
         basal.extract(
-            None, "Wypłacono 700 zł.", config_module.load_config(overrides={"debug": True}), 42
+            None,
+            "Wypłacono 700 zł.",
+            config_module.load_config(overrides={"debug": True}),
+            42,
         )
     )
     assert result["prior_payment"] == 700
     assert result["fields_evaluated"] is False
     assert "prior_payment" not in result["award"]
     assert result["award"]["confirmed"] is False
-

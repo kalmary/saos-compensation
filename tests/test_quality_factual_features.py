@@ -1,21 +1,15 @@
 """Dataset admission boundaries without model inference."""
 
-
-from src.dataset.extraction.quality import rejection_reason
-
-from src.dataset.extraction.quality import target_rejection_reason
-
 import asyncio
 
 import pytest
 
 from src.dataset.extraction import basal_filtering as basal
-
+from src.dataset.extraction.model import configuration as config_module
+from src.dataset.extraction.model import decisions
+from src.dataset.extraction.quality import rejection_reason, target_rejection_reason
 from src.dataset.extraction.targets import amounts
 
-from src.dataset.extraction.model import configuration as config_module
-
-from src.dataset.extraction.model import decisions
 
 @pytest.mark.parametrize(
     ("confirmed", "debug", "probability", "continues"),
@@ -95,4 +89,3 @@ def test_target_is_checked_before_any_feature_inference(
     assert events == (["target", "instance"] if continues else ["target"])
     if not continues:
         assert result == {"id": 42, "award": award}
-
