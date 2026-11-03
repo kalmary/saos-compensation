@@ -2,7 +2,7 @@
 
 ## Summary
 
-Validate admission and export separate feature and award records. The acquisition components are introduced in dependency order; full pipeline integration remains pending.
+Extract source-backed factual features with leakage checks. The acquisition components are introduced in dependency order; full pipeline integration remains pending.
 
 ## Log
 
@@ -15,3 +15,4 @@ Validate admission and export separate feature and award records. The acquisitio
 - 2026-11-03: Validate extraction settings and cache model decisions; validated with its own locked environment and the offline tests available at this layer.
 - 2026-11-03: Resolve awarded principal and earlier payments separately; validated with its own locked environment and the offline tests available at this layer.
 - 2026-11-03: Validate admission and export separate feature and award records; validated with its own locked environment and the offline tests available at this layer.
+- 2026-11-03: Extract source-backed factual features with leakage checks; validated with its own locked environment and the offline tests available at this layer.
