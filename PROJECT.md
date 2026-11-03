@@ -79,5 +79,6 @@ Configuration files may reference secrets through environment-variable names, bu
 - Normalize judgment text and parse PLN amounts.
 - Write atomic records within a cumulative storage limit.
 - Validate and paginate official SAOS dump responses.
+- Resolve court localities from official population data.
 
 Remaining components are introduced by subsequent dependent changes. The complete acquisition command is available after pipeline integration.
