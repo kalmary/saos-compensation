@@ -1,0 +1,128 @@
+import asyncio
+import sys
+from pathlib import Path
+import pytest
+from src.dataset.extraction import basal_filtering as basal
+from src.dataset.extraction.targets import amounts
+from src.dataset.extraction.model import configuration as config_module
+from src.dataset.extraction.model import decisions
+from src.dataset.extraction.source import passages
+
+"""Bounded classification inputs without model inference."""
+
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+
+
+@pytest.mark.parametrize(
+    ("section", "confidence", "leak", "fit", "accepted"),
+    [
+        ("fakty", 0.9, 0.01, 0.9, True),
+        ("rozwazania", 0.9, 0.01, 0.9, False),
+        ("fakty", 0.9, 0.9, 0.9, False),
+        ("fakty", 0.1, 0.01, 0.9, False),
+        ("fakty", 0.9, 0.01, 0.1, False),
+    ],
+)
+def test_direct_extraction_reviews_only_selected_source_sentences(
+    monkeypatch, section, confidence, leak, fit, accepted
+):
+    """
+    Extract before classification and share source reviews across selected fields.
+
+    args:
+        monkeypatch: Scoped model replacements.
+        section: Selected sentence's semantic role.
+        confidence: Confidence in the semantic role.
+        leak: Selected sentence's target leakage score.
+        fit: Relevance of the sentence to its proposed field.
+        accepted: Whether the candidate should become a feature.
+
+    returns:
+        None.
+    """
+    text = "Powódka wymagała rehabilitacji.\nSąd uznał żądanie za zasadne."
+    sentence = "Powódka wymagała rehabilitacji."
+    config = config_module.load_config()
+    config["fields"] = {"harm_type": "Krzywda", "life_impact": "Wpływ na życie"}
+    events = []
+
+    async def extract_award(server, source, diagnostics, config):
+        """
+        Supply an accepted target independently of feature extraction.
+
+        args:
+            server: Unused server.
+            source: Source judgment.
+            diagnostics: Unused fragment diagnostics.
+            config: Effective configuration.
+
+        returns:
+            Confirmed monetary target.
+        """
+        events.append("target")
+        return {
+            "confirmed": True,
+            "verification": {"noul": 0.99},
+            "zadoscuczynienie": "100",
+            "pozostale_odszkodowanie": "brak informacji",
+        }
+
+    async def ask(server, state, questions, config):
+        """
+        Supply extracted source spans followed by an independent sentence review.
+
+        args:
+            server: Unused server.
+            state: Extraction input or reviewed source sentence.
+            questions: Requested decisions.
+            config: Effective configuration.
+
+        returns:
+            Controlled instance, extraction or review response.
+        """
+        if "instancja" in questions:
+            events.append("instance")
+            return {"instancja": {"choice": "nieustalona", "confidence": 0.9}}
+        if "opis" in questions:
+            events.append("extract")
+            assert sentence in state
+            assert "Sąd uznał" in state
+            return {
+                "opis": {
+                    "data": {field: sentence for field in config["fields"]},
+                    "fields": {
+                        field: {
+                            "start": state.index(sentence),
+                            "end": state.index(sentence) + len(sentence),
+                            "confidence": 0.9,
+                            "line_probability": 0.9,
+                        }
+                        for field in config["fields"]
+                    },
+                }
+            }
+        assert events == ["target", "instance", "extract"]
+        assert state["oceniany_fragment"] == sentence
+        events.append("review")
+        return {
+            "sekcja": {"choice": section, "confidence": confidence},
+            "wyciek": {"noul": leak},
+            **{name: {"noul": fit} for name in questions if name.startswith("fit_")},
+        }
+
+    monkeypatch.setattr(amounts, "extract_award", extract_award)
+    monkeypatch.setattr(decisions, "ask", ask)
+    result = asyncio.run(basal.extract(None, text, config, 42))
+    assert events == ["target", "instance", "extract", "review"]
+    for field in config["fields"]:
+        assert result["features"][field] == (
+            sentence if accepted else "brak informacji"
+        )
+        assert bool(result["evidence"][field]) is accepted
+        for quote in result["evidence"][field]:
+            assert text[quote["start"] : quote["end"]] == sentence
+    assert len(result["description_reviews"]) == 1
+

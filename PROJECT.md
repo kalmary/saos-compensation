@@ -85,5 +85,6 @@ Configuration files may reference secrets through environment-variable names, bu
 - Validate extraction settings and cache model decisions.
 - Resolve awarded principal and earlier payments separately.
 - Validate admission and export separate feature and award records.
+- Extract source-backed factual features with leakage checks.
 
 Remaining components are introduced by subsequent dependent changes. The complete acquisition command is available after pipeline integration.
