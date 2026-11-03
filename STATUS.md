@@ -6,7 +6,7 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
-The acquisition implementation is organized into 13 feature-sized pull requests, chained from main in dependency order and registered as one native GitHub stack. Each layer includes its focused tests; original branches preserve the previous history. The final application, configuration and lockfile match the published extraction-version-26 snapshot. Offline validation in a separate locked environment covers every intermediate layer; live API and model inference are not rerun for the PR rebuild.
+The acquisition implementation is organized into eight feature-sized pull requests, chained from main in dependency order and registered as one native GitHub stack. Related components are grouped into complete review units, with get_data/ titles and ordered stack/get-data/ branches. Each layer includes its focused tests; original branches preserve the previous history. The final application, configuration and lockfile match the published extraction-version-26 snapshot. Offline validation in a separate locked environment covers every intermediate layer; live API and model inference are not rerun for the PR rebuild.
 
 ## Next steps
 
@@ -16,8 +16,6 @@ The acquisition implementation is organized into 13 feature-sized pull requests,
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-10-31: Implemented direct candidate extraction from packed text blocks without preliminary passage classification. Preserved final sentence reviews, source offsets, shared review caching and unsafe-candidate rejection. Bumped extraction to version 7 and updated the workflow documentation and historical response-validation test. Passed 197 offline tests; one historical-fixture replay remains skipped because files are absent. Live quality/runtime comparison remains pending. No Git operations.
 
 - 2026-10-31: Made target rejection messages report verification probability and configured minimum, distinguishing low confidence from an unconfirmed award or unavailable score. Added four offline reporting cases; 201 tests pass with one missing-fixture replay skipped. No live model inference or Git operations.
 
@@ -116,3 +114,5 @@ The acquisition implementation is organized into 13 feature-sized pull requests,
 - 2026-11-03: Extended the shared PLN currency pattern to grammatical forms of złoty and złotówka, covering amount candidates and currency/leakage checks without matching unrelated words such as złoto or złodziej. Added inflection and negative-prefix tests; advanced extractor to version 26 and updated documentation. Validation: 414 tests passed, three skipped; after adding złotówce, 65 candidate tests passed. No live inference run.
 
 - 2026-11-03: Rebuilt acquisition changes into 13 focused, dependency-ordered pull requests with native GitHub stacking, replacing the three broad review requests. Split mixed test modules by capability without removing test functions. Preserved the original branches and the final application/configuration snapshot; no force-push or merge. Validated every layer with its own locked environment and the offline test suite; corrected test-import ordering exposed by CI. Live acquisition and extraction accuracy remain unverified.
+
+- 2026-11-03: Consolidated the 13-layer review stack into eight feature-sized pull requests by grouping related components. Kept native stacking, get_data/ titles and ordered task-specific branch names. Preserved application code, configuration, the lockfile and all test functions; only review boundaries and this status changed. Every combined diff stays below 2,000 changed lines, including tests, documentation and generated lockfile changes. Existing passing checks cover the unchanged component snapshots; the replacement PRs run CI again. Live acquisition and model accuracy were not reevaluated.
