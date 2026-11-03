@@ -2,7 +2,7 @@
 
 ## Summary
 
-Resolve court localities from official population data. The acquisition components are introduced in dependency order; full pipeline integration remains pending.
+Encode text with cached models and compare embedding vectors. The acquisition components are introduced in dependency order; full pipeline integration remains pending.
 
 ## Log
 
@@ -10,3 +10,4 @@ Resolve court localities from official population data. The acquisition componen
 - 2026-11-03: Write atomic records within a cumulative storage limit; validated with the offline tests available at this layer.
 - 2026-11-03: Validate and paginate official SAOS dump responses; validated with the offline tests available at this layer.
 - 2026-11-03: Resolve court localities from official population data; validated with the offline tests available at this layer.
+- 2026-11-03: Encode text with cached models and compare embedding vectors; validated with the offline tests available at this layer.
