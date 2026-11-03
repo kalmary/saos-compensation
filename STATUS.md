@@ -2,7 +2,7 @@
 
 ## Summary
 
-Extract source-backed factual features with leakage checks. The acquisition components are introduced in dependency order; full pipeline integration remains pending.
+Resume judgment downloads only after durable record output. The acquisition components are introduced in dependency order; full pipeline integration remains pending.
 
 ## Log
 
@@ -16,3 +16,4 @@ Extract source-backed factual features with leakage checks. The acquisition comp
 - 2026-11-03: Resolve awarded principal and earlier payments separately; validated with the offline tests available at this layer.
 - 2026-11-03: Validate admission and export separate feature and award records; validated with the offline tests available at this layer.
 - 2026-11-03: Extract source-backed factual features with leakage checks; validated with the offline tests available at this layer.
+- 2026-11-03: Resume judgment downloads only after durable record output; validated with the offline tests available at this layer.
