@@ -77,5 +77,6 @@ Configuration files may reference secrets through environment-variable names, bu
 ## Implemented acquisition components
 
 - Normalize judgment text and parse PLN amounts.
+- Write atomic records within a cumulative storage limit.
 
 Remaining components are introduced by subsequent dependent changes. The complete acquisition command is available after pipeline integration.
