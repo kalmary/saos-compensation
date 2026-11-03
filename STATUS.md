@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Target matching now splits monetary candidates at commas as well as sentence boundaries, preserving commas between digits and exact source offsets. Each clause needs its own keyword and PLN amount; shared feature/monetary-evidence sentence splitting remains unchanged. Extractor version 25 requires a fresh output path. Validation: 392 tests passed, three skipped; live matching accuracy was not measured.
+
 README workflow graph labels MiniLM sentence matching and BASAL fact extraction/source review at their corresponding blocks.
 
 PyTorch and Transformers embeddings are base dependencies. Basal is optional through extraction or the existing platform extras; full acquisition requires it. README setup and uv.lock match this split. Validation: 29 focused tests passed, including imports with Basal blocked; offline sync and lock consistency passed.
@@ -68,8 +70,6 @@ The v19 comparison on the same four saved cases produced 4/6, 0/6, 2/6 and 3/6 t
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-10-31: Simplified accepted output to two basic files, with only source.txt/model_calls.json added by debug. Removed persistent per-run reports/raw court snapshots and extra result/config/analysis exports from the dataset path. Compared the notebook artifact: it used MPS and the same paragraph-based approach, while recent slow runs used CPU; selected MPS for local configuration. Relaxed admission to retain at least one confirmed selected target, matching example 328131. Existing output directories were not deleted or migrated. Passed 186 offline tests with one absent-fixture replay skipped; no live MPS benchmark. Remaining Ruff findings are recorded in the summary.
 
 - 2026-10-31: Moved target extraction and shared target admission ahead of instance and feature inference. Rejected targets skip those model calls; accepted cases keep the existing paragraph workflow and output format. Added offline ordering/early-exit coverage (188 passed, one absent-fixture replay skipped). No live inference benchmark or Git operations. Larger-block candidate extraction remains the next incremental change.
 
@@ -168,3 +168,5 @@ The v19 comparison on the same four saved cases produced 4/6, 0/6, 2/6 and 3/6 t
 - 2026-11-03: Moved Transformers from the embedding extra to base dependencies and Basal from base to the extraction extra, retaining platform extras. Updated README and PROJECT installation guidance and refreshed uv.lock. Synced the macOS/test environment offline. Validation: 29 startup/configuration/embedding tests passed, including a subprocess import check with Basal unavailable; offline lock consistency passed. No clean base-only environment installation or live model inference was run.
 
 - 2026-11-03: Added model labels to the README Mermaid graph: MiniLM for award-sentence matching and BASAL for fact extraction and source/leakage review. Kept monetary parsing distinct from model matching in the label. Documentation only; no tests run.
+
+- 2026-11-03: Added opt-in comma boundaries to the shared sentence splitter and enabled them only for embedding target candidates. Preserve decimal commas, source offsets and per-fragment role eligibility; feature extraction retains full sentences. Added clause/decimal/offset/keyword-isolation checks and adapted the mixed-role fixture to an unsplit semicolon clause. Advanced extractor to version 25 and documented context-loss and fresh-path requirements. Validation: 392 tests passed, three skipped. No live model inference or labeled accuracy evaluation.

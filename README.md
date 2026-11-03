@@ -179,7 +179,7 @@ Debug adds only `source.txt` and `model_calls.json`; evidence and confidence dia
 
 Restart the same command after interruption. `checkpoint.json` pins the original date bounds, extraction configuration and locality snapshot hash, and records the next page/item. Saved records are recognized without repeating extraction. Temporary `<SAOS_ID>/pending/` state preserves source/configuration and completed model decisions even with debug disabled; it is removed after acceptance or rejection.
 
-Dates, models, patterns, questions and extraction settings must remain compatible with the checkpoint. Use a new output path for a changed experiment or an older extractor version. The current extractor version is **24**. Debug, timeout, size and page limits may change during a resume; increasing the page limit continues acquisition. A fully completed checkpoint performs no further acquisition. Run one process per output directory.
+Dates, models, patterns, questions and extraction settings must remain compatible with the checkpoint. Use a new output path for a changed experiment or an older extractor version. The current extractor version is **25**. Debug, timeout, size and page limits may change during a resume; increasing the page limit continues acquisition. A fully completed checkpoint performs no further acquisition. Run one process per output directory.
 
 `max_gib` includes existing output, debug files, pending state and atomic temporary writes across resumptions. A refused write stops the run with a resumable checkpoint; increase the limit to continue. A page limit follows dump order and is not random sampling.
 
@@ -207,6 +207,6 @@ vectors = create_embeddings(["Opis szkody.", "Ograniczenia w pracy."], settings)
 
 ## Current limitations and remaining work
 
-Embedding similarity is not calibrated legal-role confidence. The matcher can select the wrong payment or miss an award, and fully written-out monetary amounts are unsupported. The target covers only the selected sentence, so separate awards elsewhere can be omitted. Extracted facts can still contain relevance or attribution errors despite automated checks.
+Embedding similarity is not calibrated legal-role confidence. The matcher can select the wrong payment or miss an award, and fully written-out monetary amounts are unsupported. Target matching also splits at commas, except commas between digits, to separate monetary clauses. Each fragment must contain its own keyword and PLN amount; this can lose context or miss awards when a keyword appears only before the comma. The target covers only the selected fragment, so separate awards elsewhere can be omitted. Extracted facts can still contain relevance or attribution errors despite automated checks.
 
 Before training, manually label a representative sample, measure target/feature quality and review leakage. Then implement grouped train/validation/test splits, fit preprocessing only on training data, vectorize selected fields and train a simple regression baseline. Evaluate MAE/RMSE and errors across courts, regions, dates and target bands. Related judgments and appeals must share a split. PostgreSQL/JSONB/pgvector persistence and configurable alternative regressors remain future work.

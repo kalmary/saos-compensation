@@ -147,13 +147,14 @@ def amount_in_pln(match):
     return value
 
 
-def sentence_fragments(chunk):
+def sentence_fragments(chunk, split_commas=False):
     # Split mixed paragraphs into sentences without treating initials or decimal amounts as boundaries.
     """
     Split paragraphs into sentences while retaining original offsets.
 
     args:
         chunk: Source fragment with offsets.
+        split_commas: Also split at commas, except those between digits.
 
     returns:
         Iterator of source sentences.
@@ -164,7 +165,8 @@ def sentence_fragments(chunk):
             m.end()
             for m in re.finditer(
                 r"(?<!\b[A-ZĄĆĘŁŃÓŚŹŻ]\.)(?<!\br\.)"
-                r"(?<!(?i:\b(?:tys|mln|mld)\.))(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ])",
+                r"(?<!(?i:\b(?:tys|mln|mld)\.))(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ])"
+                + (r"|(?<!\d),|,(?!\d)" if split_commas else ""),
                 chunk["text"],
             )
         ],

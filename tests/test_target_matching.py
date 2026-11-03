@@ -260,7 +260,7 @@ def test_invalid_keyword_groups_fail_before_loading(groups):
         ("Zasądza 100 zł kosztów procesu.", [0.70, 0, 0, 0.71, 0], "procedural_costs"),
         ("Zasądza 100 zł odsetek.", [0.70, 0, 0, 0, 0, 0.71], "other_payments"),
         ("Przyznano i wypłacono już 100 zł.", [0.70, 0, 0.71, 0, 0], "prior_payment"),
-        ("Żądał zasądzenia 200 zł, zasądzono 100 zł.", [0.70, 0, 0, 0, 0.71], "mixed"),
+        ("Żądał zasądzenia 200 zł; zasądzono 100 zł.", [0.70, 0, 0, 0, 0.71], "mixed"),
     ],
 )
 def test_exclusion_winner_does_not_become_target_and_keeps_other_candidates(

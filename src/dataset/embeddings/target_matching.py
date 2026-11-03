@@ -71,7 +71,7 @@ def validate_settings(settings, patterns):
 
 def candidate_sentences(text, keywords):
     """
-    Select sentences containing both a numeric PLN amount and a target-related word stem.
+    Select sentence or comma-delimited clauses with PLN amounts and relevant stems.
 
     args:
         text: Full normalized judgment text.
@@ -96,7 +96,8 @@ def candidate_sentences(text, keywords):
         ):
             continue
         for sentence in sentence_fragments(
-            {"text": line[0], "start": line.start(), "end": line.end()}
+            {"text": line[0], "start": line.start(), "end": line.end()},
+            split_commas=True,
         ):
             if not MONEY.search(sentence["text"]):
                 continue

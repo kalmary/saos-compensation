@@ -67,6 +67,43 @@ def test_candidate_filter_preserves_offsets_and_does_not_match_word_interiors():
     assert all(text[row["start"] : row["end"]] == row["text"] for row in rows)
 
 
+@pytest.mark.parametrize("separator", [", ", ","])
+def test_candidate_filter_splits_comma_clauses_without_splitting_decimal_amounts(separator):
+    """Separate monetary roles while preserving decimal amounts and source offsets.
+
+    args:
+        separator: Clause boundary with or without whitespace.
+
+    returns:
+        None.
+    """
+    text = "Nagłówek.\nZasądza 10 000,50 zł" + separator + "powód żądał 20 000,75 zł."
+    rows = target_matching.candidate_sentences(text, KEYWORDS)
+
+    assert [row["text"] for row in rows] == [
+        "Zasądza 10 000,50 zł,",
+        "powód żądał 20 000,75 zł.",
+    ]
+    assert [row["classes"] for row in rows] == [("judgment",), ("request",)]
+    assert all(text[row["start"] : row["end"]] == row["text"] for row in rows)
+
+
+def test_comma_clauses_require_their_own_keyword_and_leave_feature_sentences_intact():
+    """Keep target cues local without changing the default feature sentence splitter.
+
+    args:
+        None
+
+    returns:
+        None.
+    """
+    from src.dataset.extraction.source.text import sentence_fragments
+
+    text = "Zasądza świadczenie, rachunek opiewa na 100 zł."
+    assert target_matching.candidate_sentences(text, KEYWORDS) == []
+    assert [row["text"] for row in sentence_fragments({"text": text, "start": 0})] == [text]
+
+
 def test_no_candidates_does_not_load_the_embedding_model(monkeypatch):
     """
     Return missing matches without loading weights for irrelevant input.
