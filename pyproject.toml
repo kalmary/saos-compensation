@@ -6,6 +6,8 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
+    "morfeusz2>=1.99.15",
+
     "numpy>=2.5.4",
     "requests>=2.34.2",
 ]
