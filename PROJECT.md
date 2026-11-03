@@ -87,5 +87,6 @@ Configuration files may reference secrets through environment-variable names, bu
 - Validate admission and export separate feature and award records.
 - Extract source-backed factual features with leakage checks.
 - Resume judgment downloads only after durable record output.
+- Run the acquisition pipeline through the get-data command.
 
 Remaining components are introduced by subsequent dependent changes. The complete acquisition command is available after pipeline integration.

@@ -2,7 +2,7 @@
 
 ## Summary
 
-Resume judgment downloads only after durable record output. The acquisition components are introduced in dependency order; full pipeline integration remains pending.
+Run the acquisition pipeline through the get-data command. The acquisition components are introduced in dependency order; full pipeline integration remains pending.
 
 ## Log
 
@@ -17,3 +17,4 @@ Resume judgment downloads only after durable record output. The acquisition comp
 - 2026-11-03: Validate admission and export separate feature and award records; validated with the offline tests available at this layer.
 - 2026-11-03: Extract source-backed factual features with leakage checks; validated with the offline tests available at this layer.
 - 2026-11-03: Resume judgment downloads only after durable record output; validated with the offline tests available at this layer.
+- 2026-11-03: Run the acquisition pipeline through the get-data command; validated with the offline tests available at this layer.
