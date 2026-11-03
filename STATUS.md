@@ -6,6 +6,26 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+README workflow graph labels MiniLM sentence matching and BASAL fact extraction/source review at their corresponding blocks.
+
+PyTorch and Transformers embeddings are base dependencies. Basal is optional through extraction or the existing platform extras; full acquisition requires it. README setup and uv.lock match this split. Validation: 29 focused tests passed, including imports with Basal blocked; offline sync and lock consistency passed.
+
+The README workflow graph now shows conceptual target, factual-feature and metadata branches converging on record validation and storage.
+
+The README workflow graph now branches on relevance, award availability, debug mode and source-backed feature admission, showing valid/debug output, rejection and checkpoint progression.
+
+README explains the get-data workflow immediately after usage and arguments in four short steps and a high-level Mermaid graph, followed by configuration.
+
+The installed get-data command now invokes the acquisition CLI. Editable packaging is configured and synced; CLI help and 15 focused startup/configuration tests pass, including invocation outside the repository. README lists every argument before Configs and places model choices/devices in that section, explicitly limiting implemented settings to data acquisition/extraction.
+
+Basal is now a base dependency alongside PyTorch. The redundant extraction extra was removed; platform extras remain supported. README installation commands, runtime guidance and uv.lock are aligned. Lock consistency passes; 30 focused configuration/device tests passed, one skipped.
+
+README now places a directories-only project tree immediately after the introduction, with inline descriptions and explicit not-implemented markers for planned components.
+
+README now provides standalone installation, acquisition, configuration, admission, output and resume instructions for extractor version 24. The unused Ollama extra and its exclusive dependencies were removed from pyproject.toml/uv.lock. The obsolete src/dataset/processing directory contained only bytecode caches and was removed; active code has no imports from it. Lock consistency and CLI help checks pass; 14 focused configuration/startup tests pass. No live acquisition or model inference was run.
+
+Target templates now include joint liability and awards, supplementary claims, advance payments, witness costs, withdrawn claims and capitalized rent. New exclusion stems make partial satisfaction, withdrawal and upheld judgments eligible. Changed patterns require a fresh output path; extraction accuracy remains unmeasured.
+
 Target matching now uses PyTorch cosine similarity with existing input validation and explicit device selection. PyTorch is a base dependency. Extractor version 24 requires a fresh output path because floating-point scores may differ near selection thresholds. Offline validation: 380 passed, three skipped.
 
 The acquisition work is split into stacked pull requests: #5 (`feature/inspect-data` → `main`) retains 24 commits through 20a33fb; #6 (`freature/inspect-data/refactor` → `feature/inspect-data`) contains the November 1 refactor. Existing commits are preserved, and backup/inspect-data-before-stack-20261101 retains the full pre-split history locally and remotely. Merge #5 before #6; application tests were not rerun for the branch split.
@@ -48,26 +68,6 @@ The v19 comparison on the same four saved cases produced 4/6, 0/6, 2/6 and 3/6 t
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-10-30: Added device selection with CPU default, explicit MPS/CUDA checks, and separate pytorch-macos/pytorch-cuda-linux extras with platform markers; refreshed uv.lock without installation. Converted implementation comments, active metadata identifiers and diagnostics to English while preserving Polish Basal interaction and original fixtures. Replaced outdated PROJECT.md acquisition/configuration sections and added language/project-maintenance rules to AGENTS.md. Updated regression expectations and added device checks as unexecuted tests. No installation, inference or test run after the request not to test these changes; CUDA hardware remains unavailable locally.
-
-- 2026-10-30: Added concise, single-line English explanations for acquisition YAML keys, CLI options and Basal settings. No tests or installation run, as requested; unrelated fixture deletions were left untouched.
-
-- 2026-10-30: Removed self-evident judgment_year commentary, clarified that instance is not inferred from court level, and added the non-obvious-comments rule. Reviewed get_data.py statically: acquisition restarts from page zero, extraction cannot consume download-only source records, and reruns overwrite per-judgment diagnostics/filtering.json. Corrected PROJECT.md to describe the actual diagnostic retention behavior. No implementation changes or tests; existing fixture deletions remain untouched.
-
-- 2026-10-30: Added resumable page/item checkpoints, cumulative output-size enforcement across resumes and run-specific diagnostic history; removed download-only mode. Verified locality size uses the population of the court location. Renamed feature identifiers to English while retaining Polish model instructions/text, kept timeout=20 and removed the test dependency on that default. Added required description/args/returns docstrings and updated AGENTS.md/PROJECT.md. Offline tests passed, including isolated historical-fixture replay; no live model/GPU/installation tests. Local fixture deletions were preserved.
-
-- 2026-10-30: Moved dataset support modules into processing/, updated imports/root resolution and exposed reusable extraction functions through src.dataset.__init__. Reorganized README sections, kept unfinished stages as placeholders, and moved group/extra selection to separate uv sync commands; updated CI and execution examples to --no-sync. Synced macOS/test dependencies, passed 181 local tests with one historical-fixture replay skipped, verified CLI help, and passed all 191 tests using historical fixtures in an isolated copy. Existing fixture deletions remain untouched.
-
-- 2026-10-30: Moved existing Basal 4.5B/mini weight caches to ignored basal_weights/models--Remek--basal-* folders and configured source/notebook snapshot downloads to use that directory directly. Missing weights still download on demand; package import does not download models. Updated docs and added cache-path verification to the mocked pipeline test.
-
-- 2026-10-31: Added model selection for the pinned Basal mini/4.5B checkpoints, selected mini in YAML and retained basal_weights/.gitkeep while ignoring all other cache contents. Moved shared Hugging Face blobs as well as per-model folders, restoring both weight links without downloading weights.
-
-- 2026-10-31: Added dataset admission checks and delayed per-case persistence until acceptance, with rejection-aware checkpoint advancement. Disabled pre-admission judgment-page/model-response persistence so rejected cases do not occupy record volume. Added offline boundary checks (183 passed, one absent-fixture replay skipped). Wrote the full Polish how-it-works.md with input/output, variable pass counts, synthetic example, limitations and a group/time-aware stratification proposal. No live inference or balancing was performed.
-
-- 2026-10-31: Reviewed Hugging Face download progress: snapshot_download blocks the pipeline but defaults to eight file workers, while Xet reports separate transfer/reconstruction progress. Restricted both source and notebook downloads to runtime weights/tokenizer/configuration/calibration files and one file worker. Existing cached documents are preserved; no active downloads were interrupted.
-
-- 2026-10-31: Fixed loss of paragraph-level progress caused by disabling all pre-admission persistence. Added temporary decision checkpoints, explicit cached-progress messages, size-budget release on cleanup and normal KeyboardInterrupt reporting. Compared source-pipeline output with tmp/system_one/328131; documented pending versus accepted diagnostic layouts. Passed 184 offline tests with one historical-fixture replay skipped; no inference run or active-process interruption.
 
 - 2026-10-31: Simplified accepted output to two basic files, with only source.txt/model_calls.json added by debug. Removed persistent per-run reports/raw court snapshots and extra result/config/analysis exports from the dataset path. Compared the notebook artifact: it used MPS and the same paragraph-based approach, while recent slow runs used CPU; selected MPS for local configuration. Relaxed admission to retain at least one confirmed selected target, matching example 328131. Existing output directories were not deleted or migrated. Passed 186 offline tests with one absent-fixture replay skipped; no live MPS benchmark. Remaining Ruff findings are recorded in the summary.
 
@@ -148,3 +148,23 @@ The v19 comparison on the same four saved cases produced 4/6, 0/6, 2/6 and 3/6 t
 - 2026-11-01: Split PR #5 at 20a33fb using an exact-SHA force-with-lease after pushing backup/inspect-data-before-stack-20261101. Retained the existing freature/inspect-data/refactor branch and opened PR #6 against feature/inspect-data, preserving all 17 existing November 1 commits and PR #5 history. Verified branch ancestry, clean application files and both open PR bases. No application source changes, tests or inference runs; a documentation-only commit records this operational change.
 
 - 2026-11-02: Replaced manual cosine calculation with PyTorch cosine similarity, retaining scaling, validation and accelerator selection. Moved PyTorch to base dependencies, updated the lockfile and advanced extraction to version 24. Validation: 380 offline tests passed, three skipped. Live inference and CUDA were not checked.
+
+- 2026-11-02: Expanded distinct target and exclusion sentence constructions and added keyword eligibility checks. Six representative template-based examples selected their intended groups with the cached CPU encoder. Validation: 387 tests passed, three skipped. No labeled corpus evaluation or live acquisition.
+
+- 2026-11-03: Removed the unused Ollama dependency extra and refreshed the lockfile, removing its exclusive dependencies. Rewrote README as a standalone guide to setup, acquisition/extraction, configuration, current models, output/admission, resume and limitations; corrected extractor version and removed obsolete links/history. Removed src/dataset/processing after confirming it contained only stale bytecode and had no active imports. Validation: offline lock check, CLI help and 14 configuration/startup tests passed. Live downloads and inference were not run.
+
+- 2026-11-03: Moved the README project structure directly after the introduction, replaced file listings with a directory tree and added inline descriptions and explicit not-implemented markers for planned database, vectorization, regression, evaluation and prediction components. Removed the duplicate structure section. Checked existing source/configuration directories; documentation-only change, no tests run.
+
+- 2026-11-03: Moved pinned Basal into base dependencies, removed the redundant extraction extra and refreshed uv.lock offline. Updated README CPU/setup instructions, PROJECT runtime documentation and the CPU dependency error message. Retained platform extras. Validation: offline lock consistency check and 30 focused configuration/device tests passed; one skipped. No fresh environment installation or live inference was run.
+
+- 2026-11-03: Registered get-data as the program console entry point with explicit setuptools package discovery and refreshed uv.lock. Synced the macOS/embedding/test environment to install the editable command. Replaced README script-path commands, listed all CLI arguments, placed Configs immediately after the arguments and moved available Basal/embedding models and device guidance there. Documented acquisition-only scope and checkout-based execution. Validation: installed command help works and 15 startup/configuration tests pass, including command invocation outside the checkout. No live acquisition or inference was run.
+
+- 2026-11-03: Replaced the detailed README acquisition workflow with four short numbered steps and a high-level Mermaid graph under How get-data pipeline works, directly after usage/arguments and before Configs. Kept output/admission and resume instructions as separate sections. Documentation-only change; section placement and Markdown fences checked, no runtime tests run.
+
+- 2026-11-03: Expanded the README Mermaid workflow into decision branches for case filtering, award sentence/amount availability, debug retention and accepted source-backed text. Showed valid/debug records, rejection and the checkpoint loop. Checked branches against extraction coordination and pipeline admission; documentation only, no runtime tests run.
+
+- 2026-11-03: Replaced detailed Mermaid decision paths with conceptual branches for awarded-amount extraction, factual predictors and court/date metadata. Showed source/leakage review and convergence on record validation, separate target/feature storage and checkpointing. Removed debug and rejection branches from the graph. Documentation-only change; no runtime tests run.
+
+- 2026-11-03: Moved Transformers from the embedding extra to base dependencies and Basal from base to the extraction extra, retaining platform extras. Updated README and PROJECT installation guidance and refreshed uv.lock. Synced the macOS/test environment offline. Validation: 29 startup/configuration/embedding tests passed, including a subprocess import check with Basal unavailable; offline lock consistency passed. No clean base-only environment installation or live model inference was run.
+
+- 2026-11-03: Added model labels to the README Mermaid graph: MiniLM for award-sentence matching and BASAL for fact extraction and source/leakage review. Kept monetary parsing distinct from model matching in the label. Documentation only; no tests run.

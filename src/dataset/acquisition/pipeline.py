@@ -35,7 +35,7 @@ def check_device(device):
         import torch
     except (ImportError, OSError) as error:
         raise RuntimeError(
-            "PyTorch could not be loaded. Install --extra pytorch-macos on macOS or --extra extraction for CPU "
+            "PyTorch could not be loaded. Install --extra pytorch-macos on macOS or run uv sync --locked for CPU "
             "or --extra pytorch-cuda-linux for CUDA on Linux."
         ) from error
     if device == "cuda" and (

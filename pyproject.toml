@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "saos-compensation"
 version = "0.1.0"
@@ -11,12 +15,16 @@ dependencies = [
     "pyyaml>=6.0.3",
     "requests>=2.34.2",
     "torch>=2.11",
-]
-
-[project.optional-dependencies]
-embedding = [
     "transformers>=4.41",
 ]
+
+[project.scripts]
+get-data = "src.dataset.get_data:main"
+
+[tool.setuptools.packages.find]
+include = ["src.dataset*"]
+
+[project.optional-dependencies]
 extraction = [
     "basal",
 ]
@@ -25,9 +33,6 @@ pytorch-macos = [
 ]
 pytorch-cuda-linux = [
     "basal; sys_platform == 'linux'",
-]
-gemma = [
-    "ollama>=0.6.3",
 ]
 
 [dependency-groups]

@@ -35,6 +35,7 @@ embedding:
     - likwidac
     - zapłaci
     - zaspokoj
+    - zaspokoi
     procedural_costs:
     - proces
     - postępowan
@@ -65,6 +66,8 @@ embedding:
     - uwzględnion
     - oddal
     - utrzyma
+    - utrzym
+    - cofn
     shared:
     - przyzna
     - roszcz
@@ -87,6 +90,9 @@ patterns:
     - "zmienia zaskarżony wyrok przez zastąpienie kwoty {previous_amount} kwotą {amount}"
     - "orzeka na rzecz {claimant} nawiązkę w wysokości {amount}"
     - "zasądza na rzecz każdego z powodów po {amount}"
+    - "zasądza solidarnie od pozwanych na rzecz powoda {amount} tytułem zadośćuczynienia"
+    - "zasądza od pozwanego na rzecz powódki {amount} tytułem zwrotu kosztów leczenia"
+    - "zasądza od pozwanego na rzecz powodów łącznie {amount} tytułem odszkodowania"
 
   # A requested amount remains a request even when it equals the eventual award.
   request:
@@ -100,6 +106,8 @@ patterns:
     - "pełnomocnik powoda ostatecznie zażądał jako zadośćuczynienia sumy {amount}"
     - "w pozwie określono dochodzone świadczenie na {amount}"
     - "powód ograniczył żądanie do kwoty {amount}"
+    - "powód dochodzi dopłaty {amount} ponad kwotę wypłaconą przez ubezpieczyciela"
+    - "powódka wystąpiła z żądaniem zapłaty {amount} tytułem zwrotu kosztów leczenia"
 
   # These groups compete with target roles; their winners are not target amounts.
   prior_payment:
@@ -110,6 +118,9 @@ patterns:
     - "roszczenie zostało częściowo zaspokojone przez dobrowolną zapłatę {amount}"
     - "sąd ocenił dotychczasową wypłatę {amount} jako symboliczną i niewystarczającą"
     - "poszkodowany otrzymał łącznie z kilku wypłat kwotę {amount}"
+    - "decyzją ubezpieczyciela przyznano i wypłacono poszkodowanemu {amount} przed procesem"
+    - "w toku likwidacji szkody wypłacono zaliczkę na odszkodowanie w kwocie {amount}"
+    - "sprawca zwrócił poszkodowanemu {amount} przed wniesieniem pozwu i częściowo zaspokoił roszczenie"
 
   procedural_costs:
     - "zasądza od pozwanego na rzecz powoda {amount} tytułem zwrotu kosztów procesu"
@@ -123,6 +134,9 @@ patterns:
     - "zwraca stronie niewykorzystaną zaliczkę na wydatki sądowe w kwocie {amount}"
     - "kwotę {amount} sąd zasądził zgodnie z przedstawionym spisem kosztów"
     - "odstępuje od obciążania powoda kosztami procesu w wysokości {amount}"
+    - "zasądza od powoda na rzecz pozwanego {amount} tytułem kosztów zastępstwa procesowego"
+    - "nakazuje zwrócić ze Skarbu Państwa powodowi nadpłaconą opłatę sądową w wysokości {amount}"
+    - "zasądza od pozwanego na rzecz świadka {amount} tytułem zwrotu kosztów stawiennictwa w postępowaniu"
 
   mixed:
     - "powód żądał {previous_amount}, lecz sąd zasądził tylko {amount}"
@@ -131,6 +145,10 @@ patterns:
     - "sąd obniżył żądaną sumę {previous_amount} do należnego zadośćuczynienia {amount}"
     - "w miejsce wnioskowanych {previous_amount} przyznano poszkodowanemu {amount}"
     - "oddala w całości żądanie zapłaty kwoty {amount}"
+    - "oddala powództwo co do kwoty {amount} jako bezzasadne"
+    - "umarza postępowanie co do kwoty {amount} wskutek cofnięcia powództwa"
+    - "utrzymuje w mocy wyrok zasądzający kwotę {amount}"
+    - "pozwany wniósł o oddalenie powództwa o zapłatę {amount}"
 
   # Non-principal payments outside the selected one-off compensation targets.
   other_payments:
@@ -140,3 +158,6 @@ patterns:
     - "zaległe raty renty za wskazany okres wynoszą łącznie {amount}"
     - "wymierza karę grzywny w wysokości {amount}"
     - "ustala wysokość jednej stawki dziennej grzywny na kwotę {amount}"
+    - "zasądza od pozwanego {amount} tytułem odsetek za okres opóźnienia"
+    - "zasądza rentę skapitalizowaną za poprzedni okres w kwocie {amount}"
+    - "umarza orzeczoną grzywnę w pozostałej kwocie {amount}"

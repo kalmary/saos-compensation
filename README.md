@@ -1,127 +1,197 @@
 # SAOS Compensation
 
+A data science study project for estimating compensation awarded in Polish court judgments. The implemented pipeline downloads judgments from SAOS, selects compensation cases, extracts factual predictors and produces one monetary regression target per retained case.
+
+PostgreSQL/pgvector ingestion, feature vectorization, regression training, evaluation and prediction are planned. Extracted records still need independent target and leakage review before training.
+
 ## Repository structure
 
+Directories only; entries marked `not implemented` describe planned components and may not exist yet. Runtime caches and local outputs are shown without their generated contents.
+
 ```text
-configs/dataset/
-  acquisition/
-    api.yaml                # acquisition defaults and output limits
-    features.yaml           # selected predictors and text questions
-    targets.yaml            # embedding settings, keywords and phrase patterns
-    basal.yaml              # model, device and extraction/review thresholds
-  model_input.yaml          # future regressor feature selection
-src/
-  dataset/
-    get_data.py             # Dataset CLI entry point
-    acquisition/            # SAOS access, pipeline orchestration and checkpoints
-    extraction/             # Basal features, targets and text validation
-    embeddings/             # Sentence encoding and target matching
-    storage/                # Record export, atomic writes and output-size limits
-  main.py                   # package startup placeholder
-basal_weights/              # ignored per-model weight cache
-notebooks/                  # local experiments; only .gitkeep is tracked
-fixtures/                   # development snapshots, when available
-tests/                     # automated checks
-PROJECT.md                  # workflow and design
-STATUS.md                   # current status and dated history
+saos-compensation/
+├── configs/                       # experiment configuration
+│   └── dataset/                   # acquisition and future model-input configuration
+│       └── acquisition/           # API, features, targets and Basal settings
+├── src/                           # implementation
+│   ├── dataset/                   # dataset preparation
+│   │   ├── acquisition/           # SAOS access, downloads and checkpoints
+│   │   ├── extraction/            # predictor extraction and validation
+│   │   │   ├── model/             # model configuration, prompts and decision cache
+│   │   │   ├── source/            # source normalization and passage selection
+│   │   │   └── targets/           # monetary parsing and prior-payment extraction
+│   │   ├── embeddings/            # text encoding and target sentence matching
+│   │   ├── storage/               # local records, atomic writes and size limits
+│   │   ├── database/              # PostgreSQL/pgvector ingestion — not implemented
+│   │   └── vectorization/         # model-ready feature preprocessing — not implemented
+│   ├── architectures/             # regression model definitions — not implemented
+│   ├── training/                  # regression training — not implemented
+│   ├── evaluation/                # regression metrics and error analysis — not implemented
+│   └── inference/                 # compensation prediction — not implemented
+├── tests/                         # automated checks
+├── fixtures/                      # development snapshots
+├── notebooks/                     # optional local experiments
+├── data/                          # dataset placeholder
+├── checkpoints/                   # model checkpoint placeholder
+├── basal_weights/                 # local Basal weight cache
+├── embedding_weights/             # local embedding weight cache
+└── tmp/                           # default acquisition output and locality cache
 ```
 
-## About the repository
+## Setup
 
-A data science study project for predicting compensation amounts from Polish court judgments in SAOS. The implemented stage acquires judgments and extracts factual features and awarded amounts. PostgreSQL/pgvector storage, regression training and inference are planned.
-
-## Installation
-
-Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.12 and [uv](https://docs.astral.sh/uv/). From the repository root, sync the environment for your platform:
 
 ```bash
-git clone git@github.com:kalmary/saos-compensation.git
-cd saos-compensation
+# macOS with Apple MPS or CPU
+uv sync --locked --extra pytorch-macos --group test
+
+# Linux with NVIDIA CUDA
+uv sync --locked --extra pytorch-cuda-linux --group test
 ```
 
-Sync the environment before running commands. Choose the inference extra for your platform:
+For acquisition with Basal on CPU:
 
 ```bash
-# macOS: PyTorch with CPU and Apple MPS support
-uv sync --locked --extra pytorch-macos --extra embedding --group test
-
-# Linux: PyTorch with NVIDIA CUDA support
-uv sync --locked --extra pytorch-cuda-linux --extra embedding --group test
+uv sync --locked --extra extraction --group test
 ```
 
-Other installation options:
+For embeddings alone, use `uv sync --locked`. PyTorch and Transformers are base dependencies. Basal is optional: the platform extras above or the `extraction` extra install it for the full `get-data` pipeline. The test group adds pytest and may be omitted when only running acquisition. Execute subsequent commands with `uv run --no-sync` to use the installed environment without changing dependencies.
 
-| Selection | Purpose |
+## Download and extract data
+
+Run commands from the repository root:
+
+```bash
+uv run --no-sync get-data --help
+
+# Small initial run: at most one dump page, containing up to 100 judgments
+uv run --no-sync get-data --max-pages 1 --download-path tmp/dataset
+```
+
+This command downloads judgments and runs extraction. There is no download-only CLI mode. A page contains all judgment types; local filtering and extraction can leave few or no retained cases.
+
+### Arguments
+
+| Argument | Meaning |
 |---|---|
-| `uv sync --locked` | Base dependencies; no model inference |
-| `--group test` | pytest and the currently empty dev group |
-| `--group dev` | Currently empty |
-| `--extra extraction` | General Basal/PyTorch installation |
-| `--extra embedding` | PyTorch/Transformers sentence embeddings |
-| `--extra gemma` | Optional Ollama research fallback |
+| `-h`, `--help` | Show all command-line options and exit |
+| `--config-dir PATH` | Directory containing the four acquisition YAML files; defaults to `configs/dataset/acquisition` |
+| `--max-age-years N` | Include judgments from the last N years, anchored to the initial run date |
+| `--max-pages N` | Maximum total dump pages across resumes; `0` reads all pages |
+| `--max-gib N` | Total output-directory size limit in GiB across resumes; `0` disables it |
+| `--download-path PATH` | Output directory relative to the project root |
+| `--timeout SECONDS` | HTTP connection/read timeout |
+| `--debug` | Add source/model-call diagnostics and retain eligible failed attempts |
+| `--no-debug` | Disable debug output, overriding a true YAML default |
 
-Subsequent commands use `uv run --no-sync` so execution does not modify dependencies.
+Explicit arguments override only their corresponding YAML settings. After setup, `uv run get-data --help` also works; the examples use `--no-sync` to keep dependency synchronization separate from execution.
 
-```bash
-uv run --no-sync pytest -q
+## How get-data pipeline works
+
+1. Download judgments from SAOS and keep relevant compensation cases.
+2. Find the awarded amount using sentence matching and monetary parsing.
+3. Extract case facts and check their source support and target leakage.
+4. Save accepted records and checkpoint progress for resuming later.
+
+```mermaid
+flowchart TD
+    A[SAOS judgments] --> B[Select compensation cases]
+    B --> C["Find award sentence (MiniLM) and parse amount"]
+    B --> D["Extract case facts (BASAL)"]
+    B --> E[Read court and date metadata]
+    C --> F[Regression target]
+    D --> G["Check source support and target leakage (BASAL)"]
+    G --> H[Predictor features]
+    E --> H
+    F --> I[Validate dataset record]
+    H --> I
+    I --> J[Save target and features separately]
+    J --> K[Checkpoint progress]
 ```
 
-## Dataset
+## Configs
 
-[src/dataset/get_data.py](src/dataset/get_data.py) is the entry point. Pipeline orchestration and checkpoint validation live under `acquisition/`; record export and atomic writes live under `storage/`. Feature extraction and sentence encoding have their own `extraction/` and `embeddings/` packages. Within `extraction/`, `basal_filtering.py` coordinates extraction and `features.py` reviews predictors. Model configuration, prompts and decision caching live under `model/`; normalization and source batching under `source/`; monetary evidence and target resolution under `targets/`. `src.dataset` exports `load_config`, `extract_text` and `extract` for reuse in future inference.
+The implemented configuration and models currently serve data scraping and extraction only. Regression training, evaluation and prediction are not implemented.
 
-```bash
-uv run --no-sync src/dataset/get_data.py --help
-uv run --no-sync src/dataset/get_data.py --max-pages 1 --download-path tmp/dataset
-```
+The default configuration directory is `configs/dataset/acquisition/`:
 
-### Configuration
-
-YAML provides defaults; explicit CLI arguments override only matching acquisition settings.
-
-| Configuration | Controls |
+| File | Controls |
 |---|---|
-| [api.yaml](configs/dataset/acquisition/api.yaml) | Date/page limits, output path/size, debug and timeout |
-| [features.yaml](configs/dataset/acquisition/features.yaml) | Metadata selection and text field questions |
-| [targets.yaml](configs/dataset/acquisition/targets.yaml) | `embedding` settings/keywords and `patterns` for target/exclusion groups |
-| [basal.yaml](configs/dataset/acquisition/basal.yaml) | Basal model, device and extraction/review confidence thresholds |
+| `api.yaml` | Acquisition dates, page and size limits, output path, debug and HTTP timeout |
+| `features.yaml` | Selected metadata/numeric predictors and text extraction questions |
+| `targets.yaml` | Embedding model/device, candidate keywords, similarity threshold and target/exclusion patterns |
+| `basal.yaml` | Basal model/device and extraction/review thresholds |
 
-Acquisition options use hyphens, e.g. `--max-gib 5`; `--debug` and `--no-debug` select diagnostic output. `--config-dir` selects another directory containing these four files; the default is `configs/dataset/acquisition`. Text questions in features.yaml are used for both extraction and field-relevance review, without a second copy in code. At least one selected text field must have accepted source evidence; no individual field is mandatory. `device: mps` selects the Apple GPU in the current macOS configuration; use `cpu` or `cuda` on other setups. Unavailable accelerators fail explicitly.
+The current acquisition defaults are:
 
-### Acquisition and extraction
+| Setting | Default | Meaning |
+|---|---|---|
+| `max_age_years` | `10` | Inclusive judgment-date range ending on the initial run date |
+| `max_pages` | `0` | No page limit; otherwise stop at this total page position across resumes |
+| `max_gib` | `0.5` | Total output-directory limit across runs; `0` disables it |
+| `download_path` | `tmp/` | Output directory relative to the project root |
+| `debug` | `true` | Add source/model-call files and retain eligible failed attempts |
+| `timeout` | `20` | HTTP connection/read timeout in seconds |
 
-- **SAOS:** date-bounded full judgments from the official [dump API](https://www.saos.org.pl/help/index.php/dokumentacja-api/api-pobierania-danych), with court metadata joined from its court dump. Text/court filtering is local because the dump does not expose those filters.
-- **HTTP:** one shared Requests session, explicit timeout and no automatic retries.
-- **Target matching:** fast Polish-capable multilingual MiniLM embeddings; only sentences containing a numeric PLN amount and a configured target-word stem are encoded in batches; judgment/request keyword groups restrict eligible classes, with shared stems as a fallback; the highest eligible cosine score selects the class. Prior payments, procedural costs, mixed request/outcome sentences and other payments (interest, periodic rent, fines) have competing exclusion groups. A winner must score strictly above the configured 0.7; several qualifying groups still yield one highest-scoring class. Exact ties prefer exclusion, then pattern order. Exclusion winners cannot supply a target. Judgment is mandatory; request is optional.
-- **Target parsing:** read exactly one numeric PLN amount from the embedding-selected judgment sentence, without Basal classification or verification and without scanning other ruling clauses. Explicit per-person awards are multiplied only when recipients can be counted from that sentence. Multiple amounts or unresolved per-person counts leave the target missing.
-- **Basal:** extracts predictor fields (including prior_payment and procedural instance) and reviews factuality, field relevance and target leakage. It does not determine the regression target.
-- **GUGiK and Morfeusz:** population class of the locality where the court is located; ambiguous matches remain missing. Population measurement year is unknown.
+Explicit CLI arguments override only the corresponding acquisition defaults:
 
-The target is the amount in the selected judgment sentence, with per-person multiplication where explicit; separate awards in other sentences are not aggregated. Litigation costs, interest and periodic rent are excluded. Missing values are not_available, never an assumed zero. Normal records require a judgment match and an established principal. Debug preserves failed attempts with valid=false. Cosine similarity is not confidence that a legal role or award is correct; independent evaluation remains necessary.
+```bash
+uv run --no-sync get-data \
+  --max-age-years 5 \
+  --max-pages 2 \
+  --max-gib 1 \
+  --download-path tmp/dataset-five-years \
+  --timeout 30 \
+  --no-debug
+```
 
-### Output and resume
+`--debug` enables diagnostics and `--no-debug` overrides a true YAML default. `--config-dir path/to/config` selects another directory containing all four acquisition YAML files. Model and feature settings are changed in YAML.
+
+### Models and devices
+
+The current models are:
+
+- **Remek/basal-2.0-4.5B:** extracts predictors and reviews factuality, relevance and leakage. `basal.yaml` can alternatively select the supported `Remek/basal-2.0-mini` checkpoint. Revisions are pinned in code.
+- **sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2:** embeds target patterns and eligible monetary sentences to select a judgment amount sentence.
+
+Missing model files download automatically from Hugging Face and are reused from `basal_weights/` and `embedding_weights/`. Keep these caches outside a size-limited output directory. Locality population enrichment also downloads and caches a GUGiK snapshot under `tmp/gugik/`.
+
+The default configuration selects `mps` in **both** `configs/dataset/acquisition/basal.yaml` and `configs/dataset/acquisition/targets.yaml`. Set both devices to `cpu` or `cuda` for another runtime. Unavailable accelerators fail before acquisition starts.
+
+## Output and admission
 
 ```text
 <download_path>/
   checkpoint.json
   <SAOS_ID>/
-    record.json             # feature values only
-    award.json              # selected targets and total only
+    record.json             # selected predictor values only
+    award.json              # total and valid only
     source.txt              # debug=true only
     model_calls.json        # debug=true only
 ```
 
-Restart the same command to resume from the checkpoint. During extraction, `<SAOS_ID>/pending/` stores the source, configuration and completed model decisions even with debug disabled. Restarting reuses these decisions (reported as cached); only the interrupted request may need repeating. Pending state counts toward max_gib and is removed after acceptance or rejection. Saved records are recognized without repeating extraction. Moving configuration into acquisition/ preserves existing version-21 checkpoint signatures when effective settings are unchanged. Text questions distinguish cause, harm and activities using general wording without examples or lists of harm types. Changes to question wording require a new output path. Dates and extraction settings stay pinned; debug, timeout, size and page limits may change. A completed dataset or different extraction settings require a new output path. Run one process per output directory.
+`award.json` contains the one regression target `total` in PLN and the boolean `valid`. Normal output requires an admissible target and accepted source-backed text features. Debug can retain completed attempts with an unresolved target as `valid: false`, provided accepted text evidence exists. Cases with no accepted text feature are discarded even under debug. Missing judgment matches skip text-feature inference and therefore cannot meet this requirement. Source and leakage checks remain active for populated text fields. Training must filter for `valid: true` and independently assess label quality.
 
-`max_pages: 0` reads all pages; a page limit is not random sampling. `max_gib` caps all files in the output directory across resumes, including diagnostic history; `0` disables it. Model weights are cached separately under the ignored `basal_weights/models--Remek--basal-2.0-4.5B/` directory. Missing files download automatically through Hugging Face when extraction starts; cached weights are reused. This is handled by the model loader, not PyTorch itself. Embedding weights download separately into ignored embedding_weights/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2/. Both device settings must match the intended CPU/MPS/CUDA runtime. Only runtime model/tokenizer/configuration/calibration files are requested, with one file-download worker; Xet can still display separate transfer/reconstruction progress.
+Debug adds only `source.txt` and `model_calls.json`; evidence and confidence diagnostics stay out of the two basic files. Rejected cases leave no final case files. Existing artifacts are preserved, so use a fresh output path for a clean dataset layout. Operational summaries are printed to the console.
 
-With `debug: false`, completed cases contain only record.json and award.json. With `debug: true`, only source.txt and model_calls.json are added. Evidence, confidence scores and run metadata are never mixed into the basic files; award.json includes the target validity flag. Existing artifacts from older versions are not automatically removed; use a new output path for the clean layout. Temporary pending state supports interruption recovery and is removed after the outcome is committed.
+## Resume and storage limits
 
-The only regression target is `total`: the numeric amount from the selected judgment sentence, multiplied by an explicit recipient count for per-person awards. award.json contains only total and valid. Target extraction and validation run first. With debug disabled, cases without an admissible target skip instance and feature inference. The selected text fields and their Polish questions are defined in features.yaml (currently cause, damage and limitations). Any one of cause, damage or limitations is sufficient when backed by accepted source evidence. No specific field or majority is required; metadata alone does not count. Cases with no accepted text description are discarded even under debug. Among cases passing this rule, debug also saves attempts with unconfirmed targets. A missing judgment match skips text-feature inference and fails the minimum text-feature requirement. Multiple beneficiaries are supported. The numeric injured_party_count predictor defaults to 1 when unavailable; this default is never used to resolve per-person target amounts. The configured numeric feature `prior_payment` stores confirmed earlier principal paid, rounded to an integer PLN value; `0` means no confirmed amount. It is saved only in record.json and is never added to the target. Features still undergo leakage checks and missing values stay not_available. award.json always includes valid: true when target and feature admission pass, false otherwise; training must filter valid=true. The four case files are committed before temporary pending state is removed. Target sentences are selected by cosine similarity. The target is parsed directly from the selected sentence; Basal neither classifies amounts nor verifies a proposed total. Exactly one numeric PLN occurrence is required. Separate ruling clauses are not scanned or summed. The amount_minimum_probability setting applies only to the prior_payment predictor. Features are extracted together from factual findings in batches of up to 6000 characters. There is no fallback extraction pass; unsupported fields remain missing. Candidate sentences are checked for factuality, field relevance and leakage, preserving source offsets. Console output reports accepted fields, missing descriptions and concrete rejection checks with scores; target failures are distinguished from skipped feature extraction. These diagnostics reuse existing model answers. There is no preliminary paragraph/block classification. Extraction version 23 requires a new output path for datasets created with an older version.
+Restart the same command after interruption. `checkpoint.json` pins the original date bounds, extraction configuration and locality snapshot hash, and records the next page/item. Saved records are recognized without repeating extraction. Temporary `<SAOS_ID>/pending/` state preserves source/configuration and completed model decisions even with debug disabled; it is removed after acceptance or rejection.
 
-The workflow avoids preliminary passage classification and checks only field candidates. Local comparisons of pinned mini and 4.5B models use the same saved judgments; results are inspection artifacts, not a validated accuracy estimate.
+Dates, models, patterns, questions and extraction settings must remain compatible with the checkpoint. Use a new output path for a changed experiment or an older extractor version. The current extractor version is **24**. Debug, timeout, size and page limits may change during a resume; increasing the page limit continues acquisition. A fully completed checkpoint performs no further acquisition. Run one process per output directory.
 
-Research experiments can be kept locally in `notebooks/`; only `.gitkeep` is tracked. Tests for those experiments skip when local files or their legacy configuration are absent. See [PROJECT.md](PROJECT.md) for the full workflow.
+`max_gib` includes existing output, debug files, pending state and atomic temporary writes across resumptions. A refused write stops the run with a resumable checkpoint; increase the limit to continue. A page limit follows dump order and is not random sampling.
+
+## Checks
+
+After syncing the test group:
+
+```bash
+uv run --no-sync pytest -q
+```
+
+Tests cover configuration, acquisition/checkpoints, extraction, monetary parsing, source/leakage checks and embeddings. Local notebook experiments are ignored; their tests skip when legacy inputs are absent.
 
 ## Reusable embeddings
 
@@ -133,22 +203,10 @@ settings = load_config()["embedding"]
 vectors = create_embeddings(["Opis szkody.", "Ograniczenia w pracy."], settings)
 ```
 
-The function also accepts an independent settings mapping containing only `model`, `revision`, `device`, `batch_size` and `max_length`. It returns an `(N, D)` float32 PyTorch tensor on the selected device, retaining input order and original text, including monetary values. It uses all token windows and the existing mean pooling. Empty batches and blank/non-string inputs are rejected before model loading. Models load lazily and the last encoder is reused for unchanged encoding settings; target thresholds, keywords and patterns do not affect this cache. The target matcher calls the same function, applying its own amount neutralization beforehand. Importing the function does not load weights or require target patterns.
+`create_embeddings` accepts a nonempty list of nonblank strings and encoder settings (`model`, `revision`, `device`, `batch_size`, `max_length`). It returns an `(N, D)` float32 PyTorch tensor on the selected device, preserving order and original text through all token windows. Encoder loading is lazy and cached for unchanged settings. Target matching applies its own monetary normalization before encoding.
 
-## ML pipeline
+## Current limitations and remaining work
 
-_To be implemented: reviewed labels, leakage checks, grouped splits and field vectorization._
+Embedding similarity is not calibrated legal-role confidence. The matcher can select the wrong payment or miss an award, and fully written-out monetary amounts are unsupported. The target covers only the selected sentence, so separate awards elsewhere can be omitted. Extracted facts can still contain relevance or attribution errors despite automated checks.
 
-## Training
-
-_To be implemented: regression baseline and configuration-driven model training._
-
-## Evaluation
-
-_To be implemented: MAE, RMSE and error analysis across case groups._
-
-## Inference
-
-_To be implemented: compensation prediction from model-ready case features._
-
-[Jak to działa](src/dataset/how-it-works.md) describes the complete extraction flow, passes, examples and proposed stratification in Polish.
+Before training, manually label a representative sample, measure target/feature quality and review leakage. Then implement grouped train/validation/test splits, fit preprocessing only on training data, vectorize selected fields and train a simple regression baseline. Evaluate MAE/RMSE and errors across courts, regions, dates and target bands. Related judgments and appeals must share a split. PostgreSQL/JSONB/pgvector persistence and configurable alternative regressors remain future work.
