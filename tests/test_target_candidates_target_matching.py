@@ -1,8 +1,6 @@
 """Cheap target-sentence filtering before model loading or embedding inference."""
 
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -26,9 +24,25 @@ KEYWORDS = {
 @pytest.mark.parametrize(
     "unit",
     [
-        "PLN", "zł", "złoty", "złotego", "złotemu", "złotym", "złote",
-        "złotych", "złotymi", "złotówka", "złotówki", "złotówkę", "złotówką",
-        "złotówko", "złotówek", "złotówkom", "złotówkami", "złotówkach", "złotówce",
+        "PLN",
+        "zł",
+        "złoty",
+        "złotego",
+        "złotemu",
+        "złotym",
+        "złote",
+        "złotych",
+        "złotymi",
+        "złotówka",
+        "złotówki",
+        "złotówkę",
+        "złotówką",
+        "złotówko",
+        "złotówek",
+        "złotówkom",
+        "złotówkami",
+        "złotówkach",
+        "złotówce",
     ],
 )
 def test_currency_inflections_are_candidates_and_parse_as_pln(unit):
@@ -97,7 +111,9 @@ def test_candidate_filter_preserves_offsets_and_does_not_match_word_interiors():
 
 
 @pytest.mark.parametrize("separator", [", ", ","])
-def test_candidate_filter_splits_comma_clauses_without_splitting_decimal_amounts(separator):
+def test_candidate_filter_splits_comma_clauses_without_splitting_decimal_amounts(
+    separator,
+):
     """Separate monetary roles while preserving decimal amounts and source offsets.
 
     args:
@@ -130,7 +146,9 @@ def test_comma_clauses_require_their_own_keyword_and_leave_feature_sentences_int
 
     text = "Zasądza świadczenie, rachunek opiewa na 100 zł."
     assert target_matching.candidate_sentences(text, KEYWORDS) == []
-    assert [row["text"] for row in sentence_fragments({"text": text, "start": 0})] == [text]
+    assert [row["text"] for row in sentence_fragments({"text": text, "start": 0})] == [
+        text
+    ]
 
 
 def test_no_candidates_does_not_load_the_embedding_model(monkeypatch):
@@ -209,4 +227,3 @@ def test_exclusion_keywords_also_select_sentences_before_embedding(text, group, 
     (row,) = target_matching.candidate_sentences(text, groups)
     assert row["classes"] == (group,)
     assert text[row["start"] : row["end"]] == text
-

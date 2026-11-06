@@ -1,19 +1,12 @@
 import asyncio
-
 import hashlib
-
 import json
-
 import shutil
-
 import sys
-
 from datetime import date
-
 from pathlib import Path
 
 import pytest
-
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,27 +15,19 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+from src.dataset.acquisition import api
+from src.dataset.extraction.model import configuration as config_module
+from src.dataset.extraction.model import decisions, prompts
+from src.dataset.extraction.source.text import (
+    CURRENCY,
+    MONEY,
+    amount_in_pln,
+    extract_text,
+)
+from src.dataset.extraction.targets import amounts
 from src.dataset.storage import files as storage
-
 from src.dataset.storage import records
 
-from src.dataset.acquisition import api
-
-from src.dataset.extraction.targets import amounts
-
-from src.dataset.extraction.model import configuration as config_module
-
-from src.dataset.extraction.model import decisions
-
-from src.dataset.extraction.model import prompts
-
-from src.dataset.extraction.source.text import CURRENCY
-
-from src.dataset.extraction.source.text import MONEY
-
-from src.dataset.extraction.source.text import amount_in_pln
-
-from src.dataset.extraction.source.text import extract_text
 
 @pytest.mark.parametrize(
     "court_name, expected",
@@ -236,4 +221,3 @@ def test_debug_export_preserves_low_confidence_proposal_with_invalid_flag(tmp_pa
         "model_calls.json",
         "source.txt",
     }
-

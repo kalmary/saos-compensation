@@ -1,10 +1,7 @@
 """Target admission and multiple-recipient arithmetic without model downloads."""
 
-
 import asyncio
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -12,13 +9,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.extraction.targets import amounts
-
 from src.dataset.extraction.model import configuration as config_module
-
 from src.dataset.extraction.model import decisions
-
+from src.dataset.extraction.targets import amounts
 from src.dataset.extraction.targets import target_extraction as extraction
+
 
 @pytest.mark.parametrize(
     ("source", "expected"),
@@ -120,7 +115,9 @@ def test_prior_payment_resolves_only_selected_principal_as_integer(
     monkeypatch.setattr(decisions, "ask", ask)
     result = asyncio.run(
         amounts.extract_prior_payment(
-            None, {"text": "Wypłacono 700 zł, pozostaje 6300 zł."}, config_module.load_config()
+            None,
+            {"text": "Wypłacono 700 zł, pozostaje 6300 zł."},
+            config_module.load_config(),
         )
     )
     assert type(result) is int
@@ -141,7 +138,10 @@ def test_missing_prior_payment_requires_no_model_call(monkeypatch):
         decisions, "ask", lambda *args: pytest.fail("Unexpected model call")
     )
     assert (
-        asyncio.run(amounts.extract_prior_payment(None, None, config_module.load_config())) == 0
+        asyncio.run(
+            amounts.extract_prior_payment(None, None, config_module.load_config())
+        )
+        == 0
     )
 
 
@@ -151,7 +151,11 @@ def test_missing_prior_payment_requires_no_model_call(monkeypatch):
         ("Zasądza na rzecz A. B. kwotę 100 zł.", "100", 1),
         ("Zasądza na rzecz A. B. i C. D. kwotę 20000 zł.", "20000", 2),
         ("Zasądza na rzecz A. B. i C. D. kwoty po 20000 zł.", "40000", 2),
-        ("Orzeka na rzecz A. B. nawiązkę w wysokości 10.000 (dziesięciu tysięcy) złotych;", "10000", 1),
+        (
+            "Orzeka na rzecz A. B. nawiązkę w wysokości 10.000 (dziesięciu tysięcy) złotych;",
+            "10000",
+            1,
+        ),
         ("Zasądza 1,5 tys. zł.", "1500", "not_available"),
         ("Zasądza 700,50 zł.", "700.50", "not_available"),
         ("Zasądza powodom po 100 zł.", None, "not_available"),
@@ -160,7 +164,9 @@ def test_missing_prior_payment_requires_no_model_call(monkeypatch):
         ("Zasądza kwotę stu złotych.", None, "not_available"),
     ],
 )
-def test_selected_sentence_is_the_only_target_source(monkeypatch, sentence, expected, count):
+def test_selected_sentence_is_the_only_target_source(
+    monkeypatch, sentence, expected, count
+):
     """Parse selected evidence without model decisions or other ruling amounts.
 
     args:
@@ -175,11 +181,24 @@ def test_selected_sentence_is_the_only_target_source(monkeypatch, sentence, expe
     text = "Zasądza 999 zł kosztów.\nUZASADNIENIE\n" + sentence + "\nŻąda 90000 zł."
     start = text.index(sentence)
     config = config_module.load_config()
-    monkeypatch.setattr(extraction, "match_targets", lambda *args: {
-        "judgment": {"text": sentence, "start": start, "end": start + len(sentence), "similarity": 0.9},
-        "request": {"text": "Żąda 90000 zł."},
-    })
-    monkeypatch.setattr(decisions, "ask", lambda *args: pytest.fail("Target extraction must not call Basal"))
+    monkeypatch.setattr(
+        extraction,
+        "match_targets",
+        lambda *args: {
+            "judgment": {
+                "text": sentence,
+                "start": start,
+                "end": start + len(sentence),
+                "similarity": 0.9,
+            },
+            "request": {"text": "Żąda 90000 zł."},
+        },
+    )
+    monkeypatch.setattr(
+        decisions,
+        "ask",
+        lambda *args: pytest.fail("Target extraction must not call Basal"),
+    )
     result = asyncio.run(extraction.extract_targets(None, text, config))
     assert result["confirmed"] is (expected is not None)
     assert result["suma"] == (expected if expected is not None else "brak informacji")
@@ -199,10 +218,22 @@ def test_selected_target_must_match_source_offsets(monkeypatch):
     returns:
         None.
     """
-    monkeypatch.setattr(extraction, "match_targets", lambda *args: {
-        "judgment": {"text": "Zasądza 100 zł.", "start": 0, "end": 15, "similarity": 0.9},
-        "request": None,
-    })
+    monkeypatch.setattr(
+        extraction,
+        "match_targets",
+        lambda *args: {
+            "judgment": {
+                "text": "Zasądza 100 zł.",
+                "start": 0,
+                "end": 15,
+                "similarity": 0.9,
+            },
+            "request": None,
+        },
+    )
     with pytest.raises(ValueError, match="does not match its source"):
-        asyncio.run(extraction.extract_targets(None, "Different source.", config_module.load_config()))
-
+        asyncio.run(
+            extraction.extract_targets(
+                None, "Different source.", config_module.load_config()
+            )
+        )

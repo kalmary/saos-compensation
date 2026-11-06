@@ -1,19 +1,12 @@
 import asyncio
-
 import hashlib
-
 import json
-
 import shutil
-
 import sys
-
 from datetime import date
-
 from pathlib import Path
 
 import pytest
-
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,33 +15,20 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.acquisition import checkpoints
-
-from src.dataset.storage import files as storage
-
-from src.dataset.storage import records
-
-from src.dataset.acquisition import api
-
+from src.dataset.acquisition import api, checkpoints
 from src.dataset.acquisition import download as acquisition
-
 from src.dataset.extraction import basal_filtering as basal
-
-from src.dataset.extraction.targets import amounts
-
 from src.dataset.extraction.model import configuration as config_module
-
-from src.dataset.extraction.model import decisions
-
-from src.dataset.extraction.model import prompts
-
-from src.dataset.extraction.source.text import CURRENCY
-
-from src.dataset.extraction.source.text import MONEY
-
-from src.dataset.extraction.source.text import amount_in_pln
-
-from src.dataset.extraction.source.text import extract_text
+from src.dataset.extraction.model import decisions, prompts
+from src.dataset.extraction.source.text import (
+    CURRENCY,
+    MONEY,
+    amount_in_pln,
+    extract_text,
+)
+from src.dataset.extraction.targets import amounts
+from src.dataset.storage import files as storage
+from src.dataset.storage import records
 
 CONFIG = {
     "max_age_years": 10,
@@ -497,4 +477,3 @@ def test_rejected_record_advances_checkpoint_without_case_files(
     assert checkpoints.load_checkpoint(config)["complete"]
     assert not (tmp_path / "tmp" / str(data["id"])).exists()
     capsys.readouterr()
-

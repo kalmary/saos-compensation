@@ -1,19 +1,12 @@
 import asyncio
-
 import hashlib
-
 import json
-
 import shutil
-
 import sys
-
 from datetime import date
-
 from pathlib import Path
 
 import pytest
-
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,17 +15,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+from src.dataset.acquisition import api
+from src.dataset.extraction.source.text import (
+    CURRENCY,
+    MONEY,
+    amount_in_pln,
+    extract_text,
+)
 from src.dataset.storage import files as storage
 
-from src.dataset.acquisition import api
-
-from src.dataset.extraction.source.text import CURRENCY
-
-from src.dataset.extraction.source.text import MONEY
-
-from src.dataset.extraction.source.text import amount_in_pln
-
-from src.dataset.extraction.source.text import extract_text
 
 @pytest.mark.parametrize("debug", [False, True])
 def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, debug):
@@ -105,4 +96,3 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
     assert rows[0]["NAZWA"] == "Pisz"
     assert metadata["population_year"] is None
     assert directory.exists() == debug
-

@@ -1,10 +1,7 @@
 """Bounded classification inputs without model inference."""
 
-
 import asyncio
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -13,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from src.dataset.extraction.source import passages
+
 
 @pytest.mark.parametrize(
     ("text", "limit"),
@@ -45,4 +43,3 @@ def test_blocks_preserve_source_text_and_character_budget(text, limit):
     assert not text[previous_end:].strip()
     if text.startswith("First"):
         assert blocks[0]["text"] == "First sentence.\n\nSecond sentence."
-
