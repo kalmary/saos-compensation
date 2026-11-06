@@ -22,7 +22,7 @@ saos-compensation/
 │   │   ├── embeddings/            # text encoding and target sentence matching
 │   │   ├── storage/               # local records, atomic writes and size limits
 │   │   ├── database/              # PostgreSQL/pgvector ingestion — not implemented
-│   │   └── vectorization/         # model-ready feature preprocessing — not implemented
+│   │   └── vectorization/         # model-ready preprocessing interfaces — skeleton only
 │   ├── architectures/             # regression model definitions — not implemented
 │   ├── training/                  # regression training — not implemented
 │   ├── evaluation/                # regression metrics and error analysis — not implemented

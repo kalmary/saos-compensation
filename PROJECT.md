@@ -46,6 +46,18 @@ The second milestone is complete when target extraction and the feature schema r
 
 `src/dataset/embeddings/cosine_similarity.py` compares existing embedding vectors or matrices using PyTorch's cosine similarity on explicit cpu, mps or cuda devices. It returns an N-by-M float32 similarity tensor on the selected device, validates finite nonzero real vectors and matching dimensions, and rejects unavailable accelerators. PyTorch is a base dependency. Floating-point scores can differ slightly from the previous implementation, so extractor version 26 requires a separate output path from earlier checkpoints.
 
+`src/dataset/vectorization/` contains the interface skeleton for issue #47. All operations currently raise `NotImplementedError`; it is not connected to acquisition or the CLI. The package has these implementation boundaries:
+
+- `configuration.py`: load and validate YAML predictor allowlists and representation policies.
+- `records.py`: load predictors with stable sample IDs; read targets separately only for supervised input and require valid=true.
+- `features.py`: fit numeric/categorical state on training data and transform fixed field blocks, reusing create_embeddings for present text.
+- `targets.py`: fit a separate reversible target transformation, including an identity path, and convert predictions back to PLN.
+- `pipeline.py`: expose Preprocessor.fit/transform/save/load and inverse_transform, retaining field-to-column mapping, effective settings, preprocessing version and encoder identity.
+
+The planned data contract uses aligned predictor mappings and stable sample IDs, with optional PLN targets. Transformation returns X, optional y, sample_ids and the field-to-column mapping. Prediction must work without award.json. Grouped splitting happens upstream before fitting, including within cross-validation folds. Missing/unseen values, constant numeric fields and skewed monetary predictors need explicit policies; prior_payment=0 retains its acquisition meaning. Embedding coordinates need not be positive or lie in 0–1. Target transformations change the training objective; evaluation metrics use predictions converted back to PLN.
+
+This branch supplies structure only. YAML schema reconciliation (including stale model_input.yaml field names), validation, encoding/scaling choices, persistence and behavioral tests remain to be implemented. No preprocessing configuration is active yet.
+
 1. Create reproducible train, validation, and test splits before fitting preprocessing.
 2. Encode each configured field appropriately: embeddings for free text, categorical encoders for categories, and scaled numeric values where needed.
 3. Train a simple regression baseline first.
