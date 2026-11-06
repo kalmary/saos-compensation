@@ -6,6 +6,12 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Created GitHub issue #47 for a model-ready preprocessing module covering text embeddings, numeric scaling, categorical encoding and reversible target transformation to PLN. It requires training-only fitting, persisted preprocessing and stable feature schemas; implementation and GitHub Project linkage remain pending.
+
+Created GitHub issue #46 for reproducible Rysy V100 container execution with driver 530.30.02. The task covers compatible CUDA/PyTorch dependencies and real GPU validation; linking it to the GitHub Project requires additional token permissions.
+
+Remote branch cleanup is complete: only main and the eight stack/get-data/ branches remain. Removed 30 obsolete remote branches after the earlier refinement-p4 deletion; all eight PRs remain open with their original bases and heads. Local branches preserve the previous history.
+
 The acquisition implementation is organized into eight feature-sized pull requests, chained from main in dependency order and registered as one native GitHub stack. Related components are grouped into complete review units, with get_data/ titles and ordered stack/get-data/ branches. Each layer includes its focused tests; original branches preserve the previous history. The final application, configuration and lockfile match the published extraction-version-26 snapshot. Offline validation in a separate locked environment covers every intermediate layer; live API and model inference are not rerun for the PR rebuild.
 
 ## Next steps
@@ -16,14 +22,6 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-10-31: Made target rejection messages report verification probability and configured minimum, distinguishing low confidence from an unconfirmed award or unavailable score. Added four offline reporting cases; 201 tests pass with one missing-fixture replay skipped. No live model inference or Git operations.
-
-- 2026-10-31: Added debug retention of numeric low-confidence award proposals with full feature extraction and unchanged leakage validation. Added boolean valid to award.json, preserved unconfirmed proposal values for inspection, and passed the real debug flag through extraction. Integration tests cover saving only under debug, proposed values and valid/invalid exports; 207 tests pass, one fixture replay skipped. No live model inference or Git operations.
-
-- 2026-10-31: Fixed debug cleanup to preserve every completed extraction attempt, including missing or unverified targets. Debug bypasses final rejection cleanup, writes the four requested case files before removing pending state, and marks failed target/feature admission valid=false. Added missing-target/no-verification integration cases and debug continuation coverage; 211 offline tests pass, one fixture replay skipped. No live inference or Git operations.
-
-- 2026-10-31: Ran three live debug cases with Remek/basal-2.0-mini on MPS in the project .venv. Saved exactly four files per case and manually compared operative rulings, exported features and model calls. All valid=false; 352 fresh requests, approximately six minutes. Documented model field-relevance/abstention errors separately from parser/scope limitations in tmp/basal_review_20261031_123326_review.md. Cleared the unrelated inherited VIRTUAL_ENV for subsequent commands. No code changes, dependency changes, Git operations or 4.5B comparison.
 
 - 2026-10-31: Clarified the monetary classification prompt with explicit Polish request phrases and the pomin decision, following the three-case inspection. Updated PROJECT.md in place. Prompt wording only; no new tests, live inference or Git operations.
 
@@ -116,3 +114,11 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - 2026-11-03: Rebuilt acquisition changes into 13 focused, dependency-ordered pull requests with native GitHub stacking, replacing the three broad review requests. Split mixed test modules by capability without removing test functions. Preserved the original branches and the final application/configuration snapshot; no force-push or merge. Validated every layer with its own locked environment and the offline test suite; corrected test-import ordering exposed by CI. Live acquisition and extraction accuracy remain unverified.
 
 - 2026-11-03: Consolidated the 13-layer review stack into eight feature-sized pull requests by grouping related components. Kept native stacking, get_data/ titles and ordered task-specific branch names. Preserved application code, configuration, the lockfile and all test functions; only review boundaries and this status changed. Every combined diff stays below 2,000 changed lines, including tests, documentation and generated lockfile changes. Existing passing checks cover the unchanged component snapshots; the replacement PRs run CI again. Live acquisition and model accuracy were not reevaluated.
+
+- 2026-11-03: Deleted the obsolete remote freature/inspect-data/refinment-p4 branch. Verified no open PR references it and application code, configuration, lockfile and README match stack/get-data/08-guide; differences are test organization and status history. Kept the local branch to preserve original commits. No runtime tests run; other obsolete branches remain pending cleanup scope.
+
+- 2026-11-03: Atomically deleted 30 obsolete remote branches: 29 heads of closed PRs and the old inspect-data backup. Verified each remote tip matches its retained local branch and is reachable from retained local history or the active stack. GitHub now has nine branches: main and eight stack/get-data/ branches. Verified PRs 37–44 remain open with unchanged heads and bases. Local branches and worktrees are preserved. No application changes or runtime tests; remote branch cleanup is complete.
+
+- 2026-11-03: Created issue #46, Containerize the pipeline for Rysy Tesla V100 GPUs. Recorded the V100 sm_70 and driver 530.30.02 constraints, current CUDA 13 incompatibility, dependency locking, persistent mounts, permitted runtime discovery and real inference/resume acceptance checks. No container implementation or cluster test performed. GitHub Project linkage remains pending because the CLI token lacks project access.
+
+- 2026-11-03: Created issue #47 for mixed-feature preprocessing and reversible target scaling. Defined model-ready outputs, training-only fitting, missing/unseen-value handling, artifact persistence, predictor allowlisting and PLN evaluation. Clarified that embeddings are not generally restricted to 0–1 and small values do not imply low importance; vector encodings must follow field semantics. No preprocessing implementation or runtime tests. Project linkage remains blocked by missing Project permissions.

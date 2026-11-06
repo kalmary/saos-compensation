@@ -1,7 +1,6 @@
 # SAOS Compensation
 
-A data science study project for estimating compensation awarded in Polish court judgments. The implemented pipeline downloads judgments from SAOS, selects compensation cases, extracts factual predictors and produces one monetary regression target per retained case.
-
+A project for estimating compensation awarded in Polish court judgments. The implemented pipeline downloads judgments from SAOS, selects compensation cases, extracts factual predictors and produces one monetary regression target per retained case.
 PostgreSQL/pgvector ingestion, feature vectorization, regression training, evaluation and prediction are planned. Extracted records still need independent target and leakage review before training.
 
 ## Repository structure
