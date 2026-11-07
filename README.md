@@ -1,7 +1,7 @@
 # SAOS Compensation
 
 A project for estimating compensation awarded in Polish court judgments. The implemented pipeline downloads judgments from SAOS, selects compensation cases, extracts factual predictors and produces one monetary regression target per retained case.
-PostgreSQL/pgvector ingestion, feature vectorization, regression training, evaluation and prediction are planned. Extracted records still need independent target and leakage review before training.
+PostgreSQL/pgvector ingestion, mixed-feature preprocessing, regression training, evaluation and prediction are planned. Extracted records still need independent target and leakage review before training.
 
 ## Repository structure
 
@@ -22,7 +22,7 @@ saos-compensation/
 │   │   ├── embeddings/            # text encoding and target sentence matching
 │   │   ├── storage/               # local records, atomic writes and size limits
 │   │   ├── database/              # PostgreSQL/pgvector ingestion — not implemented
-│   │   └── vectorization/         # model-ready preprocessing interfaces — skeleton only
+│   │   └── preprocessing/         # planned mixed-feature preprocessing — descriptions only
 │   ├── architectures/             # regression model definitions — not implemented
 │   ├── training/                  # regression training — not implemented
 │   ├── evaluation/                # regression metrics and error analysis — not implemented

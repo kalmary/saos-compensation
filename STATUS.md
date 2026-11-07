@@ -6,7 +6,7 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
-Added the issue #47 module skeleton under src/dataset/vectorization on stack/feature_normalization/module-structure. Configuration, record loading, mixed-feature transformation, reversible target transformation and the fit/transform/save/load lifecycle have documented placeholder interfaces. All operations raise NotImplementedError. Runtime implementation, YAML reconciliation, behavioral tests and GitHub Project linkage remain pending.
+The current issue #47 branch plans the non-embedding preprocessing tool: features.py for categorical encoding and numeric normalization, targets.py for independent reversible target scaling, and __init__.py for the package description. Text embeddings reuse the existing embedding module outside this tool. Files contain descriptions only; implementation and acceptance tests remain pending.
 
 Created GitHub issue #46 for reproducible Rysy V100 container execution with driver 530.30.02. The task covers compatible CUDA/PyTorch dependencies and real GPU validation; linking it to the GitHub Project requires additional token permissions.
 
@@ -22,14 +22,6 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-10-31: Added target.yaml with judgment/request phrase combinations covering beneficiary/amount order, compensation components, appellate changes and party requests. Kept the vocabulary separate from active extraction and validated YAML parsing/list structure. No inference or Git operations.
-
-- 2026-10-31: Simplified target.yaml by removing repeated benefit-specific endings and added structurally different payment/award cues (przyznaje, zobowiązuje, orzeka obowiązek, nakazuje, changes of amount). Kept component/beneficiary interpretation separate and left extraction unchanged. YAML validation passed; no inference or Git operations.
-
-- 2026-10-31: Reduced target.yaml to five structurally distinct award/payment examples and seven request examples, removing near-duplicates based on inflection, party order, endings and minor substitutions. Added the representative-construction rule to PROJECT.md. YAML validation passed; no inference or Git operations.
-
-- 2026-10-31: Added cosine_similarity for existing embedding vectors/matrices with explicit CPU/MPS/CUDA selection, stable normalization, boundary validation and no gradients. Added focused numerical/device/error tests (225 passed, one fixture replay skipped) and verified MPS against CPU on Apple GPU. No new dependencies, embedding encoder, target matcher or CUDA hardware test. No Git operations.
 
 - 2026-10-31: Replaced whole-text Basal target-role search with cached embedding matching using target_pattern.yaml and embedding.yaml (cosine >= 0.7; judgment mandatory, request optional). Added separate embedding_weights cache, CPU/MPS/CUDA encoder support, locked embedding dependencies and numeric injured_party_count. Added multiple-beneficiary case totals, per-person arithmetic and recipient deduplication. Passed 251 offline tests with one missing-fixture replay skipped; real CPU/MPS and a two-recipient end-to-end check passed. Documented observed false-positive role matches above 0.7 in tmp/embedding_target_review.md. No CUDA hardware test or Git operations.
 
@@ -122,3 +114,11 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - 2026-11-03: Created issue #47 for mixed-feature preprocessing and reversible target scaling. Defined model-ready outputs, training-only fitting, missing/unseen-value handling, artifact persistence, predictor allowlisting and PLN evaluation. Clarified that embeddings are not generally restricted to 0–1 and small values do not imply low importance; vector encodings must follow field semantics. No preprocessing implementation or runtime tests. Project linkage remains blocked by missing Project permissions.
 
 - 2026-11-06: Read issue #47 and added a vectorization package skeleton with configuration/record boundaries, FeatureTransformer, TargetTransformer and Preprocessor interfaces. Documented training-only fitting, optional targets, deterministic column mapping, persisted metadata and prediction-to-PLN contracts. Updated PROJECT and README; retained the protected model_input.yaml scaffold. Import/syntax and placeholder checks passed with the repository Python 3.12 environment. Scaling, encoding, artifact persistence and runtime integration remain unimplemented; no inference or Git commands run.
+
+- 2026-11-07: Renamed vectorization to preprocessing and rebuilt the mixed-feature skeleton around separate text, numeric and categorical modules alongside target transformation. FeatureTransformer coordinates stable field blocks; package exports include configuration and record loading. Updated current documentation and package references. Syntax/import and explicit-placeholder checks passed. Runtime preprocessing and behavioral acceptance tests remain unimplemented.
+
+- 2026-11-07: Re-read issue #47 and replaced the preprocessing skeleton with description-only modules. Removed all placeholder classes/functions/exports, folded feature assembly into the pipeline plan and separated persisted artifacts. Updated PROJECT and README. Checked that all nine Python files contain only short module docstrings; runtime implementation and acceptance tests remain pending.
+
+- 2026-11-07: Inspected five valid tmp/test cases and summarized all 12 valid records (four invalid excluded). All share eight predictors; cause is missing in 9/12, limitations in 5/12 and locality size in 6/12. Year, beneficiary count and prior payment are constant in this sample; totals are numeric strings. Reduced the description-only preprocessing plan from nine files to __init__.py, pipeline.py and targets.py. Checked module descriptions and documentation references. Local data was preserved; target correctness and corpus-wide behavior were not validated.
+
+- 2026-11-07: Re-read issue #47 and corrected the branch scope to encoding and normalization of non-embedding predictors. Replaced the broad pipeline description with features.py covering numeric/categorical transformation and fitted-state reuse; kept reversible target scaling separate. Existing embeddings remain external, to be joined by the future mixed-feature pipeline. Local constants do not constrain supported input values. Verified description-only files; implementation and behavioral checks remain pending.
