@@ -1,0 +1,12 @@
+metadata_fields:
+- judgment_year
+- instance
+- prior_payment # Earlier principal paid in PLN, rounded to int; 0 without confirmation.
+- injured_party_count # Explicit recipients; defaults to 1 when unavailable.
+- court_locality_size # Population class of the court locality (GUGiK).
+
+# !!! At least one selected text field must have accepted source evidence. !!!
+text_fields:
+  cause: "Co spowodowało szkodę? Jaka jest przyczyna zdarzenia?"
+  damage: "Jakiej szkody doznał poszkodowany? Jakie są skutki zdarzenia dla poszkodowanego?"
+  limitations: "Jakie czynności były utrudnione lub niemożliwe? Jaki wpływ na poszkodowanego ma doznana szkoda?"
