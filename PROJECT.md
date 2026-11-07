@@ -73,3 +73,10 @@ Configuration files may reference secrets through environment-variable names, bu
 - Inflation and changes in judicial practice can create temporal drift.
 - Related cases can leak across random row-level splits.
 - Sparse regions or courts can make subgroup metrics unstable.
+
+## Implemented acquisition components
+
+- Normalize judgment text and parse PLN amounts.
+- Write atomic records within a cumulative storage limit.
+
+Remaining components are introduced by subsequent dependent changes. The complete acquisition command is available after pipeline integration.
