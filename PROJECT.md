@@ -80,5 +80,6 @@ Configuration files may reference secrets through environment-variable names, bu
 - Write atomic records within a cumulative storage limit.
 - Validate and paginate official SAOS dump responses.
 - Resolve court localities from official population data.
+- Encode text with cached models and compare embedding vectors.
 
 Remaining components are introduced by subsequent dependent changes. The complete acquisition command is available after pipeline integration.
