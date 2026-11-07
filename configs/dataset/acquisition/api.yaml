@@ -1,0 +1,13 @@
+# Judgment date range in years before today.
+max_age_years: 10
+# Maximum dump pages (100 judgments each); 0 reads all pages.
+max_pages: 0
+
+# Total output-directory size in GiB across resumed runs; 0 disables the limit.
+max_gib: 0.5
+# Save source/model calls and retain failed extraction attempts with valid=false.
+debug: true
+# Output directory relative to the project root.
+download_path: "tmp/"
+# HTTP connection/read timeout in seconds, not a total download limit.
+timeout: 20
