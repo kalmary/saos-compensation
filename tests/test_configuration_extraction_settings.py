@@ -1,16 +1,11 @@
 """Acquisition configuration boundaries and checkpoint compatibility."""
 
-
 import asyncio
-
 import shutil
-
 import sys
-
 from pathlib import Path
 
 import pytest
-
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,9 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.extraction.model import configuration
+from src.dataset.extraction.model import configuration, decisions
 
-from src.dataset.extraction.model import decisions
 
 @pytest.fixture
 def config_directory(tmp_path):
@@ -53,7 +47,9 @@ def config_directory(tmp_path):
         ("basal.yaml", "feature_fields", ["damage"]),
     ],
 )
-def test_invalid_acquisition_configuration_is_rejected(config_directory, file, key, value):
+def test_invalid_acquisition_configuration_is_rejected(
+    config_directory, file, key, value
+):
     """Reject malformed settings before downloads or inference begin.
 
     args:
@@ -71,4 +67,3 @@ def test_invalid_acquisition_configuration_is_rejected(config_directory, file, k
     path.write_text(yaml.safe_dump(settings))
     with pytest.raises(ValueError):
         configuration.load_config(config_directory)
-

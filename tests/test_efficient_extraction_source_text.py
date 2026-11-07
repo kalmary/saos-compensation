@@ -1,10 +1,7 @@
 """Ruling-first targets and source-aligned factual selection."""
 
-
 import asyncio
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -13,10 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from src.dataset.extraction.source import passages
+from src.dataset.extraction.source.text import MONEY, amount_in_pln
 
-from src.dataset.extraction.source.text import MONEY
-
-from src.dataset.extraction.source.text import amount_in_pln
 
 @pytest.mark.parametrize(
     ("text", "amount"),
@@ -57,4 +52,3 @@ def test_factual_heading_preserves_offsets_and_excludes_party_requests(heading):
     selected = passages.feature_input(text, {})
     assert selected["text"].strip() == "Powód złamał nogę."
     assert text[selected["start"] : selected["end"]] == selected["text"]
-

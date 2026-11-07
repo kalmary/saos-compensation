@@ -1,10 +1,7 @@
 """Embedding routing, winner selection and multi-person principal aggregation."""
 
-
 import math
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -15,13 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 torch = pytest.importorskip("torch")
 
 
-from src.dataset.embeddings.target_matching import PATTERN_CLASSES
-
-from src.dataset.embeddings.target_matching import TargetMatcher
-
-from src.dataset.embeddings.target_matching import prepare_text
-
-from src.dataset.embeddings.target_matching import validate_settings
+from src.dataset.embeddings.target_matching import (
+    PATTERN_CLASSES,
+    TargetMatcher,
+    prepare_text,
+    validate_settings,
+)
 
 SETTINGS = {
     "model": "test",
@@ -260,4 +256,3 @@ def test_exclusion_wins_an_exact_tie_instead_of_admitting_a_target():
     result = matcher.match("Zasądza 100 zł kosztów.")
     assert result["judgment"] is None
     assert result["procedural_costs"] is not None
-

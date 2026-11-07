@@ -1,8 +1,7 @@
 import subprocess
-
 import sys
-
 from pathlib import Path
+
 
 def test_get_data_help(tmp_path):
     """Verify the installed command exposes acquisition options outside the repository.
@@ -33,4 +32,3 @@ def test_get_data_help(tmp_path):
         "--no-debug",
     ):
         assert option in result.stdout
-

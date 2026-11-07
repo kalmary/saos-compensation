@@ -1,16 +1,11 @@
 """Acquisition configuration boundaries and checkpoint compatibility."""
 
-
 import asyncio
-
 import shutil
-
 import sys
-
 from pathlib import Path
 
 import pytest
-
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,10 +15,8 @@ sys.path.insert(0, str(ROOT))
 
 
 from src.dataset.extraction import features
+from src.dataset.extraction.model import configuration, decisions
 
-from src.dataset.extraction.model import configuration
-
-from src.dataset.extraction.model import decisions
 
 @pytest.fixture
 def config_directory(tmp_path):
@@ -39,7 +32,9 @@ def config_directory(tmp_path):
     return tmp_path
 
 
-def test_configured_question_is_used_for_extraction_and_relevance(config_directory, monkeypatch):
+def test_configured_question_is_used_for_extraction_and_relevance(
+    config_directory, monkeypatch
+):
     """Use one YAML question for extraction and the subsequent relevance review.
 
     args:
@@ -71,12 +66,19 @@ def test_configured_question_is_used_for_extraction_and_relevance(config_directo
             Controlled extraction or safe relevance review.
         """
         if "opis" in questions:
-            assert questions["opis"]["schema"]["properties"]["damage"]["description"] == question
+            assert (
+                questions["opis"]["schema"]["properties"]["damage"]["description"]
+                == question
+            )
             seen.append("extract")
-            return {"opis": {
-                "data": {"damage": source},
-                "fields": {"damage": {"start": 0, "end": len(source), "confidence": 0.9}},
-            }}
+            return {
+                "opis": {
+                    "data": {"damage": source},
+                    "fields": {
+                        "damage": {"start": 0, "end": len(source), "confidence": 0.9}
+                    },
+                }
+            }
         assert questions["fit_damage"]["instructions"].endswith(question)
         seen.append("review")
         return {
@@ -89,4 +91,3 @@ def test_configured_question_is_used_for_extraction_and_relevance(config_directo
     result = asyncio.run(features.extract_features(None, source, config, 42))
     assert result["features"] == {"damage": source}
     assert seen == ["extract", "review"]
-

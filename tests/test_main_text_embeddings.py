@@ -1,8 +1,7 @@
 import subprocess
-
 import sys
-
 from pathlib import Path
+
 
 def test_embeddings_without_basal():
     """Verify reusable embeddings can be imported without optional Basal.
@@ -25,4 +24,3 @@ def test_embeddings_without_basal():
         capture_output=True,
         text=True,
     )
-

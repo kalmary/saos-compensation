@@ -1,8 +1,6 @@
 """Cheap target-sentence filtering before model loading or embedding inference."""
 
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -24,4 +22,3 @@ def test_currency_prefix_does_not_match_unrelated_words(word):
 
     assert not CURRENCY.search(word)
     assert not MONEY.search(f"100 {word}")
-

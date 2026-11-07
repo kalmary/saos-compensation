@@ -1,19 +1,12 @@
 import asyncio
-
 import hashlib
-
 import json
-
 import shutil
-
 import sys
-
 from datetime import date
-
 from pathlib import Path
 
 import pytest
-
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,17 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.storage import files as storage
-
 from src.dataset.acquisition import api
-
-from src.dataset.extraction.source.text import CURRENCY
-
-from src.dataset.extraction.source.text import MONEY
-
-from src.dataset.extraction.source.text import amount_in_pln
-
-from src.dataset.extraction.source.text import extract_text
+from src.dataset.extraction.source.text import (
+    CURRENCY,
+    MONEY,
+    amount_in_pln,
+    extract_text,
+)
+from src.dataset.storage import files as storage
 
 CONFIG = {
     "max_age_years": 10,
@@ -143,9 +133,9 @@ def test_pagination_uses_next_without_result_count(
         return search_response(params, [page + 1], page < 2)
 
     monkeypatch.setattr(api, "fetch_json", fetch)
-    assert len(
-        list(api.search_pages({**CONFIG, "max_pages": limit}, tmp_path))
-    ) == len(expected)
+    assert len(list(api.search_pages({**CONFIG, "max_pages": limit}, tmp_path))) == len(
+        expected
+    )
     assert pages == expected
 
 
@@ -357,9 +347,7 @@ def test_invalid_judgments_are_rejected(defect):
     else:
         data["judgmentType"] = "REASONS"
     with pytest.raises(ValueError):
-        api.validate_judgment(
-            payload, 254930, date(2016, 10, 29), date(2026, 10, 29)
-        )
+        api.validate_judgment(payload, 254930, date(2016, 10, 29), date(2026, 10, 29))
 
 
 def test_court_dump_joins_divisions_across_pages(monkeypatch):
@@ -463,4 +451,3 @@ def test_malformed_court_dump_is_rejected(monkeypatch, court):
     )
     with pytest.raises(ValueError, match="Invalid court"):
         api.load_divisions(object())
-

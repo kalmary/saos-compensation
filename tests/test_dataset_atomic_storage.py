@@ -1,19 +1,12 @@
 import asyncio
-
 import hashlib
-
 import json
-
 import shutil
-
 import sys
-
 from datetime import date
-
 from pathlib import Path
 
 import pytest
-
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,15 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+from src.dataset.extraction.source.text import (
+    CURRENCY,
+    MONEY,
+    amount_in_pln,
+    extract_text,
+)
 from src.dataset.storage import files as storage
 
-from src.dataset.extraction.source.text import CURRENCY
-
-from src.dataset.extraction.source.text import MONEY
-
-from src.dataset.extraction.source.text import amount_in_pln
-
-from src.dataset.extraction.source.text import extract_text
 
 def test_output_limit_counts_existing_files_and_persists_across_resumes(tmp_path):
     """
@@ -88,4 +80,3 @@ def test_output_limit_preserves_existing_record_and_counts_atomic_temporary_file
         write_bytes(tmp_path / "next", b"3456")
     assert sum(path.stat().st_size for path in tmp_path.iterdir()) == 6
     assert sorted(path.name for path in tmp_path.iterdir()) == ["next", "record.json"]
-

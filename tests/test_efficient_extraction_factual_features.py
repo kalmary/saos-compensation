@@ -1,10 +1,7 @@
 """Ruling-first targets and source-aligned factual selection."""
 
-
 import asyncio
-
 import sys
-
 from pathlib import Path
 
 import pytest
@@ -12,17 +9,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.extraction.model import configuration as config_module
-
-from src.dataset.extraction.model import decisions
-
 from src.dataset.extraction import features as features_module
-
+from src.dataset.extraction.model import configuration as config_module
+from src.dataset.extraction.model import decisions
 from src.dataset.extraction.source import passages
+from src.dataset.extraction.source.text import MONEY, amount_in_pln
 
-from src.dataset.extraction.source.text import MONEY
-
-from src.dataset.extraction.source.text import amount_in_pln
 
 @pytest.mark.parametrize("treatment_in_findings", [False, True])
 def test_missing_fields_do_not_trigger_fallback(monkeypatch, treatment_in_findings):
@@ -175,4 +167,3 @@ def test_feature_logs_report_existing_decision_failures_without_extra_calls(
     if reason != "accepted":
         assert reason in result["field_status"]["harm_type"]
         assert result["features"]["harm_type"] == "brak informacji"
-
