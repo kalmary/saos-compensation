@@ -176,7 +176,7 @@ def test_public_yaml_and_nonnegative_logarithm():
     returns:
         None.
     """
-    config = load_config(Path(__file__).parents[1] / "configs/dataset/model_input.yaml")
+    config = load_config(Path(__file__).parents[1] / "configs/training/model_input.yaml")
     records = [{"judgment_year": 2016, "injured_party_count": 1, "prior_payment": 0,
                 "instance": "pierwsza", "court_locality_size": "not_available"}]
     model = FeaturePreprocessor().fit(records, config)
@@ -239,7 +239,7 @@ def test_year_digits_are_fixed_and_keep_column_mapping(tmp_path):
     returns:
         None.
     """
-    config = load_config(Path(__file__).parents[1] / "configs/dataset/model_input.yaml")
+    config = load_config(Path(__file__).parents[1] / "configs/training/model_input.yaml")
     config["feature_fields"] = ["judgment_year"]
     model = FeaturePreprocessor().fit([{"judgment_year": 2016}], config)
     years = [2000, 2009, 2018, 2019, 2020, 2025, 2099]

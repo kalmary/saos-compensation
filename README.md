@@ -10,8 +10,9 @@ Directories only; entries marked `not implemented` describe planned components a
 ```text
 saos-compensation/
 ├── configs/                       # experiment configuration
-│   └── dataset/                   # acquisition and future model-input configuration
-│       └── acquisition/           # API, features, targets and Basal settings
+│   ├── dataset/
+│   │   └── acquisition/           # API, features, targets and Basal settings
+│   └── training/                  # model input feature selection
 ├── src/                           # implementation
 │   ├── dataset/                   # dataset preparation
 │   │   ├── acquisition/           # SAOS access, downloads and checkpoints
@@ -217,14 +218,14 @@ Feature transformations and persistence are implemented directly in `feature_pre
 | `instance`, `court_locality_size` | One-hot category vectors |
 | Target `total` | Training-fitted robust scaling, inverted to PLN for evaluation |
 
-The preprocessing utilities use `configs/dataset/model_input.yaml` only to select original predictor fields. `load_records()` lives in `src/dataset/preprocessing/io/records.py` and is exported from the package:
+The preprocessing utilities use `configs/training/model_input.yaml` only to select original predictor fields. `load_records()` lives in `src/dataset/preprocessing/io/records.py` and is exported from the package:
 
 ```python
 from src.dataset.preprocessing import (
     FeaturePreprocessor, TargetPreprocessor, load_config, load_records,
 )
 
-settings = load_config("configs/dataset/model_input.yaml")
+settings = load_config("configs/training/model_input.yaml")
 data = load_records("tmp/test", include_targets=True)
 # data contains aligned raw records, sample_ids and unscaled targets (valid=true only).
 # The caller must create grouped splits and select train_records/train_targets first.
