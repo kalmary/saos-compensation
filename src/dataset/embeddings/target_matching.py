@@ -69,53 +69,56 @@ def validate_settings(settings, patterns):
             prepare_text(phrase)
 
 
-def candidate_sentences(text, keywords):
+def eligible_classes(text, keywords):
+    """Determine target and competing exclusion roles from local word stems.
+
+    args:
+        text: Original fragment or expanded contiguous source span.
+        keywords: Target, shared and exclusion word-prefix groups.
+
+    returns:
+        Eligible classes, preserving role-specific precedence over shared stems.
     """
-    Select sentence or comma-delimited clauses with PLN amounts and relevant stems.
+    matched = {
+        group for group, words in keywords.items()
+        if words and re.search(
+            r"\b(?:" + "|".join(re.escape(word) for word in words) + r")\w*",
+            text, re.IGNORECASE,
+        )
+    }
+    classes = tuple(label for label in TARGET_CLASSES if label in matched)
+    if not classes and "shared" in matched:
+        classes = TARGET_CLASSES
+    return classes + tuple(label for label in EXCLUDED_CLASSES if label in matched)
+
+
+def candidate_sentences(text, keywords):
+    """Select keyword-bearing comma fragments whose full sentence contains PLN evidence.
 
     args:
         text: Full normalized judgment text.
         keywords: Target, exclusion and shared word-prefix groups from targets.yaml.
 
     returns:
-        Candidate sentences with unchanged source offsets and eligible classes.
+        Seed fragments with exact source offsets, sentence bounds and eligible classes.
+        A seed need not contain money; expansion may recover it from the same sentence.
     """
-    core = {
-        group: re.compile(
-            r"\b(?:" + "|".join(re.escape(word) for word in words) + r")\w*",
-            re.IGNORECASE,
-        )
-        if words
-        else re.compile(r"(?!)")
-        for group, words in keywords.items()
-    }
-    sentences = []
+    candidates = []
     for line in re.finditer(r"[^\n]+", text):
-        if not MONEY.search(line[0]) or not any(
-            pattern.search(line[0]) for pattern in core.values()
-        ):
+        if not MONEY.search(line[0]):
             continue
-        for sentence in sentence_fragments(
-            {"text": line[0], "start": line.start(), "end": line.end()},
-            split_commas=True,
-        ):
+        chunk = {"text": line[0], "start": line.start(), "end": line.end()}
+        for sentence in sentence_fragments(chunk):
             if not MONEY.search(sentence["text"]):
                 continue
-            classes = tuple(
-                label
-                for label in TARGET_CLASSES
-                if core[label].search(sentence["text"])
-            )
-            if not classes and core["shared"].search(sentence["text"]):
-                classes = TARGET_CLASSES
-            classes += tuple(
-                label
-                for label in EXCLUDED_CLASSES
-                if label in core and core[label].search(sentence["text"])
-            )
-            if classes:
-                sentences.append({**sentence, "classes": classes})
-    return sentences
+            for fragment in sentence_fragments(sentence, split_commas=True):
+                classes = eligible_classes(fragment["text"], keywords)
+                if classes:
+                    candidates.append({
+                        **fragment, "classes": classes,
+                        "sentence_start": sentence["start"], "sentence_end": sentence["end"],
+                    })
+    return candidates
 
 
 def prepare_text(text):
@@ -169,27 +172,23 @@ class TargetMatcher:
             [prepare_text(phrase) for _, phrase in self.patterns]
         )
 
-    def match(self, text):
-        """
-        Assign each candidate its highest-scoring eligible class above the strict threshold.
+    def score(self, candidates):
+        """Score a batch using unchanged pattern competition and exclusion tie priority.
 
         args:
-            text: Full normalized judgment text.
+            candidates: Nonempty source spans with eligible classes.
 
         returns:
-            Best matches per target/exclusion class, with source offsets and scores.
+            Pairs of winning class and source span enriched with similarity/pattern.
         """
         from .cosine_similarity import cosine_similarity
 
-        sentences = candidate_sentences(text, self.settings["candidate_keywords"])
-        result = dict.fromkeys(PATTERN_CLASSES)
-        if not sentences:
-            return result
-        vectors = self.encode([prepare_text(row["text"]) for row in sentences])
+        vectors = self.encode([prepare_text(row["text"]) for row in candidates])
         scores = cosine_similarity(
             vectors, self.pattern_vectors, device=self.settings["device"]
         ).cpu()
-        for row, similarities in zip(sentences, scores, strict=True):
+        ranked = []
+        for row, similarities in zip(candidates, scores, strict=True):
             best = {}
             for index, (label, phrase) in enumerate(self.patterns):
                 if label not in row["classes"]:
@@ -199,10 +198,85 @@ class TargetMatcher:
                     best[label] = (score, phrase)
             label = max(best, key=lambda key: (best[key][0], key in EXCLUDED_CLASSES))
             score, phrase = best[label]
-            if score > self.settings["minimum_cosine_similarity"] and (
-                result[label] is None or score > result[label]["similarity"]
-            ):
-                result[label] = {**row, "similarity": score, "pattern": phrase}
+            ranked.append((label, {**row, "similarity": score, "pattern": phrase}))
+        return ranked
+
+    def grow(self, text, seed, label):
+        """Grow a money-free target seed right first, then left within its sentence.
+
+        args:
+            text: Original normalized judgment for exact contiguous source spans.
+            seed: Scored money-free fragment; final monetary spans must exceed the threshold.
+            label: Target role that must remain the winner during expansion.
+
+        returns:
+            First accepted span with PLN evidence, or None. Money-free growth must
+            improve similarity; monetary growth may decrease it but must exceed the
+            threshold. Accepted left growth retries the right side before continuing.
+        """
+        sentence = {
+            "text": text[seed["sentence_start"]:seed["sentence_end"]],
+            "start": seed["sentence_start"], "end": seed["sentence_end"],
+        }
+        fragments = list(sentence_fragments(sentence, split_commas=True))
+        left = right = next(
+            index for index, part in enumerate(fragments)
+            if part["start"] == seed["start"]
+        )
+        current = seed
+        while True:
+            for new_left, new_right in ((left, right + 1), (left - 1, right)):
+                if new_left < 0 or new_right >= len(fragments):
+                    continue
+                start, end = fragments[new_left]["start"], fragments[new_right]["end"]
+                span = text[start:end]
+                candidate = {
+                    **current, "text": span, "start": start, "end": end,
+                    "classes": eligible_classes(span, self.settings["candidate_keywords"]),
+                }
+                winner, expanded = self.score([candidate])[0]
+                if winner != label:
+                    continue
+                if MONEY.search(span):
+                    if expanded["similarity"] > self.settings["minimum_cosine_similarity"]:
+                        return expanded
+                    continue
+                if expanded["similarity"] > current["similarity"]:
+                    left, right, current = new_left, new_right, expanded
+                    break
+            else:
+                return None
+
+    def match(self, text):
+        """Select strongest eligible seeds and grow money-free target fragments.
+
+        args:
+            text: Full normalized judgment text.
+
+        returns:
+            First successful highest-ranked seed per class, with final contiguous
+            source offsets and similarity. Exclusion seeds are never grown into targets.
+        """
+        candidates = candidate_sentences(text, self.settings["candidate_keywords"])
+        result = dict.fromkeys(PATTERN_CLASSES)
+        if not candidates:
+            return result
+        ranked = sorted(
+            self.score(candidates), key=lambda match: match[1]["similarity"], reverse=True
+        )
+        for label, row in ranked:
+            if result[label] is not None:
+                continue
+            if MONEY.search(row["text"]):
+                if row["similarity"] <= self.settings["minimum_cosine_similarity"]:
+                    continue
+            else:
+                if label not in TARGET_CLASSES:
+                    continue
+                row = self.grow(text, row, label)
+                if row is None:
+                    continue
+            result[label] = row
         return result
 
 

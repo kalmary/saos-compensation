@@ -133,8 +133,8 @@ def test_candidate_filter_splits_comma_clauses_without_splitting_decimal_amounts
     assert all(text[row["start"] : row["end"]] == row["text"] for row in rows)
 
 
-def test_comma_clauses_require_their_own_keyword_and_leave_feature_sentences_intact():
-    """Keep target cues local without changing the default feature sentence splitter.
+def test_money_free_keyword_seed_retains_sentence_bounds_without_changing_feature_splitting():
+    """Allow a keyword seed to recover money later without changing feature sentences.
 
     args:
         None
@@ -145,7 +145,9 @@ def test_comma_clauses_require_their_own_keyword_and_leave_feature_sentences_int
     from src.dataset.extraction.source.text import sentence_fragments
 
     text = "Zasądza świadczenie, rachunek opiewa na 100 zł."
-    assert target_matching.candidate_sentences(text, KEYWORDS) == []
+    (seed,) = target_matching.candidate_sentences(text, KEYWORDS)
+    assert seed["text"] == "Zasądza świadczenie,"
+    assert (seed["sentence_start"], seed["sentence_end"]) == (0, len(text))
     assert [row["text"] for row in sentence_fragments({"text": text, "start": 0})] == [
         text
     ]
