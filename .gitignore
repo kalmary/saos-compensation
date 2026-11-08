@@ -31,6 +31,8 @@ htmlcov/
 !.env.example
 
 # Local data and generated model artifacts
+/basal_weights/
+/embedding_weights/
 /artifacts/**
 !/artifacts/**/
 /checkpoints/**

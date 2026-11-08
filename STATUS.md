@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Local basal_weights/ and embedding_weights/ directories are ignored as downloaded model caches. Notebook files matching the existing ignore rule are no longer tracked; all local files are preserved.
+
 The project is at the data-feasibility stage. The exploratory script in `notebooks/01_saos_feasibility.py` checks scoped SAOS queries, pagination, full-text retrieval, and basic record validation. It uses `requests` and stores raw responses, acquisition metadata, and its report under `tmp/saos_feasibility/`.
 
 All contents of `data/` are ignored except `data/.gitkeep`, including package markers and nested directories.
@@ -31,3 +33,7 @@ The initial snapshot contains 18 inspected judgments. All passed basic structura
 - 2026-10-27: Added the status-maintenance rule to `AGENTS.md`, including summary updates, dated entries, and a limit of 50 log entries.
 - 2026-10-27: Restricted the `data/` exception to `.gitkeep`; all other contents remain ignored, including `__init__.py` files.
 - 2026-10-27: Simplified ignore rules for `notebooks/` and `tmp/` to exclude their entire contents, including package markers. Existing tracked files require a separate index update to stop tracking; no Git operations were performed.
+
+- 2026-11-08: Checked refactor/target-search against the locally available origin/main; both point to 1c91d62 with no tracked working-tree changes before this task. The only untracked directories were downloaded model caches: basal_weights (about 12 GB) and embedding_weights (about 458 MB). Added root-level ignore rules for both, preserving all local files. Verified cache paths are ignored and no cache files are tracked. No runtime code changed or tests run; remote refs were not refreshed.
+
+- 2026-11-08: Verified ignored/untracked paths before publishing the refactor/target-search ignore fix. Removed notebooks/.gitkeep and notebooks/01_saos_feasibility.py from the index only because this branch ignores the entire notebooks directory; retained both files locally. Refreshed origin/main and found its newer merged acquisition implementation already ignores caches with placeholders. Main receives a separate rule-order correction so cache __init__.py files cannot escape ignoring. Verified no cache files are tracked; no application code or runtime tests changed.
