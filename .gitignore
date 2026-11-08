@@ -42,10 +42,6 @@ htmlcov/
 .idea/
 .vscode/
 /tmp/
-/basal_weights/*
-!/basal_weights/.gitkeep
-/embedding_weights/*
-!/embedding_weights/.gitkeep
 .DS_Store
 Thumbs.db
 
@@ -59,3 +55,9 @@ Thumbs.db
 # Keep only the notebook directory placeholder.
 /notebooks/*
 !/notebooks/.gitkeep
+
+# Keep model caches local, including package markers.
+/basal_weights/*
+!/basal_weights/.gitkeep
+/embedding_weights/*
+!/embedding_weights/.gitkeep

@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Model caches under basal_weights/ and embedding_weights/ are ignored, including __init__.py; only their .gitkeep placeholders remain tracked. Local files are preserved.
+
 Created GitHub issue #47 for a model-ready preprocessing module covering text embeddings, numeric scaling, categorical encoding and reversible target transformation to PLN. It requires training-only fitting, persisted preprocessing and stable feature schemas; implementation and GitHub Project linkage remain pending.
 
 Created GitHub issue #46 for reproducible Rysy V100 container execution with driver 530.30.02. The task covers compatible CUDA/PyTorch dependencies and real GPU validation; linking it to the GitHub Project requires additional token permissions.
@@ -22,8 +24,6 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-10-31: Clarified the monetary classification prompt with explicit Polish request phrases and the pomin decision, following the three-case inspection. Updated PROJECT.md in place. Prompt wording only; no new tests, live inference or Git operations.
 
 - 2026-10-31: Added target.yaml with judgment/request phrase combinations covering beneficiary/amount order, compensation components, appellate changes and party requests. Kept the vocabulary separate from active extraction and validated YAML parsing/list structure. No inference or Git operations.
 
@@ -122,3 +122,5 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - 2026-11-03: Created issue #46, Containerize the pipeline for Rysy Tesla V100 GPUs. Recorded the V100 sm_70 and driver 530.30.02 constraints, current CUDA 13 incompatibility, dependency locking, persistent mounts, permitted runtime discovery and real inference/resume acceptance checks. No container implementation or cluster test performed. GitHub Project linkage remains pending because the CLI token lacks project access.
 
 - 2026-11-03: Created issue #47 for mixed-feature preprocessing and reversible target scaling. Defined model-ready outputs, training-only fitting, missing/unseen-value handling, artifact persistence, predictor allowlisting and PLN evaluation. Clarified that embeddings are not generally restricted to 0–1 and small values do not imply low importance; vector encodings must follow field semantics. No preprocessing implementation or runtime tests. Project linkage remains blocked by missing Project permissions.
+
+- 2026-11-08: Verified main already ignores downloaded Basal/embedding caches and tracks only their .gitkeep placeholders. Moved cache rules after the general __init__.py exception so package markers inside model caches remain ignored too. Checked representative cache weights, locks and __init__.py paths, retained placeholder exceptions, and verified no tracked file matches ignore rules. No local model files were deleted and no application code changed; runtime tests were not needed for ignore rules.
