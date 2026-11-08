@@ -204,9 +204,18 @@ vectors = create_embeddings(["Opis szkody.", "Ograniczenia w pracy."], settings)
 
 `create_embeddings` accepts a nonempty list of nonblank strings and encoder settings (`model`, `revision`, `device`, `batch_size`, `max_length`). It returns an `(N, D)` float32 PyTorch tensor on the selected device, preserving order and original text through all token windows. Encoder loading is lazy and cached for unchanged settings. Target matching applies its own monetary normalization before encoding.
 
-## Current limitations and remaining work
+## Data scaling and normalization
 
-Embedding similarity is not calibrated legal-role confidence. The matcher can select the wrong payment or miss an award, and fully written-out monetary amounts are unsupported. Currency recognition covers PLN, zł and grammatical forms of złoty and złotówka. Target matching also splits at commas, except commas between digits, to separate monetary clauses. Each fragment must contain its own keyword and PLN amount; this can lose context or miss awards when a keyword appears only before the comma. The target covers only the selected fragment, so separate awards elsewhere can be omitted. Extracted facts can still contain relevance or attribution errors despite automated checks.
+Feature transformations and persistence are implemented directly in `feature_preprocessor.py`; target scaling has its own `target_preprocessor.py`.
+
+| Field | Representation |
+|---|---|
+| `cause`, `damage`, `limitations` | Existing text embeddings, with no additional normalization here |
+| `judgment_year` | Final two digits divided by ten: `2025 → [0.2, 0.5]`; integer years 2000–2099 |
+| `injured_party_count` | Original numeric value |
+| `prior_payment` | `log1p`, then training-fitted robust scaling |
+| `instance`, `court_locality_size` | One-hot category vectors |
+| Target `total` | Training-fitted robust scaling, inverted to PLN for evaluation |
 
 The preprocessing utilities use `configs/dataset/model_input.yaml` only to select original predictor fields. `load_records()` lives in `src/dataset/preprocessing/io/records.py` and is exported from the package:
 
@@ -238,5 +247,9 @@ This is a utility API example, not a training/inference implementation. Neither 
 Feature output contains finite `X`, stable IDs, column names and half-open field-to-column ranges. Fixed rules in `transforms/rules.py` are: year → final two digits divided by ten (2000–2099), count unchanged, prior payment → log1p plus training-fitted robust scaling, nominal categories → one-hot. Missing numbers raise; missing categories get a dedicated column and unseen categories an all-zero block. Target preprocessing separately subtracts the training-target median and divides by the training interquartile range, without log transformation; inverse transformation returns PLN. For [100, 200, 300], the scaled targets are [-1, 0, 1]. Zero-range protection is provided by scikit-learn. Scaling does not establish feature importance.
 
 `io/` handles configuration, input loading and persistence; `transforms/` holds shared numeric helpers and fixed rules. Both artifacts use trusted local pickle files and reject incompatible preprocessing/scikit-learn versions. Feature and target files are independent, with no duplicated target object in the feature artifact. Source/debug records are unchanged. Combining tabular output with embeddings remains unimplemented.
+
+## Current limitations and remaining work
+
+Embedding similarity is not calibrated legal-role confidence. The matcher can select the wrong payment or miss an award, and fully written-out monetary amounts are unsupported. Currency recognition covers PLN, zł and grammatical forms of złoty and złotówka. Target matching also splits at commas, except commas between digits, to separate monetary clauses. Each fragment must contain its own keyword and PLN amount; this can lose context or miss awards when a keyword appears only before the comma. The target covers only the selected fragment, so separate awards elsewhere can be omitted. Extracted facts can still contain relevance or attribution errors despite automated checks.
 
 Before training, manually label a representative sample, measure target/feature quality and review leakage. Then implement grouped train/validation/test splits, fit preprocessing only on training data, vectorize selected fields and train a simple regression baseline. Evaluate MAE/RMSE and errors across courts, regions, dates and target bands. Related judgments and appeals must share a split. PostgreSQL/JSONB/pgvector persistence and configurable alternative regressors remain future work.

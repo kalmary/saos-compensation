@@ -7,7 +7,7 @@ import sklearn
 
 from ...storage.files import write_bytes
 
-VERSION = 3
+VERSION = 4
 DEFAULT_PATH = Path(__file__).resolve().parents[4] / "checkpoints" / "preprocessing" / "feature_preprocessor.pkl"
 
 DEFAULT_TARGET_PATH = DEFAULT_PATH.with_name("target_preprocessor.pkl")
@@ -37,7 +37,10 @@ def load_state(path):
     returns:
         Restored fitted preprocessing state.
     """
-    payload = pickle.loads((DEFAULT_PATH if path is None else Path(path)).read_bytes())
+    try:
+        payload = pickle.loads((DEFAULT_PATH if path is None else Path(path)).read_bytes())
+    except (ModuleNotFoundError, AttributeError) as error:
+        raise ValueError("Incompatible preprocessing artifact layout; refit and save again") from error
     if not isinstance(payload, dict) or payload.get("version") != VERSION or payload.get("sklearn") != sklearn.__version__:
         raise ValueError("Incompatible preprocessing artifact version")
     return payload["state"]

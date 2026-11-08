@@ -48,9 +48,8 @@ The second milestone is complete when target extraction and the feature schema r
 
 `src/dataset/preprocessing/` implements non-embedding preprocessing as two independent utilities. FeaturePreprocessor.fit(records, settings) fits predictors; transform(records, sample_ids) returns X, sample IDs and column metadata. TargetPreprocessor.fit(targets) fits target scaling; transform(targets) returns y and inverse_transform(predictions) returns PLN. Both provide save(path=None)/load(path=None). FeaturePreprocessor.load also accepts an expected settings mapping to check selected field order. Neither class trains a regressor, creates splits or reads records automatically.
 
-- `feature_preprocessor.py`: predictor-only lifecycle and persistence.
+- `feature_preprocessor.py`: field validation/transformation, stable float64 X and column mappings, plus fit/transform/save/load in one class.
 - `target_preprocessor.py`: independent robust scaling of finite nonnegative PLN amounts, including numeric strings, and inverse conversion without clipping.
-- `features.py`: field transformations, stable float64 X, column names and half-open field_columns ranges.
 - `transforms/`: fixed field rules, shared numeric validation and scikit-learn transformations.
 - `io/`: model-input YAML validation, local record loading and atomic artifact storage.
 
@@ -62,7 +61,7 @@ Preprocessing rules are fixed in transforms/rules.py, not configurable through Y
 
 Related judgments must be split upstream before fitting, including inside every cross-validation fold. Held-out samples reuse unchanged imputation, category vocabularies and scaler statistics. fit does not create or verify splits. Prediction requires neither awards nor targets. Text embeddings remain in src.dataset.embeddings; aligning/concatenating those blocks with this tool's numeric columns is not implemented here. Missing text placeholders must not be embedded as facts.
 
-FeaturePreprocessor.save()/load() default to checkpoints/preprocessing/feature_preprocessor.pkl; TargetPreprocessor.save()/load() default independently to checkpoints/preprocessing/target_preprocessor.pkl. Both paths are repository-relative and independent of the working directory. Directories are created on explicit save; no artifact is created during fit or record loading. Feature artifacts contain no target preprocessor, and target artifacts contain no predictor state. Either can be loaded without the other file. Version 3 artifacts retain their relevant fitted state, rules/schema and scikit-learn version; older layouts require regeneration. Pickle artifacts must be trusted. Text encoder identity and embedding dimensions belong to the later combined-pipeline artifact.
+FeaturePreprocessor.save()/load() default to checkpoints/preprocessing/feature_preprocessor.pkl; TargetPreprocessor.save()/load() default independently to checkpoints/preprocessing/target_preprocessor.pkl. Both paths are repository-relative and independent of the working directory. Directories are created on explicit save; no artifact is created during fit or record loading. Feature artifacts contain no target preprocessor, and target artifacts contain no predictor state. Either can be loaded without the other file. Version 4 artifacts retain their relevant fitted state, rules/schema and scikit-learn version; older layouts require regeneration. Pickle artifacts must be trusted. Text encoder identity and embedding dimensions belong to the later combined-pipeline artifact.
 
 1. Create reproducible train, validation, and test splits before fitting preprocessing.
 2. Encode each configured field appropriately: embeddings for free text, categorical encoders for categories, and scaled numeric values where needed.

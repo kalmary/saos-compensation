@@ -35,16 +35,17 @@ def test_fitted_blocks_are_stable_and_prediction_needs_no_target(settings, tmp_p
     """
     train = [{"prior_payment": 0, "instance": "pierwsza"}, {"prior_payment": 10, "instance": "druga"}]
     model = FeaturePreprocessor().fit(train, settings)
+    assert not hasattr(model, "features_")
     batch = model.transform(train, ["1", "2"])
     np.testing.assert_allclose(batch["X"][:, 0], [-1, 1])
     assert batch["field_columns"] == {"prior_payment": [0, 1], "instance": [1, 4]}
     assert batch["columns"] == ["prior_payment", "instance=druga", "instance=not_available", "instance=pierwsza"]
     np.testing.assert_array_equal(batch["X"][:, 1:], [[0, 0, 1], [1, 0, 0]])
-    state = deepcopy(model.features_.transformers_["prior_payment"].named_steps["scale"].center_)
+    state = deepcopy(model.transformers_["prior_payment"].named_steps["scale"].center_)
     held_out = model.transform([{"prior_payment": 1000, "instance": "new"}], ["3"])
     assert "y" not in held_out
     np.testing.assert_array_equal(held_out["X"][0, 1:], 0)
-    np.testing.assert_array_equal(model.features_.transformers_["prior_payment"].named_steps["scale"].center_, state)
+    np.testing.assert_array_equal(model.transformers_["prior_payment"].named_steps["scale"].center_, state)
     missing = model.transform([{"prior_payment": 0, "instance": None}], ["4"])
     np.testing.assert_array_equal(missing["X"], [[-1, 0, 1, 0]])
     path = tmp_path / "preprocessing.pkl"
@@ -274,7 +275,7 @@ def test_original_feature_selection_keeps_text_outside_tabular_scaling():
     assert list(result["field_columns"]) == ["instance", "judgment_year"]
     assert result["columns"][-2:] == ["judgment_year_tens", "judgment_year_units"]
     np.testing.assert_array_equal(result["X"][0, -2:], [.2, .5])
-    assert model.features_.settings_ == selection
+    assert model.settings_ == selection
     assert records[0]["cause"] == "Opis przyczyny"
 
 
