@@ -23,7 +23,6 @@ htmlcov/
 
 # Notebooks
 .ipynb_checkpoints/
-/notebooks/
 
 # Local configuration and secrets
 .env
@@ -31,8 +30,6 @@ htmlcov/
 !.env.example
 
 # Local data and generated model artifacts
-/basal_weights/
-/embedding_weights/
 /artifacts/**
 !/artifacts/**/
 /checkpoints/**
@@ -54,3 +51,13 @@ Thumbs.db
 # Keep only the data directory placeholder
 /data/*
 !/data/.gitkeep
+
+# Keep only the notebook directory placeholder.
+/notebooks/*
+!/notebooks/.gitkeep
+
+# Keep model caches local, including package markers.
+/basal_weights/*
+!/basal_weights/.gitkeep
+/embedding_weights/*
+!/embedding_weights/.gitkeep

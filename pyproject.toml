@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "saos-compensation"
 version = "0.1.0"
@@ -6,8 +10,29 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
+    "morfeusz2>=1.99.15",
     "numpy>=2.5.4",
+    "pyyaml>=6.0.3",
     "requests>=2.34.2",
+    "torch>=2.11",
+    "transformers>=4.41",
+]
+
+[project.scripts]
+get-data = "src.dataset.get_data:main"
+
+[tool.setuptools.packages.find]
+include = ["src.dataset*"]
+
+[project.optional-dependencies]
+extraction = [
+    "basal",
+]
+pytorch-macos = [
+    "basal; sys_platform == 'darwin'",
+]
+pytorch-cuda-linux = [
+    "basal; sys_platform == 'linux'",
 ]
 
 [dependency-groups]
@@ -16,3 +41,6 @@ test = [
     { include-group = "dev" },
     "pytest>=9.1.1",
 ]
+
+[tool.uv.sources]
+basal = { url = "https://github.com/rkinas/basal/archive/refs/tags/v2.4.1.tar.gz" }
