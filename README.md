@@ -1,7 +1,7 @@
 # SAOS Compensation
 
 A project for estimating compensation awarded in Polish court judgments. The implemented pipeline downloads judgments from SAOS, selects compensation cases, extracts factual predictors and produces one monetary regression target per retained case.
-PostgreSQL/pgvector ingestion, mixed-feature preprocessing, regression training, evaluation and prediction are planned. Extracted records still need independent target and leakage review before training.
+Numeric/categorical preprocessing and reversible target transformations are available as a Python API. PostgreSQL/pgvector ingestion, combined embedding/tabular inputs, regression training, evaluation and prediction are planned. Extracted records still need independent target and leakage review before training.
 
 ## Repository structure
 
@@ -22,7 +22,7 @@ saos-compensation/
 │   │   ├── embeddings/            # text encoding and target sentence matching
 │   │   ├── storage/               # local records, atomic writes and size limits
 │   │   ├── database/              # PostgreSQL/pgvector ingestion — not implemented
-│   │   └── preprocessing/         # planned mixed-feature preprocessing — descriptions only
+│   │   └── preprocessing/         # numeric/category encoding and reversible target scaling
 │   ├── architectures/             # regression model definitions — not implemented
 │   ├── training/                  # regression training — not implemented
 │   ├── evaluation/                # regression metrics and error analysis — not implemented
@@ -31,7 +31,7 @@ saos-compensation/
 ├── fixtures/                      # development snapshots
 ├── notebooks/                     # optional local experiments
 ├── data/                          # dataset placeholder
-├── checkpoints/                   # model checkpoint placeholder
+├── checkpoints/                   # model checkpoints and preprocessing/ fitted state
 ├── basal_weights/                 # local Basal weight cache
 ├── embedding_weights/             # local embedding weight cache
 └── tmp/                           # default acquisition output and locality cache
@@ -207,5 +207,36 @@ vectors = create_embeddings(["Opis szkody.", "Ograniczenia w pracy."], settings)
 ## Current limitations and remaining work
 
 Embedding similarity is not calibrated legal-role confidence. The matcher can select the wrong payment or miss an award, and fully written-out monetary amounts are unsupported. Currency recognition covers PLN, zł and grammatical forms of złoty and złotówka. Target matching also splits at commas, except commas between digits, to separate monetary clauses. Each fragment must contain its own keyword and PLN amount; this can lose context or miss awards when a keyword appears only before the comma. The target covers only the selected fragment, so separate awards elsewhere can be omitted. Extracted facts can still contain relevance or attribution errors despite automated checks.
+
+The preprocessing utilities use `configs/dataset/model_input.yaml` only to select original predictor fields. `load_records()` lives in `src/dataset/preprocessing/io/records.py` and is exported from the package:
+
+```python
+from src.dataset.preprocessing import (
+    FeaturePreprocessor, TargetPreprocessor, load_config, load_records,
+)
+
+settings = load_config("configs/dataset/model_input.yaml")
+data = load_records("tmp/test", include_targets=True)
+# data contains aligned raw records, sample_ids and unscaled targets (valid=true only).
+# The caller must create grouped splits and select train_records/train_targets first.
+features = FeaturePreprocessor().fit(train_records, settings)
+target = TargetPreprocessor().fit(train_targets)
+X_train = features.transform(train_records, train_ids)["X"]
+y_train = target.transform(train_targets)
+features.save()  # checkpoints/preprocessing/feature_preprocessor.pkl
+target.save()    # checkpoints/preprocessing/target_preprocessor.pkl
+
+features = FeaturePreprocessor.load(settings=settings)
+target = TargetPreprocessor.load()
+# target.inverse_transform(model_outputs) will recover PLN amounts.
+```
+
+This is a utility API example, not a training/inference implementation. Neither `load_records()` nor the preprocessors create splits, fit a regressor or automatically call one another. `load_records(directory)` without `include_targets` needs no award files. Future training code should call the loader before splitting and fit both preprocessors only on its training rows; future inference can reuse each saved artifact without fitting again.
+
+`model_input.yaml` contains only `feature_fields`, an ordered list before encoding/scaling. It may select `cause`, `damage`, `limitations`, `judgment_year`, `injured_party_count`, `prior_payment`, `instance` and `court_locality_size`. No transformation policies are accepted. Text fields remain separate embeddings with no normalization here; the current feature preprocessor requires at least one selected tabular field.
+
+Feature output contains finite `X`, stable IDs, column names and half-open field-to-column ranges. Fixed rules in `transforms/rules.py` are: year → final two digits divided by ten (2000–2099), count unchanged, prior payment → log1p plus training-fitted robust scaling, nominal categories → one-hot. Missing numbers raise; missing categories get a dedicated column and unseen categories an all-zero block. Target preprocessing separately subtracts the training-target median and divides by the training interquartile range, without log transformation; inverse transformation returns PLN. For [100, 200, 300], the scaled targets are [-1, 0, 1]. Zero-range protection is provided by scikit-learn. Scaling does not establish feature importance.
+
+`io/` handles configuration, input loading and persistence; `transforms/` holds shared numeric helpers and fixed rules. Both artifacts use trusted local pickle files and reject incompatible preprocessing/scikit-learn versions. Feature and target files are independent, with no duplicated target object in the feature artifact. Source/debug records are unchanged. Combining tabular output with embeddings remains unimplemented.
 
 Before training, manually label a representative sample, measure target/feature quality and review leakage. Then implement grouped train/validation/test splits, fit preprocessing only on training data, vectorize selected fields and train a simple regression baseline. Evaluate MAE/RMSE and errors across courts, regions, dates and target bands. Related judgments and appeals must share a split. PostgreSQL/JSONB/pgvector persistence and configurable alternative regressors remain future work.
