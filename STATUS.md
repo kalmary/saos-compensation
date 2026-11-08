@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Target extraction version 27 ranks keyword-bearing comma seeds from full sentences containing PLN evidence and grows money-free target seeds right first, then left, retrying right after accepted left growth. Improving money-free spans may start below threshold; final monetary spans must strictly exceed 0.7 and preserve target-role/exclusion competition. All 430 offline tests pass with three skips. Cached CPU checks recovered three comma-separated example awards and preserved selected amounts on five stored cases. Older extraction checkpoints require a fresh output path; broader labeled accuracy remains unmeasured.
+
 Model caches under basal_weights/ and embedding_weights/ are ignored, including __init__.py; only their .gitkeep placeholders remain tracked. Local files are preserved.
 
 Created GitHub issue #47 for a model-ready preprocessing module covering text embeddings, numeric scaling, categorical encoding and reversible target transformation to PLN. It requires training-only fitting, persisted preprocessing and stable feature schemas; implementation and GitHub Project linkage remain pending.
@@ -14,7 +16,7 @@ Created GitHub issue #46 for reproducible Rysy V100 container execution with dri
 
 Remote branch cleanup is complete: only main and the eight stack/get-data/ branches remain. Removed 30 obsolete remote branches after the earlier refinement-p4 deletion; all eight PRs remain open with their original bases and heads. Local branches preserve the previous history.
 
-The acquisition implementation is organized into eight feature-sized pull requests, chained from main in dependency order and registered as one native GitHub stack. Related components are grouped into complete review units, with get_data/ titles and ordered stack/get-data/ branches. Each layer includes its focused tests; original branches preserve the previous history. The final application, configuration and lockfile match the published extraction-version-26 snapshot. Offline validation in a separate locked environment covers every intermediate layer; live API and model inference are not rerun for the PR rebuild.
+The acquisition implementation is organized into eight feature-sized pull requests, chained from main in dependency order and registered as one native GitHub stack. Related components are grouped into complete review units, with get_data/ titles and ordered stack/get-data/ branches. Each layer includes its focused tests; original branches preserve the previous history. The merged acquisition baseline is the published extraction-version-26 snapshot; this branch advances target matching to version 27. Offline validation in a separate locked environment covers every intermediate layer; live API and model inference are not rerun for the PR rebuild.
 
 ## Next steps
 
@@ -24,8 +26,6 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-10-31: Added cosine_similarity for existing embedding vectors/matrices with explicit CPU/MPS/CUDA selection, stable normalization, boundary validation and no gradients. Added focused numerical/device/error tests (225 passed, one fixture replay skipped) and verified MPS against CPU on Apple GPU. No new dependencies, embedding encoder, target matcher or CUDA hardware test. No Git operations.
 
 - 2026-10-31: Replaced whole-text Basal target-role search with cached embedding matching using target_pattern.yaml and embedding.yaml (cosine >= 0.7; judgment mandatory, request optional). Added separate embedding_weights cache, CPU/MPS/CUDA encoder support, locked embedding dependencies and numeric injured_party_count. Added multiple-beneficiary case totals, per-person arithmetic and recipient deduplication. Passed 251 offline tests with one missing-fixture replay skipped; real CPU/MPS and a two-recipient end-to-end check passed. Documented observed false-positive role matches above 0.7 in tmp/embedding_target_review.md. No CUDA hardware test or Git operations.
 
@@ -124,3 +124,5 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - 2026-11-08: Verified ignored/untracked paths before publishing the refactor/target-search ignore fix. Removed notebooks/.gitkeep and notebooks/01_saos_feasibility.py from the index only because this branch ignores the entire notebooks directory; retained both files locally. Refreshed origin/main and found its newer merged acquisition implementation already ignores caches with placeholders. Main receives a separate rule-order correction so cache __init__.py files cannot escape ignoring. Verified no cache files are tracked; no application code or runtime tests changed.
 
 - 2026-11-08: Integrated current main into refactor/target-search to bring in the acquisition and target-matching implementation before changing sentence growth. Resolved the STATUS conflict by retaining the current implementation summary and both branches latest log entries. Kept main cache/placeholder ignore rules and preserved local notebook/model files. Baseline offline validation passed: 415 tests, three skipped. Target selection behavior is unchanged in this merge.
+
+- 2026-11-08: Implemented right-first/left-fallback growth of money-free target fragments inside the same full sentence. Candidate admission now allows keyword-bearing fragments without local amounts when their full sentence contains numeric PLN evidence. Rank seeds as before; preserve exclusion competition/tie priority and exact source offsets, accept improving money-free context, retry right after helpful left context, and require final monetary similarity strictly above the configured threshold even when it decreases from the seed. Real CPU examples showed initial seeds at 0.6075–0.6822 versus completed spans at 0.8324–0.9322, so the admission threshold applies to monetary results rather than incomplete seeds. Advanced extraction to version 27 and updated PROJECT/README. Validation: 430 offline tests passed, three skipped; cached offline CPU replay recovered 12,345 PLN in all three constructed right/left examples and preserved old/new selected amounts in cases 256033, 257047, 257096, 260059 and 266418. No datasets, checkpoints or model weights were rewritten; no live API, Basal or labeled corpus-accuracy evaluation was run.
