@@ -212,7 +212,8 @@ class TargetMatcher:
         returns:
             First accepted span with PLN evidence, or None. Money-free growth must
             improve similarity; monetary growth may decrease it but must exceed the
-            threshold. Accepted left growth retries the right side before continuing.
+            threshold. A right-added fragment with multiple PLN amounts is cut after
+            its first amount before scoring. Left growth is untrimmed and retries right.
         """
         sentence = {
             "text": text[seed["sentence_start"]:seed["sentence_end"]],
@@ -229,6 +230,11 @@ class TargetMatcher:
                 if new_left < 0 or new_right >= len(fragments):
                     continue
                 start, end = fragments[new_left]["start"], fragments[new_right]["end"]
+                if new_right > right:
+                    added_start = fragments[new_right]["start"]
+                    amounts = list(MONEY.finditer(text[added_start:end]))
+                    if len(amounts) > 1:
+                        end = added_start + amounts[0].end()
                 span = text[start:end]
                 candidate = {
                     **current, "text": span, "start": start, "end": end,

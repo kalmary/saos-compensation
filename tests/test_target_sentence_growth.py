@@ -244,3 +244,90 @@ def test_money_free_seed_and_intermediate_growth_can_start_below_threshold():
     encoder = Encoder({seed: {"judgment": .6}, middle: {"judgment": .65}, sentence: {"judgment": .8}})
     selected = TargetMatcher(SETTINGS, PATTERNS, encoder).match(sentence)["judgment"]
     assert selected["text"] == sentence and selected["similarity"] > .7
+
+
+@pytest.mark.parametrize("tail", [" i 200 zł.", "; koszty procesu 200 zł.", " oraz 200 zł i 300 zł."])
+def test_right_fragment_with_multiple_amounts_is_cut_before_embedding(tail, monkeypatch):
+    """Select the first amount in an appended fragment before scoring or parsing.
+
+    args:
+        tail: Additional amounts without a separating comma.
+        monkeypatch: Scoped extraction matcher replacement.
+
+    returns:
+        None.
+    """
+    from src.dataset.extraction.targets import target_extraction
+
+    seed = "Sąd zasądza świadczenie,"
+    selected_text = seed + " kwota 1 234,56 zł"
+    sentence = selected_text + tail
+    text = "Nagłówek.\n" + sentence
+    scores = {seed: {"judgment": .9}, selected_text: {"judgment": .8}}
+    if "koszty" in tail:
+        scores["kwota 1 234,56 zł" + tail] = {"procedural_costs": .75}
+    encoder = Encoder(scores)
+    matches = TargetMatcher(SETTINGS, PATTERNS, encoder).match(text)
+    result = matches["judgment"]
+    assert result["text"] == selected_text
+    assert text[result["start"]:result["end"]] == selected_text
+    assert encoder.calls[-1] == [prepare_text(selected_text)]
+    monkeypatch.setattr(target_extraction, "match_targets", lambda *args: matches)
+    award = asyncio.run(target_extraction.extract_targets(None, text, {"embedding": SETTINGS}))
+    assert award["confirmed"] is True and award["suma"] == "1234.56"
+
+
+@pytest.mark.parametrize("score,accepted", [(.69, False), (.7, False), (.8, True)])
+def test_threshold_is_applied_to_the_trimmed_span(score, accepted):
+    """Score the truncated monetary prefix rather than the full multi-amount clause.
+
+    args:
+        score: Similarity of the truncated span.
+        accepted: Whether the strict monetary threshold is exceeded.
+
+    returns:
+        None.
+    """
+    seed = "Sąd zasądza świadczenie,"
+    prefix = seed + " kwota 100 zł"
+    encoder = Encoder({seed: {"judgment": .95}, prefix: {"judgment": score}})
+    result = TargetMatcher(SETTINGS, PATTERNS, encoder).match(prefix + " oraz 200 zł.")
+    assert (result["judgment"] is not None) is accepted
+    assert encoder.calls[-1] == [prefix]
+
+
+def test_single_amount_extension_keeps_its_following_context():
+    """Keep the original full fragment when no second amount requires truncation.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    seed = "Sąd zasądza świadczenie,"
+    sentence = seed + " kwota 100 zł tytułem zadośćuczynienia."
+    encoder = Encoder({seed: {"judgment": .9}, sentence: {"judgment": .8}})
+    assert TargetMatcher(SETTINGS, PATTERNS, encoder).match(sentence)["judgment"]["text"] == sentence
+
+
+def test_left_multi_amount_growth_remains_untrimmed_and_ambiguous(monkeypatch):
+    """Preserve left-side context and reject multiple amounts during target parsing.
+
+    args:
+        monkeypatch: Scoped extraction matcher replacement.
+
+    returns:
+        None.
+    """
+    from src.dataset.extraction.targets import target_extraction
+
+    seed = "sąd zasądza świadczenie."
+    sentence = "Kwota 100 zł oraz 200 zł, " + seed
+    encoder = Encoder({seed: {"judgment": .9}, sentence: {"judgment": .8}})
+    matches = TargetMatcher(SETTINGS, PATTERNS, encoder).match(sentence)
+    assert matches["judgment"]["text"] == sentence
+    monkeypatch.setattr(target_extraction, "match_targets", lambda *args: matches)
+    award = asyncio.run(target_extraction.extract_targets(None, sentence, {"embedding": SETTINGS}))
+    assert award["confirmed"] is False
+    assert "exactly one" in award["status"]
