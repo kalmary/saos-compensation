@@ -2,13 +2,7 @@
 
 import argparse
 import asyncio
-import sys
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from src.dataset.acquisition.pipeline import run
+from ..acquisition.pipeline import run
 
 
 def parse_arguments(arguments=None):
@@ -77,7 +71,7 @@ def main():
     returns:
         None.
     """
-    from src.dataset.extraction.model.configuration import load_config
+    from ..extraction.model.configuration import load_config
 
     options = vars(parse_arguments())
     directory = options.pop("config_dir")

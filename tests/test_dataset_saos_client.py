@@ -12,17 +12,16 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 
 
-sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.acquisition import api
-from src.dataset.extraction.source.text import (
+from dataset.acquisition import api
+from dataset.extraction.source.text import (
     CURRENCY,
     MONEY,
     amount_in_pln,
     extract_text,
 )
-from src.dataset.storage import files as storage
+from dataset.storage import files as storage
 
 CONFIG = {
     "max_age_years": 10,

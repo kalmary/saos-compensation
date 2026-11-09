@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 torch = pytest.importorskip("torch")
@@ -43,7 +42,7 @@ def test_long_sentence_windows_are_pooled_without_dropping_tokens():
     """
     from types import SimpleNamespace
 
-    from src.dataset.embeddings.encoding import SentenceEncoder
+    from dataset.embeddings.encoding import SentenceEncoder
 
     encoder = SentenceEncoder.__new__(SentenceEncoder)
     encoder.settings = {**SETTINGS, "batch_size": 2}

@@ -12,21 +12,20 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 
 
-sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.acquisition import api
-from src.dataset.extraction.model import configuration as config_module
-from src.dataset.extraction.model import decisions, prompts
-from src.dataset.extraction.source.text import (
+from dataset.acquisition import api
+from dataset.extraction.model import configuration as config_module
+from dataset.extraction.model import decisions, prompts
+from dataset.extraction.source.text import (
     CURRENCY,
     MONEY,
     amount_in_pln,
     extract_text,
 )
-from src.dataset.extraction.targets import amounts
-from src.dataset.storage import files as storage
-from src.dataset.storage import records
+from dataset.extraction.targets import amounts
+from dataset.storage import files as storage
+from dataset.storage import records
 
 
 @pytest.mark.parametrize(

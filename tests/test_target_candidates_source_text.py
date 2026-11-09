@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 @pytest.mark.parametrize("word", ["złodziej", "złoto", "złotnik", "złotawy"])
@@ -18,7 +17,7 @@ def test_currency_prefix_does_not_match_unrelated_words(word):
     returns:
         None.
     """
-    from src.dataset.extraction.source.text import CURRENCY, MONEY
+    from dataset.extraction.source.text import CURRENCY, MONEY
 
     assert not CURRENCY.search(word)
     assert not MONEY.search(f"100 {word}")

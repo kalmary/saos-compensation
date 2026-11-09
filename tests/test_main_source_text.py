@@ -3,21 +3,23 @@ import sys
 from pathlib import Path
 
 
-def test_main():
+def test_module_help(tmp_path):
     """
-    Verify main.
+    Verify the module CLI works outside the repository.
 
     args:
-        None
+        tmp_path: Working directory without project source files.
 
     returns:
         None.
     """
     result = subprocess.run(
-        [sys.executable, Path(__file__).parents[1] / "src" / "main.py"],
+        [sys.executable, "-m", "dataset.cli", "--help"],
+        cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,
     )
 
-    assert result.stdout == "Hello from saos-compensation!\n"
+    assert "--download-path" in result.stdout
+    assert "--no-debug" in result.stdout

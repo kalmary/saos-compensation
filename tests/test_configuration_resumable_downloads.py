@@ -11,11 +11,10 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
-sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.extraction import features
-from src.dataset.extraction.model import configuration, decisions
+from dataset.extraction import features
+from dataset.extraction.model import configuration, decisions
 
 
 @pytest.fixture
@@ -45,8 +44,8 @@ def test_changed_question_invalidates_checkpoint(
     returns:
         None.
     """
-    from src.dataset.acquisition import checkpoints
-    from src.dataset.storage.files import write_json
+    from dataset.acquisition import checkpoints
+    from dataset.storage.files import write_json
 
     config = configuration.load_config(config_directory)
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)

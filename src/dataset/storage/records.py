@@ -37,7 +37,7 @@ def add_metadata_features(result, record, fields, localities=None):
     if "prior_payment" in fields:
         values["prior_payment"] = result.get("prior_payment", 0)
     if "court_locality_size" in fields:
-        from src.dataset.acquisition.localities import locality_class, match_locality
+        from dataset.acquisition.localities import locality_class, match_locality
 
         rows, morphology, metadata = localities
         matched, reason = match_locality(court["name"], rows, morphology)

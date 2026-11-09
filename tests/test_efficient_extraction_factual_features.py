@@ -6,14 +6,13 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.extraction import features as features_module
-from src.dataset.extraction.model import configuration as config_module
-from src.dataset.extraction.model import decisions
-from src.dataset.extraction.source import passages
-from src.dataset.extraction.source.text import MONEY, amount_in_pln
+from dataset.extraction import features as features_module
+from dataset.extraction.model import configuration as config_module
+from dataset.extraction.model import decisions
+from dataset.extraction.source import passages
+from dataset.extraction.source.text import MONEY, amount_in_pln
 
 
 @pytest.mark.parametrize("treatment_in_findings", [False, True])

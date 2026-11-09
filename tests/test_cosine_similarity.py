@@ -5,13 +5,12 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 torch = pytest.importorskip("torch")
 
 
-from src.dataset.embeddings.cosine_similarity import cosine_similarity
+from dataset.embeddings.cosine_similarity import cosine_similarity
 
 
 def test_pairwise_similarity_matches_known_angles_without_gradients():

@@ -12,23 +12,22 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 
 
-sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.acquisition import api, checkpoints
-from src.dataset.acquisition import download as acquisition
-from src.dataset.extraction import basal_filtering as basal
-from src.dataset.extraction.model import configuration as config_module
-from src.dataset.extraction.model import decisions, prompts
-from src.dataset.extraction.source.text import (
+from dataset.acquisition import api, checkpoints
+from dataset.acquisition import download as acquisition
+from dataset.extraction import basal_filtering as basal
+from dataset.extraction.model import configuration as config_module
+from dataset.extraction.model import decisions, prompts
+from dataset.extraction.source.text import (
     CURRENCY,
     MONEY,
     amount_in_pln,
     extract_text,
 )
-from src.dataset.extraction.targets import amounts
-from src.dataset.storage import files as storage
-from src.dataset.storage import records
+from dataset.extraction.targets import amounts
+from dataset.storage import files as storage
+from dataset.storage import records
 
 CONFIG = {
     "max_age_years": 10,

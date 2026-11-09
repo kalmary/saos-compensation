@@ -6,14 +6,13 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.extraction import basal_filtering as basal
-from src.dataset.extraction.model import configuration as config_module
-from src.dataset.extraction.model import decisions
-from src.dataset.extraction.targets import amounts
-from src.dataset.extraction.targets import target_extraction as extraction
+from dataset.extraction import basal_filtering as basal
+from dataset.extraction.model import configuration as config_module
+from dataset.extraction.model import decisions
+from dataset.extraction.targets import amounts
+from dataset.extraction.targets import target_extraction as extraction
 
 
 def test_prior_payment_feature_is_resolved_for_debug_case_without_target(monkeypatch):

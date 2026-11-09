@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.dataset.preprocessing import FeaturePreprocessor, TargetPreprocessor, load_config, load_records
+from dataset.preprocessing import FeaturePreprocessor, TargetPreprocessor, load_config, load_records
 
 
 @pytest.fixture
@@ -304,7 +304,7 @@ def test_default_checkpoint_path_is_independent_of_working_directory(settings, t
     returns:
         None.
     """
-    from src.dataset.preprocessing.io import artifacts
+    from dataset.preprocessing.io import artifacts
 
     assert artifacts.DEFAULT_PATH == Path(__file__).parents[1] / "checkpoints/preprocessing/feature_preprocessor.pkl"
     destination = tmp_path / "checkpoints/preprocessing/feature_preprocessor.pkl"
@@ -332,7 +332,7 @@ def test_target_scaling_is_saved_separately_and_never_refits(settings, tmp_path,
     returns:
         None.
     """
-    from src.dataset.preprocessing.io import artifacts
+    from dataset.preprocessing.io import artifacts
 
     assert artifacts.DEFAULT_TARGET_PATH == Path(__file__).parents[1] / "checkpoints/preprocessing/target_preprocessor.pkl"
     predictor_path = tmp_path / "feature_preprocessor.pkl"
@@ -364,3 +364,47 @@ def test_target_scaling_is_saved_separately_and_never_refits(settings, tmp_path,
     target.save()
     with pytest.raises(ValueError, match="preprocessor"):
         FeaturePreprocessor.load(target_path)
+
+
+@pytest.mark.parametrize("kind", ["features", "target"])
+def test_previous_package_artifacts_remain_loadable(tmp_path, kind):
+    """Restore fitted version-4 artifacts saved with the previous import namespace.
+
+    args:
+        tmp_path: Isolated trusted artifact directory.
+        kind: Predictor or target preprocessing artifact to restore.
+
+    returns:
+        None.
+    """
+    import pickle
+
+    import sklearn
+
+    from dataset.preprocessing.io.artifacts import VERSION
+
+    records = [{"prior_payment": 0}, {"prior_payment": 100}]
+    settings = {"feature_fields": ["prior_payment"]}
+    model = (
+        FeaturePreprocessor().fit(records, settings)
+        if kind == "features"
+        else TargetPreprocessor().fit([100, 200])
+    )
+    payload = {"version": VERSION, "sklearn": sklearn.__version__, "state": model}
+    content = pickle.dumps(payload, protocol=0).replace(
+        b"cdataset.preprocessing.", b"csrc.dataset.preprocessing."
+    )
+    assert b"csrc.dataset.preprocessing." in content
+    path = tmp_path / "previous.pkl"
+    path.write_bytes(content)
+    restored = type(model).load(path)
+    if kind == "features":
+        np.testing.assert_array_equal(
+            restored.transform(records, ["1", "2"])["X"],
+            model.transform(records, ["1", "2"])["X"],
+        )
+    else:
+        np.testing.assert_array_equal(
+            restored.inverse_transform(restored.transform([100, 200])), [100, 200]
+        )
+    assert path.read_bytes() == content

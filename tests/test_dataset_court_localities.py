@@ -12,17 +12,16 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 
 
-sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.acquisition import api
-from src.dataset.extraction.source.text import (
+from dataset.acquisition import api
+from dataset.extraction.source.text import (
     CURRENCY,
     MONEY,
     amount_in_pln,
     extract_text,
 )
-from src.dataset.storage import files as storage
+from dataset.storage import files as storage
 
 
 @pytest.mark.parametrize("debug", [False, True])
@@ -40,7 +39,7 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
     """
     import sqlite3
 
-    from src.dataset.acquisition import localities
+    from dataset.acquisition import localities
 
     source = tmp_path / "source.gpkg"
     with sqlite3.connect(source) as connection:

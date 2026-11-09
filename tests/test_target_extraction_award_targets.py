@@ -6,13 +6,12 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.extraction.model import configuration as config_module
-from src.dataset.extraction.model import decisions
-from src.dataset.extraction.targets import amounts
-from src.dataset.extraction.targets import target_extraction as extraction
+from dataset.extraction.model import configuration as config_module
+from dataset.extraction.model import decisions
+from dataset.extraction.targets import amounts
+from dataset.extraction.targets import target_extraction as extraction
 
 
 @pytest.mark.parametrize(

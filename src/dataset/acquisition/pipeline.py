@@ -82,9 +82,9 @@ async def process(config):
     returns:
         None.
     """
-    from src.dataset.extraction import basal_filtering as basal
-    from src.dataset.extraction.model import decisions
-    from src.dataset.extraction.model.prompts import MODEL_FILES
+    from dataset.extraction import basal_filtering as basal
+    from dataset.extraction.model import decisions
+    from dataset.extraction.model.prompts import MODEL_FILES
 
     directory = ROOT / config["api"]["download_path"]
     checkpoint = load_checkpoint(config)
@@ -108,7 +108,7 @@ async def process(config):
     if "court_locality_size" in config["metadata_fields"]:
         import morfeusz2
 
-        from src.dataset.acquisition.localities import load_localities
+        from dataset.acquisition.localities import load_localities
 
         rows, metadata = load_localities(
             ROOT / "tmp" / "gugik",

@@ -6,13 +6,12 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 torch = pytest.importorskip("torch")
 
 
-from src.dataset.embeddings.target_matching import (
+from dataset.embeddings.target_matching import (
     PATTERN_CLASSES,
     TargetMatcher,
     prepare_text,

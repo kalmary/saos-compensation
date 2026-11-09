@@ -15,6 +15,7 @@ saos-compensation/
 │   └── training/                  # model input feature selection
 ├── src/                           # implementation
 │   ├── dataset/                   # dataset preparation
+│   │   ├── cli/                   # argument parsing and acquisition entry point
 │   │   ├── acquisition/           # SAOS access, downloads and checkpoints
 │   │   ├── extraction/            # predictor extraction and validation
 │   │   │   ├── model/             # model configuration, prompts and decision cache
@@ -68,6 +69,8 @@ uv run --no-sync get-data --help
 # Small initial run: at most one dump page, containing up to 100 judgments
 uv run --no-sync get-data --max-pages 1 --download-path tmp/dataset
 ```
+
+The equivalent module entry point is `uv run --no-sync python -m dataset.cli`. Both use the installed `dataset` package from the `src/` layout, without modifying Python import paths.
 
 This command downloads judgments and runs extraction. There is no download-only CLI mode. A page contains all judgment types; local filtering and extraction can leave few or no retained cases.
 
@@ -196,8 +199,8 @@ Tests cover configuration, acquisition/checkpoints, extraction, monetary parsing
 ## Reusable embeddings
 
 ```python
-from src.dataset import load_config
-from src.dataset.embeddings import create_embeddings
+from dataset import load_config
+from dataset.embeddings import create_embeddings
 
 settings = load_config()["embedding"]
 vectors = create_embeddings(["Opis szkody.", "Ograniczenia w pracy."], settings)
@@ -221,7 +224,7 @@ Feature transformations and persistence are implemented directly in `feature_pre
 The preprocessing utilities use `configs/training/model_input.yaml` only to select original predictor fields. `load_records()` lives in `src/dataset/preprocessing/io/records.py` and is exported from the package:
 
 ```python
-from src.dataset.preprocessing import (
+from dataset.preprocessing import (
     FeaturePreprocessor, TargetPreprocessor, load_config, load_records,
 )
 
@@ -247,7 +250,7 @@ This is a utility API example, not a training/inference implementation. Neither 
 
 Feature output contains finite `X`, stable IDs, column names and half-open field-to-column ranges. Fixed rules in `transforms/rules.py` are: year → final two digits divided by ten (2000–2099), count unchanged, prior payment → log1p plus training-fitted robust scaling, nominal categories → one-hot. Missing numbers raise; missing categories get a dedicated column and unseen categories an all-zero block. Target preprocessing separately subtracts the training-target median and divides by the training interquartile range, without log transformation; inverse transformation returns PLN. For [100, 200, 300], the scaled targets are [-1, 0, 1]. Zero-range protection is provided by scikit-learn. Scaling does not establish feature importance.
 
-`io/` handles configuration, input loading and persistence; `transforms/` holds shared numeric helpers and fixed rules. Both artifacts use trusted local pickle files and reject incompatible preprocessing/scikit-learn versions. Feature and target files are independent, with no duplicated target object in the feature artifact. Source/debug records are unchanged. Combining tabular output with embeddings remains unimplemented.
+`io/` handles configuration, input loading and persistence; `transforms/` holds shared numeric helpers and fixed rules. Both artifacts use trusted local pickle files and reject incompatible preprocessing/scikit-learn versions. Version-4 artifacts saved with the previous `src.dataset` imports remain loadable. Feature and target files are independent, with no duplicated target object in the feature artifact. Source/debug records are unchanged. Combining tabular output with embeddings remains unimplemented.
 
 ## Current limitations and remaining work
 

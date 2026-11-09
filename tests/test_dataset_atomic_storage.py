@@ -12,16 +12,15 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 
 
-sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.extraction.source.text import (
+from dataset.extraction.source.text import (
     CURRENCY,
     MONEY,
     amount_in_pln,
     extract_text,
 )
-from src.dataset.storage import files as storage
+from dataset.storage import files as storage
 
 
 def test_output_limit_counts_existing_files_and_persists_across_resumes(tmp_path):
@@ -34,7 +33,7 @@ def test_output_limit_counts_existing_files_and_persists_across_resumes(tmp_path
     returns:
         None.
     """
-    from src.dataset.storage.files import (
+    from dataset.storage.files import (
         StorageLimitError,
         output_limit,
         write_bytes,
@@ -64,7 +63,7 @@ def test_output_limit_preserves_existing_record_and_counts_atomic_temporary_file
     returns:
         None.
     """
-    from src.dataset.storage.files import (
+    from dataset.storage.files import (
         StorageLimitError,
         output_limit,
         write_bytes,

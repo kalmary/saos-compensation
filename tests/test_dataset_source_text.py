@@ -12,10 +12,9 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 
 
-sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.extraction.source.text import (
+from dataset.extraction.source.text import (
     CURRENCY,
     MONEY,
     amount_in_pln,

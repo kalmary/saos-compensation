@@ -1,6 +1,6 @@
 """Dataset admission boundaries without model inference."""
 
-from src.dataset.extraction.quality import rejection_reason, target_rejection_reason
+from dataset.extraction.quality import rejection_reason, target_rejection_reason
 
 
 def test_admission_requires_confirmed_targets_and_safe_selected_evidence():
@@ -87,9 +87,9 @@ import asyncio
 
 import pytest
 
-from src.dataset.extraction.model import configuration as config_module
-from src.dataset.extraction.model import decisions
-from src.dataset.extraction.targets import amounts
+from dataset.extraction.model import configuration as config_module
+from dataset.extraction.model import decisions
+from dataset.extraction.targets import amounts
 
 
 @pytest.mark.parametrize(
@@ -144,7 +144,7 @@ def test_any_source_backed_text_feature_is_sufficient(field, value, evidence):
     returns:
         None.
     """
-    from src.dataset.extraction.quality import feature_rejection_reason
+    from dataset.extraction.quality import feature_rejection_reason
 
     result = {
         "features": {field: value, "judgment_year": 2020, "injured_party_count": 1},
@@ -168,7 +168,7 @@ def test_metadata_and_unselected_text_do_not_satisfy_admission():
     returns:
         None.
     """
-    from src.dataset.extraction.quality import feature_rejection_reason
+    from dataset.extraction.quality import feature_rejection_reason
 
     result = {
         "features": {"judgment_year": 2020, "other": "Source text"},
@@ -189,7 +189,7 @@ def test_target_admission_uses_strict_cosine_threshold(similarity, accepted):
     returns:
         None.
     """
-    from src.dataset.extraction.quality import target_rejection_reason
+    from dataset.extraction.quality import target_rejection_reason
 
     config = config_module.load_config()
     award = {
@@ -210,7 +210,7 @@ def test_target_parse_failure_reports_status_without_model_probability():
     returns:
         None.
     """
-    from src.dataset.extraction.quality import target_rejection_reason
+    from dataset.extraction.quality import target_rejection_reason
 
     award = {
         "target_matches": {"judgment": {"similarity": 0.85}},

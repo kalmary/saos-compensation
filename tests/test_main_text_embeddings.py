@@ -17,7 +17,7 @@ def test_embeddings_without_basal():
             sys.executable,
             "-c",
             "import sys; sys.modules['basal'] = None; "
-            "from src.dataset.embeddings import create_embeddings; "
+            "from dataset.embeddings import create_embeddings; "
             "import torch, transformers; assert callable(create_embeddings)",
         ],
         check=True,

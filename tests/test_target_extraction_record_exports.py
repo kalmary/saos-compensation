@@ -6,13 +6,12 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.extraction.model import configuration as config_module
-from src.dataset.extraction.model import decisions
-from src.dataset.extraction.targets import amounts
-from src.dataset.extraction.targets import target_extraction as extraction
+from dataset.extraction.model import configuration as config_module
+from dataset.extraction.model import decisions
+from dataset.extraction.targets import amounts
+from dataset.extraction.targets import target_extraction as extraction
 
 
 @pytest.mark.parametrize(
@@ -37,7 +36,7 @@ def test_injured_party_count_is_a_numeric_feature(award, expected):
     returns:
         None.
     """
-    from src.dataset.storage.records import add_metadata_features
+    from dataset.storage.records import add_metadata_features
 
     result = {
         "features": {},
@@ -70,7 +69,7 @@ def test_prior_payment_is_exported_only_in_record(tmp_path, prior_payment):
     """
     import json
 
-    from src.dataset.storage.records import add_metadata_features, write_result
+    from dataset.storage.records import add_metadata_features, write_result
 
     config = config_module.load_config(overrides={"debug": True})
     result = {

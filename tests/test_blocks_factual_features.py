@@ -6,14 +6,13 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.extraction import basal_filtering as basal
-from src.dataset.extraction.model import configuration as config_module
-from src.dataset.extraction.model import decisions
-from src.dataset.extraction.source import passages
-from src.dataset.extraction.targets import amounts
+from dataset.extraction import basal_filtering as basal
+from dataset.extraction.model import configuration as config_module
+from dataset.extraction.model import decisions
+from dataset.extraction.source import passages
+from dataset.extraction.targets import amounts
 
 
 @pytest.mark.parametrize(

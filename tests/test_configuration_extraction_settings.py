@@ -11,10 +11,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
-sys.path.insert(0, str(ROOT))
 
 
-from src.dataset.extraction.model import configuration, decisions
+from dataset.extraction.model import configuration, decisions
 
 
 @pytest.fixture

@@ -5,10 +5,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.embeddings import target_matching
+from dataset.embeddings import target_matching
 
 KEYWORDS = {
     "judgment": ["zasądz"],
@@ -54,7 +53,7 @@ def test_currency_inflections_are_candidates_and_parse_as_pln(unit):
     returns:
         None.
     """
-    from src.dataset.extraction.source.text import CURRENCY, MONEY, amount_in_pln
+    from dataset.extraction.source.text import CURRENCY, MONEY, amount_in_pln
 
     text = f"Zasądza 100 {unit}."
     assert len(target_matching.candidate_sentences(text, KEYWORDS)) == 1
@@ -142,7 +141,7 @@ def test_comma_clauses_require_their_own_keyword_and_leave_feature_sentences_int
     returns:
         None.
     """
-    from src.dataset.extraction.source.text import sentence_fragments
+    from dataset.extraction.source.text import sentence_fragments
 
     text = "Zasądza świadczenie, rachunek opiewa na 100 zł."
     assert target_matching.candidate_sentences(text, KEYWORDS) == []

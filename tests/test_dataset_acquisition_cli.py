@@ -12,24 +12,23 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 
 
-sys.path.insert(0, str(ROOT))
 
 
-from src.dataset import get_data
-from src.dataset.acquisition import api, checkpoints, pipeline
-from src.dataset.acquisition import download as acquisition
-from src.dataset.extraction import basal_filtering as basal
-from src.dataset.extraction.model import configuration as config_module
-from src.dataset.extraction.model import decisions, prompts
-from src.dataset.extraction.source.text import (
+from dataset.cli import main as cli
+from dataset.acquisition import api, checkpoints, pipeline
+from dataset.acquisition import download as acquisition
+from dataset.extraction import basal_filtering as basal
+from dataset.extraction.model import configuration as config_module
+from dataset.extraction.model import decisions, prompts
+from dataset.extraction.source.text import (
     CURRENCY,
     MONEY,
     amount_in_pln,
     extract_text,
 )
-from src.dataset.extraction.targets import amounts
-from src.dataset.storage import files as storage
-from src.dataset.storage import records
+from dataset.extraction.targets import amounts
+from dataset.storage import files as storage
+from dataset.storage import records
 
 CONFIG = {
     "max_age_years": 10,
@@ -293,7 +292,7 @@ def test_cli_overrides_only_explicit_arguments(arguments, expected):
     returns:
         None.
     """
-    options = vars(get_data.parse_arguments(arguments))
+    options = vars(cli.parse_arguments(arguments))
     assert options.pop("config_dir") is None
     assert options == expected
     original = config_module.load_config()
@@ -324,7 +323,7 @@ def test_cli_can_override_yaml_before_validation(tmp_path):
         (ROOT / "configs/dataset/acquisition/basal.yaml").read_text()
     )
     options = vars(
-        get_data.parse_arguments(
+        cli.parse_arguments(
             ["--config-dir", str(tmp_path), "--max-pages", "1", "--no-debug"]
         )
     )
@@ -437,4 +436,4 @@ def test_removed_download_only_option_is_rejected():
         None.
     """
     with pytest.raises(SystemExit):
-        get_data.parse_arguments(["--download-only"])
+        cli.parse_arguments(["--download-only"])

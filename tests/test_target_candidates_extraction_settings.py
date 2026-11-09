@@ -5,10 +5,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from src.dataset.embeddings import target_matching
+from dataset.embeddings import target_matching
 
 
 def test_configured_cost_keywords_distinguish_treatment_from_procedure():
@@ -21,7 +20,7 @@ def test_configured_cost_keywords_distinguish_treatment_from_procedure():
     returns:
         None.
     """
-    from src.dataset.extraction.model.configuration import load_config
+    from dataset.extraction.model.configuration import load_config
 
     keywords = load_config()["embedding"]["candidate_keywords"]
     (treatment,) = target_matching.candidate_sentences(
@@ -92,7 +91,7 @@ def test_additional_constructions_reach_their_configured_group(text, group):
     returns:
         None.
     """
-    from src.dataset.extraction.model.configuration import load_config
+    from dataset.extraction.model.configuration import load_config
 
     keywords = load_config()["embedding"]["candidate_keywords"]
     (candidate,) = target_matching.candidate_sentences(text, keywords)
