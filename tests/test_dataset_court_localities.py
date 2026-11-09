@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 
-from dataset.acquisition import api
+from dataset.clients import api
 from dataset.extraction.source.text import (
     CURRENCY,
     MONEY,
@@ -39,7 +39,7 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
     """
     import sqlite3
 
-    from dataset.acquisition import localities
+    from dataset.storage import localities
 
     source = tmp_path / "source.gpkg"
     with sqlite3.connect(source) as connection:
@@ -89,7 +89,7 @@ def test_locality_download_is_retained_only_for_debug(monkeypatch, tmp_path, deb
             """
             pass
 
-    monkeypatch.setattr(localities.requests, "get", lambda *args, **kwargs: Response())
+    monkeypatch.setattr(api.requests, "get", lambda *args, **kwargs: Response())
     directory = tmp_path / "debug"
     rows, metadata = localities.load_localities(directory if debug else None)
     assert rows[0]["NAZWA"] == "Pisz"

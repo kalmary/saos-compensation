@@ -1,3 +1,4 @@
+from dataset.acquisition.metadata import add_metadata_features
 import asyncio
 import hashlib
 import json
@@ -14,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 
-from dataset.acquisition import api
+from dataset.clients import api
 from dataset.extraction.model import configuration as config_module
 from dataset.extraction.model import decisions, prompts
 from dataset.extraction.source.text import (
@@ -61,7 +62,7 @@ def test_metadata_features_use_judgment_date_instance_and_court_seat(
         "judgmentDate": "2019-12-31",
         "division": {"court": {"name": court_name, "type": "DISTRICT"}},
     }
-    records.add_metadata_features(
+    add_metadata_features(
         result, record, ["judgment_year", "instance", "court_seat"]
     )
     assert result["features"] == {
@@ -94,7 +95,7 @@ def test_metadata_selection_and_unknown_instance_do_not_infer_from_court_level()
         "judgmentDate": "2020-01-01",
         "division": {"court": {"name": "Sąd Apelacyjny w Krakowie", "type": "APPEAL"}},
     }
-    records.add_metadata_features(result, record, ["instance"])
+    add_metadata_features(result, record, ["instance"])
     assert result["features"] == {"instance": "not_available"}
     assert result["field_status"] == {"instance": "not_available"}
 
@@ -128,7 +129,7 @@ def test_population_feature_uses_official_match_and_preserves_provenance():
         "judgmentDate": "2020-01-01",
         "division": {"court": {"name": "Sąd Okręgowy w Warszawie"}},
     }
-    records.add_metadata_features(
+    add_metadata_features(
         result,
         record,
         ["court_locality_size"],

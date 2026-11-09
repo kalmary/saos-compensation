@@ -15,7 +15,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 from dataset.cli import main as cli
-from dataset.acquisition import api, checkpoints, pipeline
+from dataset.clients import api
+from dataset.storage import checkpoints
+from dataset.acquisition import pipeline
 from dataset.acquisition import download as acquisition
 from dataset.extraction import basal_filtering as basal
 from dataset.extraction.model import configuration as config_module

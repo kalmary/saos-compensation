@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 
-from dataset.acquisition import api
+from dataset.clients import api
 from dataset.extraction.model import configuration as config_module
 from dataset.extraction.model import decisions, prompts
 from dataset.extraction.source.text import (

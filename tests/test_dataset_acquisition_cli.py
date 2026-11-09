@@ -1,3 +1,4 @@
+from dataset.acquisition.settings import search_settings
 import asyncio
 import hashlib
 import json
@@ -15,7 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 from dataset.cli import main as cli
-from dataset.acquisition import api, checkpoints, pipeline
+from dataset.clients import api
+from dataset.storage import checkpoints
+from dataset.acquisition import pipeline
 from dataset.acquisition import download as acquisition
 from dataset.extraction import basal_filtering as basal
 from dataset.extraction.model import configuration as config_module
@@ -57,7 +60,7 @@ def test_config_and_path_are_independent_of_working_directory(monkeypatch, tmp_p
     assert config == expected
     assert list(config["fields"]) == ["cause", "damage", "limitations"]
     assert pipeline.ROOT / config["api"]["download_path"] == ROOT / "tmp"
-    start, end, params = api.search_settings(CONFIG, date(2024, 2, 29))
+    start, end, params = search_settings(CONFIG, date(2024, 2, 29))
     assert (start, end) == (date(2014, 2, 28), date(2024, 2, 29))
     assert params["judgmentStartDate"] == "2014-02-28"
     assert "all" not in params

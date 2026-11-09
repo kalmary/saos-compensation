@@ -16,14 +16,14 @@ saos-compensation/
 ├── src/                           # implementation
 │   ├── dataset/                   # dataset preparation
 │   │   ├── cli/                   # argument parsing and acquisition entry point
-│   │   ├── acquisition/           # SAOS access, downloads and checkpoints
+│   │   ├── acquisition/           # resumable downloads, validation and metadata enrichment
 │   │   ├── extraction/            # predictor extraction and validation
 │   │   │   ├── model/             # model configuration, prompts and decision cache
 │   │   │   ├── source/            # source normalization and passage selection
 │   │   │   └── targets/           # monetary parsing and prior-payment extraction
 │   │   ├── embeddings/            # text encoding and target sentence matching
-│   │   ├── storage/               # local records, atomic writes and size limits
-│   │   ├── database/              # PostgreSQL/pgvector ingestion — not implemented
+│   │   ├── storage/               # records, checkpoints, locality snapshots and atomic writes
+│   │   ├── clients/               # HTTP and read-only SQLite integrations
 │   │   └── preprocessing/         # numeric/category encoding and reversible target scaling
 │   ├── architectures/             # regression model definitions — not implemented
 │   ├── training/                  # regression training — not implemented
@@ -221,7 +221,7 @@ Feature transformations and persistence are implemented directly in `feature_pre
 | `instance`, `court_locality_size` | One-hot category vectors |
 | Target `total` | Training-fitted robust scaling, inverted to PLN for evaluation |
 
-The preprocessing utilities use `configs/training/model_input.yaml` only to select original predictor fields. `load_records()` lives in `src/dataset/preprocessing/io/records.py` and is exported from the package:
+The preprocessing utilities use `configs/training/model_input.yaml` only to select original predictor fields. `load_records()` lives in `src/dataset/storage/records.py` and is exported from the package:
 
 ```python
 from dataset.preprocessing import (
@@ -250,7 +250,7 @@ This is a utility API example, not a training/inference implementation. Neither 
 
 Feature output contains finite `X`, stable IDs, column names and half-open field-to-column ranges. Fixed rules in `transforms/rules.py` are: year → final two digits divided by ten (2000–2099), count unchanged, prior payment → log1p plus training-fitted robust scaling, nominal categories → one-hot. Missing numbers raise; missing categories get a dedicated column and unseen categories an all-zero block. Target preprocessing separately subtracts the training-target median and divides by the training interquartile range, without log transformation; inverse transformation returns PLN. For [100, 200, 300], the scaled targets are [-1, 0, 1]. Zero-range protection is provided by scikit-learn. Scaling does not establish feature importance.
 
-`io/` handles configuration, input loading and persistence; `transforms/` holds shared numeric helpers and fixed rules. Both artifacts use trusted local pickle files and reject incompatible preprocessing/scikit-learn versions. Version-4 artifacts saved with the previous `src.dataset` imports remain loadable. Feature and target files are independent, with no duplicated target object in the feature artifact. Source/debug records are unchanged. Combining tabular output with embeddings remains unimplemented.
+`preprocessing/io/` handles configuration and fitted-state persistence; `storage/records.py` loads dataset records; `transforms/` holds shared numeric helpers and fixed rules. Both artifacts use trusted local pickle files and reject incompatible preprocessing/scikit-learn versions. Version-4 artifacts saved with the previous `src.dataset` imports remain loadable. Feature and target files are independent, with no duplicated target object in the feature artifact. Source/debug records are unchanged. Combining tabular output with embeddings remains unimplemented.
 
 ## Current limitations and remaining work
 

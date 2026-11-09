@@ -1,3 +1,6 @@
+from dataset.acquisition.validation import validate_judgment
+from dataset.acquisition.download import search_pages
+from dataset.acquisition.settings import search_settings
 import asyncio
 import hashlib
 import json
@@ -14,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 
-from dataset.acquisition import api
+from dataset.clients import api
 from dataset.extraction.source.text import (
     CURRENCY,
     MONEY,
@@ -61,7 +64,7 @@ def test_invalid_config_is_rejected(change):
         None.
     """
     with pytest.raises(ValueError):
-        api.search_settings({**CONFIG, **change})
+        search_settings({**CONFIG, **change})
 
 
 def search_response(params, identifiers, more=False):
@@ -127,12 +130,12 @@ def test_pagination_uses_next_without_result_count(
 
         page = int(parse_qs(urlparse(url).query)["pageNumber"][0])
         pages.append(page)
-        _, _, params = api.search_settings(CONFIG)
+        _, _, params = search_settings(CONFIG)
         params["pageNumber"] = page
         return search_response(params, [page + 1], page < 2)
 
     monkeypatch.setattr(api, "fetch_json", fetch)
-    assert len(list(api.search_pages({**CONFIG, "max_pages": limit}, tmp_path))) == len(
+    assert len(list(search_pages({**CONFIG, "max_pages": limit}, tmp_path))) == len(
         expected
     )
     assert pages == expected
@@ -151,7 +154,7 @@ def test_invalid_dump_response_stops_download(monkeypatch, tmp_path, defect):
     returns:
         None.
     """
-    _, _, params = api.search_settings(CONFIG)
+    _, _, params = search_settings(CONFIG)
     payload = search_response(params, [1, 2], True)
     if defect == "query":
         payload["queryTemplate"]["judgmentStartDate"]["value"] = "2000-01-01"
@@ -346,7 +349,7 @@ def test_invalid_judgments_are_rejected(defect):
     else:
         data["judgmentType"] = "REASONS"
     with pytest.raises(ValueError):
-        api.validate_judgment(payload, 254930, date(2016, 10, 29), date(2026, 10, 29))
+        validate_judgment(payload, 254930, date(2016, 10, 29), date(2026, 10, 29))
 
 
 def test_court_dump_joins_divisions_across_pages(monkeypatch):

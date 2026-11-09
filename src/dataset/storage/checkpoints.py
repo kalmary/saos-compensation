@@ -6,9 +6,23 @@ from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
-from .api import search_settings
+from ..acquisition.settings import search_settings
+from .files import write_json
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def save_checkpoint(directory, checkpoint):
+    """Persist dataset progress atomically within the output-size budget.
+
+    args:
+        directory: Dataset output directory.
+        checkpoint: Validated dataset progress.
+
+    returns:
+        None.
+    """
+    write_json(Path(directory) / "checkpoint.json", checkpoint)
 
 
 def load_checkpoint(config):
@@ -89,33 +103,3 @@ def load_checkpoint(config):
     if digest is not None and (not isinstance(digest, str) or len(digest) != 64):
         raise ValueError("Invalid checkpoint locality snapshot hash")
     return checkpoint
-
-
-def record_complete(path, identifier, dataset_id):
-    """
-    Check whether a saved record belongs to the current dataset.
-
-    args:
-        path: Path to the relevant input or output file.
-        identifier: Stable judgment identifier.
-        dataset_id: Identifier shared by records in this dataset.
-
-    returns:
-        True when a complete record matches the judgment and dataset.
-    """
-    if not path.exists():
-        return False
-    record = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(record, dict):
-        raise ValueError(f"Invalid saved record: {path}")
-    award_path = path.with_name("award.json")
-    if "features" not in record and "dataset_id" not in record and award_path.exists():
-        award = json.loads(award_path.read_text(encoding="utf-8"))
-        return path.parent.name == str(identifier) and isinstance(award, dict)
-    return (
-        type(record.get("id")) is int
-        and record.get("id") == identifier
-        and record.get("dataset_id") == dataset_id
-        and isinstance(record.get("features"), dict)
-        and isinstance(record.get("targets"), dict)
-    )

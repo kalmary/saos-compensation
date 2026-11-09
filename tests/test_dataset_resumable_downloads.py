@@ -1,3 +1,4 @@
+from dataset.acquisition.settings import search_settings
 import asyncio
 import hashlib
 import json
@@ -14,7 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 
-from dataset.acquisition import api, checkpoints
+from dataset.clients import api
+from dataset.storage import checkpoints
 from dataset.acquisition import download as acquisition
 from dataset.extraction import basal_filtering as basal
 from dataset.extraction.model import configuration as config_module
@@ -185,7 +187,7 @@ def test_checkpoint_freezes_dates_and_allows_operational_overrides(
     monkeypatch.setattr(acquisition, "ROOT", tmp_path)
     config = config_module.load_config(overrides=CONFIG)
     checkpoint = checkpoints.load_checkpoint(config)
-    checkpoint["request"] = api.search_settings(CONFIG, date(2024, 2, 29))[2]
+    checkpoint["request"] = search_settings(CONFIG, date(2024, 2, 29))[2]
     storage.write_json(tmp_path / "tmp/checkpoint.json", checkpoint)
     changed = config_module.load_config(
         overrides={**CONFIG, "debug": True, "timeout": 5, "max_pages": 2, "max_gib": 5}

@@ -1,17 +1,42 @@
-"""Validated SAOS dump access and acquisition settings."""
+"""HTTP sessions, SAOS response parsing and external locality downloads."""
 
 import hashlib
 import json
-from calendar import monthrange
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
 
 from ..storage.files import write_bytes, write_json
-from ..extraction.source.text import extract_text
 
 BASE_URL = "https://www.saos.org.pl/api"
+LOCALITIES_URL = "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/OT_ADMS_P.gpkg"
+
+
+def open_session():
+    """Create an HTTP session shared across dump pages and court metadata.
+
+    args:
+        None.
+
+    returns:
+        A requests session to be closed by its caller's context manager.
+    """
+    return requests.Session()
+
+
+def fetch_localities(timeout=30):
+    """Download the official locality snapshot with one timed HTTP attempt.
+
+    args:
+        timeout: Connection/read timeout in seconds.
+
+    returns:
+        Original GeoPackage bytes.
+    """
+    with requests.get(LOCALITIES_URL, timeout=timeout) as response:
+        response.raise_for_status()
+        return response.content
 
 
 def fetch_json(url, directory=None, session=None, timeout=30):
@@ -54,95 +79,6 @@ def fetch_json(url, directory=None, session=None, timeout=30):
     if not isinstance(payload, dict):
         raise ValueError(f"Expected a JSON object: {url}")
     return payload
-
-
-def search_settings(config, today=None):
-    """
-    Validate acquisition settings and derive inclusive judgment-date bounds.
-
-    args:
-        config: Effective pipeline or acquisition settings.
-        today: Date used to anchor the acquisition range.
-
-    returns:
-        Start date, end date and effective query parameters.
-    """
-    if not isinstance(config, dict) or set(config) != {
-        "max_age_years",
-        "max_pages",
-        "max_gib",
-        "debug",
-        "download_path",
-        "timeout",
-    }:
-        raise ValueError(
-            "api.yaml requires max_age_years, max_pages, max_gib, debug, download_path and timeout"
-        )
-    if type(config["max_gib"]) not in (int, float) or not 0 <= config[
-        "max_gib"
-    ] < float("inf"):
-        raise ValueError("max_gib must be a nonnegative finite number")
-    if type(config["timeout"]) not in (int, float) or not 0 < config["timeout"] < float(
-        "inf"
-    ):
-        raise ValueError("timeout must be a positive finite number")
-    if type(config["debug"]) is not bool:
-        raise ValueError("debug must be true or false")
-    years, limit = config["max_age_years"], config["max_pages"]
-    if type(years) is not int or years <= 0 or type(limit) is not int or limit < 0:
-        raise ValueError("max_age_years must be positive and max_pages nonnegative")
-    path = config["download_path"]
-    if (
-        not isinstance(path, str)
-        or not path.strip()
-        or Path(path).is_absolute()
-        or ".." in Path(path).parts
-    ):
-        raise ValueError("download_path must be relative to the project root")
-    end = today or date.today()
-    if years >= end.year:
-        raise ValueError("max_age_years exceeds the supported date range")
-    start = end.replace(
-        year=end.year - years,
-        day=min(end.day, monthrange(end.year - years, end.month)[1]),
-    )
-    params = {
-        "pageSize": 100,
-        "pageNumber": 0,
-        "judgmentStartDate": start.isoformat(),
-        "judgmentEndDate": end.isoformat(),
-    }
-    return start, end, params
-
-
-def search_pages(
-    config, directory=None, today=None, session=None, start_page=0, params=None
-):
-    """
-    Yield dump pages starting at the saved pagination position.
-
-    args:
-        config: Effective pipeline or acquisition settings.
-        directory: Input or output directory for this operation.
-        today: Date used to anchor the acquisition range.
-        session: Reusable HTTP session, when supplied.
-        start_page: First page number to request.
-        params: Effective SAOS query parameters.
-
-    returns:
-        Iterator of page-number/response pairs.
-    """
-    _, _, defaults = search_settings(config, today)
-    params = defaults if params is None else params
-    page = start_page
-    while config["max_pages"] == 0 or page < config["max_pages"]:
-        result = search_judgments(
-            {**params, "pageNumber": page}, directory, session, config["timeout"]
-        )
-        yield page, result
-        if not any(link["rel"] == "next" for link in result["links"]):
-            break
-        page += 1
 
 
 def search_judgments(params, directory=None, session=None, timeout=30):
@@ -253,64 +189,3 @@ def load_divisions(session, directory=None, timeout=30):
         if not payload["items"]:
             raise ValueError("Empty common-court page before next link")
         page += 1
-
-
-def validate_judgment(payload, identifier, start, end):
-    """
-    Validate source metadata and normalize the judgment text.
-
-    args:
-        payload: Decoded source or model payload.
-        identifier: Stable judgment identifier.
-        start: Beginning of the permitted source range.
-        end: End of the permitted source range.
-
-    returns:
-        Validated metadata and normalized text.
-    """
-    data = payload.get("data") if isinstance(payload, dict) else None
-    if (
-        not isinstance(data, dict)
-        or type(data.get("id")) is not int
-        or data["id"] != identifier
-    ):
-        raise ValueError("Judgment ID does not match the dump item")
-    try:
-        judgment_date = date.fromisoformat(data["judgmentDate"])
-    except (KeyError, TypeError, ValueError) as error:
-        raise ValueError("Invalid judgment date") from error
-    if not start <= judgment_date <= end:
-        raise ValueError("Judgment date is outside the requested range")
-    if data.get("courtType") != "COMMON" or data.get("judgmentType") != "SENTENCE":
-        raise ValueError("Judgment does not match the requested court or judgment type")
-    division = data.get("division")
-    if not isinstance(division, dict):
-        raise ValueError("Missing division metadata")
-    court = division.get("court")
-    for name, value in (("division", division), ("court", court)):
-        if (
-            not isinstance(value, dict)
-            or type(value.get("id")) is not int
-            or value["id"] <= 0
-            or not isinstance(value.get("name"), str)
-            or not value["name"].strip()
-        ):
-            raise ValueError(f"Invalid {name} metadata")
-    if court.get("type") not in {"DISTRICT", "REGIONAL", "APPEAL"}:
-        raise ValueError("Invalid common court level")
-    cases = data.get("courtCases")
-    if (
-        not isinstance(cases, list)
-        or not cases
-        or any(
-            not isinstance(case, dict)
-            or not isinstance(case.get("caseNumber"), str)
-            or not case["caseNumber"].strip()
-            for case in cases
-        )
-    ):
-        raise ValueError("Missing court case number")
-    html = data.get("textContent")
-    if not isinstance(html, str) or not (text := extract_text(html)):
-        raise ValueError("Missing judgment text")
-    return data, text

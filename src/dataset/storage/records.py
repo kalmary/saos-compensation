@@ -1,94 +1,42 @@
-"""Court metadata enrichment and local record export."""
+"""Local feature/target records, completeness checks and loading."""
 
-import re
-from datetime import date
+import json
+from pathlib import Path
 
 from ..extraction.quality import rejection_reason
-from .files import write_bytes, write_json
+from .files import remove_tree, write_bytes, write_json
 
 
-def add_metadata_features(result, record, fields, localities=None):
-    """
-    Add configured court and date features with their source provenance.
+def save_pending(directory, record, config):
+    """Persist the source and configuration before starting judgment inference.
 
     args:
-        result: Extraction result and supporting evidence.
-        record: Normalized or saved judgment record.
-        fields: Configured feature fields.
-        localities: Official locality data and matching context.
+        directory: Dataset output directory.
+        record: Validated judgment with its original source payload.
+        config: Effective extraction configuration.
+
+    returns:
+        Pending directory containing source and resumable model decisions.
+    """
+    pending = Path(directory) / str(record["id"]) / "pending"
+    write_json(pending / "judgment.json", record["source_payload"])
+    write_json(pending / "config.json", config)
+    write_bytes(pending / "source.txt", (record["text"] + "\n").encode("utf-8"))
+    return pending
+
+
+def remove_pending(pending):
+    """Remove finished working state and an empty rejected-case directory.
+
+    args:
+        pending: Per-judgment working directory.
 
     returns:
         None.
     """
-    court = record["division"]["court"]
-    locality = re.search(r"\b(?:w|we)\s+(.+)$", court["name"])
-    values = {
-        "judgment_year": date.fromisoformat(record["judgmentDate"]).year,
-        "instance": "not_available"
-        if result["instance"]["value"] == "brak informacji"
-        else result["instance"]["value"],
-        "court_seat": locality[1].strip() if locality else "not_available",
-    }
-    if "injured_party_count" in fields:
-        count = result["award"].get("injured_party_count")
-        values["injured_party_count"] = (
-            1 if count in (None, "not_available", "brak informacji") else count
-        )
-    if "prior_payment" in fields:
-        values["prior_payment"] = result.get("prior_payment", 0)
-    if "court_locality_size" in fields:
-        from dataset.acquisition.localities import locality_class, match_locality
-
-        rows, morphology, metadata = localities
-        matched, reason = match_locality(court["name"], rows, morphology)
-        values["court_locality_size"] = (
-            locality_class(matched["RODZAJ"], matched["LICZBAMIESZKANCOW"])
-            if matched
-            else "not_available"
-        )
-    sources = {
-        "judgment_year": {"field": "judgmentDate", "value": record["judgmentDate"]},
-        "instance": result["instance"],
-        "court_seat": {"field": "division.court", "value": court},
-    }
-    if "court_locality_size" in fields:
-        sources["court_locality_size"] = {
-            "locality": matched,
-            "matching": reason,
-            "source": metadata,
-        }
-    if "injured_party_count" in fields:
-        sources["injured_party_count"] = {
-            "source": "defaulted to one; recipient count unavailable"
-            if count in (None, "not_available", "brak informacji")
-            else "explicit recipients in the embedding-selected judgment sentence"
-        }
-    if "prior_payment" in fields:
-        sources["prior_payment"] = {
-            "source": "embedding-selected prior payment; Basal amount extraction"
-        }
-    result["metadata_sources"] = {field: sources[field] for field in fields}
-    for field in fields:
-        result["features"][field] = values[field]
-        result["evidence"][field] = []
-        result["confidence"][field] = (
-            result["instance"]["decision"]["confidence"]
-            if field == "instance"
-            else None
-        )
-        result["field_status"][field] = (
-            "earlier principal payment in whole PLN; zero without confirmation"
-            if field == "prior_payment"
-            else sources[field]["source"]
-            if field == "injured_party_count"
-            else "not_available"
-            if values[field] == "not_available"
-            else "review required"
-            if field == "instance"
-            else "matched to the current GUGiK snapshot; population year unknown"
-            if field == "court_locality_size"
-            else "read from SAOS metadata"
-        )
+    remove_tree(pending)
+    if not any(pending.parent.iterdir()):
+        pending.parent.rmdir()
 
 
 def write_result(result, directory, config):
@@ -122,3 +70,66 @@ def write_result(result, directory, config):
         write_bytes(directory / "source.txt", result["source_text"].encode("utf-8"))
     write_json(directory / "award.json", targets)
     write_json(directory / "record.json", features)
+
+
+def record_complete(path, identifier, dataset_id):
+    """
+    Check whether a saved record belongs to the current dataset.
+
+    args:
+        path: Path to the relevant input or output file.
+        identifier: Stable judgment identifier.
+        dataset_id: Identifier shared by records in this dataset.
+
+    returns:
+        True when a complete record matches the judgment and dataset.
+    """
+    if not path.exists():
+        return False
+    record = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(record, dict):
+        raise ValueError(f"Invalid saved record: {path}")
+    award_path = path.with_name("award.json")
+    if "features" not in record and "dataset_id" not in record and award_path.exists():
+        award = json.loads(award_path.read_text(encoding="utf-8"))
+        return path.parent.name == str(identifier) and isinstance(award, dict)
+    return (
+        type(record.get("id")) is int
+        and record.get("id") == identifier
+        and record.get("dataset_id") == dataset_id
+        and isinstance(record.get("features"), dict)
+        and isinstance(record.get("targets"), dict)
+    )
+
+
+def load_records(directory, *, include_targets=False):
+    """Load complete case folders without touching source or diagnostic files.
+
+    args:
+        directory: Dataset root containing SAOS-ID subdirectories.
+        include_targets: Require award.json and retain only valid=true cases.
+
+    returns:
+        Raw predictor mappings, stable sample_ids and optional unscaled PLN targets.
+        This reader never splits samples or fits preprocessing; callers select training
+        rows before fitting feature and target preprocessors independently.
+    """
+    records, ids, targets = [], [], []
+    for path in sorted(Path(directory).glob("*/record.json")):
+        if include_targets:
+            award = json.loads(path.with_name("award.json").read_text(encoding="utf-8"))
+            if not isinstance(award, dict) or type(award.get("valid")) is not bool:
+                raise ValueError(f"Invalid award flag: {path.parent.name}")
+            if not award["valid"]:
+                continue
+            if "total" not in award:
+                raise ValueError(f"Missing award total: {path.parent.name}")
+            targets.append(award["total"])
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(record, dict):
+            raise ValueError(f"Invalid predictor record: {path.parent.name}")
+        ids.append(path.parent.name)
+        records.append(record)
+    if not records:
+        raise ValueError("No eligible records found")
+    return {"records": records, "sample_ids": ids, "targets": targets if include_targets else None}

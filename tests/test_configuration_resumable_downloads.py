@@ -44,7 +44,7 @@ def test_changed_question_invalidates_checkpoint(
     returns:
         None.
     """
-    from dataset.acquisition import checkpoints
+    from dataset.storage import checkpoints
     from dataset.storage.files import write_json
 
     config = configuration.load_config(config_directory)

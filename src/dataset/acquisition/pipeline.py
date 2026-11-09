@@ -7,15 +7,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..extraction.quality import feature_rejection_reason, rejection_reason
-from ..storage.files import (
-    StorageLimitError,
-    output_limit,
-    remove_tree,
-    write_bytes,
-    write_json,
-)
-from ..storage.records import add_metadata_features, write_result
-from .checkpoints import load_checkpoint
+from ..storage.files import StorageLimitError, output_limit
+from ..storage.records import remove_pending, save_pending, write_result
+from .metadata import add_metadata_features
+from ..storage.checkpoints import load_checkpoint, save_checkpoint
 from .download import download
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -103,12 +98,12 @@ async def process(config):
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     check_device(config["system_one"]["device"])
     check_device(config["embedding"]["device"])
-    write_json(directory / "checkpoint.json", checkpoint)
+    save_checkpoint(directory, checkpoint)
     localities = None
     if "court_locality_size" in config["metadata_fields"]:
         import morfeusz2
 
-        from dataset.acquisition.localities import load_localities
+        from ..storage.localities import load_localities
 
         rows, metadata = load_localities(
             ROOT / "tmp" / "gugik",
@@ -120,7 +115,7 @@ async def process(config):
                 "GUGiK snapshot changed since the checkpoint; use a different download_path"
             )
         checkpoint["localities_sha256"] = digest
-        write_json(directory / "checkpoint.json", checkpoint)
+        save_checkpoint(directory, checkpoint)
         localities = rows, morfeusz2.Morfeusz(), metadata
     from basal.server import Server, parser
     from huggingface_hub import snapshot_download
@@ -168,12 +163,7 @@ async def process(config):
         with closing(download(config["api"], checkpoint, run_id)) as records:
             for record in records:
                 identifier = record["id"]
-                pending = directory / str(identifier) / "pending"
-                write_json(pending / "judgment.json", record["source_payload"])
-                write_json(pending / "config.json", config)
-                write_bytes(
-                    pending / "source.txt", (record["text"] + "\n").encode("utf-8")
-                )
+                pending = save_pending(directory, record, config)
                 cache_token = decisions.DECISION_CACHE.set(pending / "decisions")
                 token = decisions.MODEL_CALLS.set([] if config["api"]["debug"] else None)
                 try:
@@ -199,9 +189,7 @@ async def process(config):
                 ):
                     record["rejected"] = True
                     summary["rejected_records"] += 1
-                    remove_tree(pending)
-                    if not any(pending.parent.iterdir()):
-                        pending.parent.rmdir()
+                    remove_pending(pending)
                     print(f"Rejected judgment {identifier}: {reason}", flush=True)
                     continue
                 result["source_text"] = record["text"]
@@ -209,7 +197,7 @@ async def process(config):
                     result, record, config["metadata_fields"], localities
                 )
                 write_result(result, directory / str(identifier), config)
-                remove_tree(pending)
+                remove_pending(pending)
                 summary["processed"] += 1
                 summary["confirmed_awards"] += int(
                     result["award"].get("confirmed", False)
