@@ -38,3 +38,28 @@ def test_changed_question_invalidates_checkpoint(
     changed = configuration.load_config(config_directory)
     with pytest.raises(ValueError, match="Extraction settings changed"):
         checkpoints.load_checkpoint(changed)
+
+
+def test_prefix_matching_version_rejects_previous_extraction_checkpoint(
+    config_directory, monkeypatch, tmp_path
+):
+    """Keep old independent-clause datasets separate from right-growing prefixes.
+
+    args:
+        config_directory: Current acquisition settings.
+        monkeypatch: Scoped output-root replacement.
+        tmp_path: Isolated dataset root.
+
+    returns:
+        None.
+    """
+    from dataset.storage import checkpoints
+
+    monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
+    config = configuration.load_config(config_directory)
+    previous = {**config, "version": "saos-extraction-26"}
+    checkpoint = checkpoints.load_checkpoint(previous)
+    checkpoints.save_checkpoint(tmp_path / config["api"]["download_path"], checkpoint)
+    assert config["version"] == "saos-extraction-27"
+    with pytest.raises(ValueError, match="Extraction settings changed"):
+        checkpoints.load_checkpoint(config)

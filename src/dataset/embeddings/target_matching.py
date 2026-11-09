@@ -71,14 +71,14 @@ def validate_settings(settings, patterns):
 
 def candidate_sentences(text, keywords):
     """
-    Select sentence or comma-delimited clauses with PLN amounts and relevant stems.
+    Grow sentence prefixes to successive commas without losing the sentence start.
 
     args:
         text: Full normalized judgment text.
         keywords: Target, exclusion and shared word-prefix groups from targets.yaml.
 
     returns:
-        Candidate sentences with unchanged source offsets and eligible classes.
+        Monetary prefixes in source order, grouped by their fixed sentence start.
     """
     core = {
         group: re.compile(
@@ -96,25 +96,31 @@ def candidate_sentences(text, keywords):
         ):
             continue
         for sentence in sentence_fragments(
-            {"text": line[0], "start": line.start(), "end": line.end()},
-            split_commas=True,
+            {"text": line[0], "start": line.start(), "end": line.end()}
         ):
-            if not MONEY.search(sentence["text"]):
-                continue
-            classes = tuple(
-                label
-                for label in TARGET_CLASSES
-                if core[label].search(sentence["text"])
-            )
-            if not classes and core["shared"].search(sentence["text"]):
-                classes = TARGET_CLASSES
-            classes += tuple(
-                label
-                for label in EXCLUDED_CLASSES
-                if label in core and core[label].search(sentence["text"])
-            )
-            if classes:
-                sentences.append({**sentence, "classes": classes})
+            for part in sentence_fragments(sentence, split_commas=True):
+                prefix = text[sentence["start"]:part["end"]]
+                if not MONEY.search(prefix):
+                    continue
+                classes = tuple(
+                    label for label in TARGET_CLASSES if core[label].search(prefix)
+                )
+                if not classes and core["shared"].search(prefix):
+                    classes = TARGET_CLASSES
+                classes += tuple(
+                    label
+                    for label in EXCLUDED_CLASSES
+                    if label in core and core[label].search(prefix)
+                )
+                if classes:
+                    sentences.append(
+                        {
+                            "text": prefix,
+                            "start": sentence["start"],
+                            "end": part["end"],
+                            "classes": classes,
+                        }
+                    )
     return sentences
 
 
@@ -171,7 +177,7 @@ class TargetMatcher:
 
     def match(self, text):
         """
-        Assign each candidate its highest-scoring eligible class above the strict threshold.
+        Accept the first matching right-growing prefix of each source sentence.
 
         args:
             text: Full normalized judgment text.
@@ -185,24 +191,38 @@ class TargetMatcher:
         result = dict.fromkeys(PATTERN_CLASSES)
         if not sentences:
             return result
-        vectors = self.encode([prepare_text(row["text"]) for row in sentences])
-        scores = cosine_similarity(
-            vectors, self.pattern_vectors, device=self.settings["device"]
-        ).cpu()
-        for row, similarities in zip(sentences, scores, strict=True):
-            best = {}
-            for index, (label, phrase) in enumerate(self.patterns):
-                if label not in row["classes"]:
-                    continue
-                score = float(similarities[index])
-                if label not in best or score > best[label][0]:
-                    best[label] = (score, phrase)
-            label = max(best, key=lambda key: (best[key][0], key in EXCLUDED_CLASSES))
-            score, phrase = best[label]
-            if score > self.settings["minimum_cosine_similarity"] and (
-                result[label] is None or score > result[label]["similarity"]
-            ):
-                result[label] = {**row, "similarity": score, "pattern": phrase}
+        prefixes = {}
+        for row in sentences:
+            prefixes.setdefault(row["start"], []).append(row)
+        pending = {start: iter(rows) for start, rows in prefixes.items()}
+        while pending:
+            batch = [
+                row
+                for rows in pending.values()
+                if (row := next(rows, None)) is not None
+            ]
+            if not batch:
+                break
+            vectors = self.encode([prepare_text(row["text"]) for row in batch])
+            scores = cosine_similarity(
+                vectors, self.pattern_vectors, device=self.settings["device"]
+            ).cpu()
+            for row, similarities in zip(batch, scores, strict=True):
+                best = {}
+                for index, (label, phrase) in enumerate(self.patterns):
+                    if label not in row["classes"]:
+                        continue
+                    score = float(similarities[index])
+                    if label not in best or score > best[label][0]:
+                        best[label] = (score, phrase)
+                label = max(
+                    best, key=lambda key: (best[key][0], key in EXCLUDED_CLASSES)
+                )
+                score, phrase = best[label]
+                if score > self.settings["minimum_cosine_similarity"]:
+                    del pending[row["start"]]
+                    if result[label] is None or score > result[label]["similarity"]:
+                        result[label] = {**row, "similarity": score, "pattern": phrase}
         return result
 
 
