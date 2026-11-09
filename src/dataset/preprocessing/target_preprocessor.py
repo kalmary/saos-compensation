@@ -5,7 +5,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
 from .io.configuration import validate_scaling
-from .io import artifacts
+from ..storage import preprocessing as artifacts
 from .transforms.rules import TARGET_RULE
 from .transforms.numeric import numeric_pipeline, numeric_values, transformed_values
 

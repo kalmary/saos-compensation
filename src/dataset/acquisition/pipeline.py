@@ -6,12 +6,13 @@ from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
+from ..clients.basal import open_extractor
 from ..extraction.quality import feature_rejection_reason, rejection_reason
+from ..storage.checkpoints import load_checkpoint, save_checkpoint
 from ..storage.files import StorageLimitError, output_limit
 from ..storage.records import remove_pending, save_pending, write_result
-from .metadata import add_metadata_features
-from ..storage.checkpoints import load_checkpoint, save_checkpoint
 from .download import download
+from .metadata import add_metadata_features
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -47,12 +48,14 @@ def check_device(device):
         )
 
 
-async def run(config):
+async def run(config, *, extractor=None, record_source=None):
     """
     Execute the configured pipeline within the cumulative output-size budget.
 
     args:
         config: Effective pipeline or acquisition settings.
+        extractor: Optional async context yielding a judgment extraction callable.
+        record_source: Optional resumable judgment iterator factory.
 
     returns:
         None.
@@ -60,26 +63,26 @@ async def run(config):
     directory = ROOT / config["api"]["download_path"]
     try:
         with output_limit(directory, config["api"]["max_gib"]):
-            await process(config)
+            await process(config, extractor=extractor, record_source=record_source)
     except StorageLimitError as error:
         print(
             f"{error}. Increase max_gib to continue from checkpoint.json.", flush=True
         )
 
 
-async def process(config):
+async def process(config, *, extractor=None, record_source=None):
     """
     Resume acquisition and extract configured features and monetary targets.
 
     args:
         config: Effective pipeline or acquisition settings.
+        extractor: Optional async context yielding a judgment extraction callable.
+        record_source: Optional resumable judgment iterator factory.
 
     returns:
         None.
     """
-    from dataset.extraction import basal_filtering as basal
-    from dataset.extraction.model import decisions
-    from dataset.extraction.model.prompts import MODEL_FILES
+    from ..extraction.model import decisions
 
     directory = ROOT / config["api"]["download_path"]
     checkpoint = load_checkpoint(config)
@@ -117,35 +120,9 @@ async def process(config):
         checkpoint["localities_sha256"] = digest
         save_checkpoint(directory, checkpoint)
         localities = rows, morfeusz2.Morfeusz(), metadata
-    from basal.server import Server, parser
-    from huggingface_hub import snapshot_download
-
-    model = config["system_one"]
-    model_path = snapshot_download(
-        model["model"],
-        revision=model["revision"],
-        cache_dir=model_cache,
-        allow_patterns=MODEL_FILES,
-        max_workers=1,
-    )
-    args = parser().parse_args(
-        [
-            "--model",
-            model_path,
-            "--mode",
-            model["mode"],
-            "--device",
-            model["device"],
-            "--template-prefix",
-            model["template_prefix"],
-            "--name",
-            model["model"],
-            "--context-overflow",
-            model["context_overflow"],
-        ]
-    )
-    server = Server(args)
-    worker = asyncio.create_task(server.worker())
+    if extractor is None:
+        extractor = open_extractor(config, model_cache)
+    record_source = download if record_source is None else record_source
     decisions.REQUEST_COUNTS.update(cached=0, computed=0)
     summary = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -153,62 +130,64 @@ async def process(config):
         "dataset_id": checkpoint["dataset_id"],
         "config": config,
         "engine_version": "2.4.1",
-        "engine_arguments": vars(args),
         "processed": 0,
         "confirmed_awards": 0,
         "rejected_records": 0,
         "complete": False,
     }
     try:
-        with closing(download(config["api"], checkpoint, run_id)) as records:
-            for record in records:
-                identifier = record["id"]
-                pending = save_pending(directory, record, config)
-                cache_token = decisions.DECISION_CACHE.set(pending / "decisions")
-                token = decisions.MODEL_CALLS.set([] if config["api"]["debug"] else None)
-                try:
-                    result = await basal.extract(
-                        server, record["text"], config, identifier
+        async with extractor as extract_record:
+            with closing(record_source(config["api"], checkpoint, run_id)) as records:
+                for record in records:
+                    identifier = record["id"]
+                    pending = save_pending(directory, record, config)
+                    cache_token = decisions.DECISION_CACHE.set(pending / "decisions")
+                    token = decisions.MODEL_CALLS.set(
+                        [] if config["api"]["debug"] else None
                     )
-                    if config["api"]["debug"]:
-                        result["model_calls"] = decisions.MODEL_CALLS.get()
-                finally:
-                    decisions.MODEL_CALLS.reset(token)
-                    decisions.DECISION_CACHE.reset(cache_token)
-                feature_reason = feature_rejection_reason(result, config)
-                reason = rejection_reason(result, config)
-                if feature_reason and reason != feature_reason:
-                    detail = (
-                        feature_reason
-                        if result.get("fields_evaluated", bool(result.get("features")))
-                        else "text feature extraction skipped"
+                    try:
+                        result = await extract_record(record["text"], identifier)
+                        if config["api"]["debug"]:
+                            result["model_calls"] = decisions.MODEL_CALLS.get()
+                    finally:
+                        decisions.MODEL_CALLS.reset(token)
+                        decisions.DECISION_CACHE.reset(cache_token)
+                    feature_reason = feature_rejection_reason(result, config)
+                    reason = rejection_reason(result, config)
+                    if feature_reason and reason != feature_reason:
+                        detail = (
+                            feature_reason
+                            if result.get(
+                                "fields_evaluated", bool(result.get("features"))
+                            )
+                            else "text feature extraction skipped"
+                        )
+                        reason = f"{reason}; {detail}"
+                    if reason is not None and (
+                        not config["api"]["debug"] or feature_reason
+                    ):
+                        record["rejected"] = True
+                        summary["rejected_records"] += 1
+                        remove_pending(pending)
+                        print(f"Rejected judgment {identifier}: {reason}", flush=True)
+                        continue
+                    result["source_text"] = record["text"]
+                    add_metadata_features(
+                        result, record, config["metadata_fields"], localities
                     )
-                    reason = f"{reason}; {detail}"
-                if reason is not None and (
-                    not config["api"]["debug"] or feature_reason
-                ):
-                    record["rejected"] = True
-                    summary["rejected_records"] += 1
+                    write_result(result, directory / str(identifier), config)
                     remove_pending(pending)
-                    print(f"Rejected judgment {identifier}: {reason}", flush=True)
-                    continue
-                result["source_text"] = record["text"]
-                add_metadata_features(
-                    result, record, config["metadata_fields"], localities
-                )
-                write_result(result, directory / str(identifier), config)
-                remove_pending(pending)
-                summary["processed"] += 1
-                summary["confirmed_awards"] += int(
-                    result["award"].get("confirmed", False)
-                )
-                if reason is not None:
-                    print(
-                        f"Saved debug judgment {identifier}: {reason}",
-                        flush=True,
+                    summary["processed"] += 1
+                    summary["confirmed_awards"] += int(
+                        result["award"].get("confirmed", False)
                     )
-                else:
-                    print(f"Filtered judgment {identifier}", flush=True)
+                    if reason is not None:
+                        print(
+                            f"Saved debug judgment {identifier}: {reason}",
+                            flush=True,
+                        )
+                    else:
+                        print(f"Filtered judgment {identifier}", flush=True)
         summary["complete"] = True
     except asyncio.CancelledError:
         summary["interrupted"] = True
@@ -217,16 +196,10 @@ async def process(config):
         summary["error"] = str(error)
         raise
     finally:
-        worker.cancel()
-        await asyncio.gather(worker, return_exceptions=True)
         summary["requests"] = decisions.REQUEST_COUNTS.copy()
         print(
             json.dumps(
-                {
-                    key: value
-                    for key, value in summary.items()
-                    if key not in {"config", "engine_arguments"}
-                },
+                {key: value for key, value in summary.items() if key != "config"},
                 ensure_ascii=False,
             ),
             flush=True,

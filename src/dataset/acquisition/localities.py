@@ -3,8 +3,6 @@
 import re
 
 
-
-
 def locality_class(kind, population):
     """
     Map an official locality type and population to a size category.

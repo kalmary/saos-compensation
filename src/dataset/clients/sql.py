@@ -14,7 +14,8 @@ def read_localities(path):
     returns:
         Locality attribute dictionaries for cities and villages.
     """
-    with closing(sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)) as connection:
+    uri = Path(path).resolve().as_uri() + "?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as connection:
         if connection.execute("pragma quick_check").fetchone()[0] != "ok":
             raise ValueError("Incomplete or damaged GUGiK GeoPackage")
         connection.row_factory = sqlite3.Row

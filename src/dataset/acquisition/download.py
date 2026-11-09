@@ -5,14 +5,14 @@ import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from ..extraction.source.text import MONEY, extract_text
-from ..storage.files import remove_tree
-from ..storage.checkpoints import save_checkpoint
 from ..clients import api
 from ..clients.api import BASE_URL, load_divisions, open_session
+from ..extraction.source.text import MONEY, extract_text
+from ..storage.checkpoints import save_checkpoint
+from ..storage.files import remove_tree
+from ..storage.records import record_complete
 from .settings import search_settings
 from .validation import validate_judgment
-from ..storage.records import record_complete
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -45,7 +45,6 @@ def search_pages(
         if not any(link["rel"] == "next" for link in result["links"]):
             break
         page += 1
-
 
 
 def download(config, checkpoint, run_id):
