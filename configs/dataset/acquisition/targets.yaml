@@ -14,6 +14,7 @@ embedding:
     - zobowiąz
     - orzek
     - orzecz
+    - nakład
     request:
     - żąd
     - zażąd
@@ -36,6 +37,7 @@ embedding:
     - zapłaci
     - zaspokoj
     - zaspokoi
+    - wyegzekw
     procedural_costs:
     - proces
     - postępowan
@@ -68,6 +70,8 @@ embedding:
     - utrzyma
     - utrzym
     - cofn
+    - uchyl
+    - odrzuc
     shared:
     - przyzna
     - roszcz
@@ -93,6 +97,13 @@ patterns:
     - "zasądza solidarnie od pozwanych na rzecz powoda {amount} tytułem zadośćuczynienia"
     - "zasądza od pozwanego na rzecz powódki {amount} tytułem zwrotu kosztów leczenia"
     - "zasądza od pozwanego na rzecz powodów łącznie {amount} tytułem odszkodowania"
+    - "zmienia zaskarżony wyrok w ten sposób że zasądza od pozwanego dalszą kwotę {amount} ponad świadczenie przyznane w pierwszej instancji"
+    - "podwyższa zasądzone na rzecz powoda zadośćuczynienie do kwoty {amount}"
+    - "nakłada na oskarżonego obowiązek zapłaty pokrzywdzonemu {amount} tytułem zadośćuczynienia za doznaną krzywdę"
+    - "zasądza od pozwanych in solidum kwotę {amount} z tym że zapłata przez jednego zwalnia drugiego z obowiązku świadczenia"
+    - "zasądza na rzecz małoletniego powoda kwotę {amount} płatną do rąk jego przedstawiciela ustawowego"
+    - "zasądza od pozwanego kwotę {amount} tytułem odszkodowania i rozkłada jej zapłatę na raty"
+    - "uwzględnia powództwo przez zasądzenie na rzecz powoda kwoty {amount}"
 
   # A requested amount remains a request even when it equals the eventual award.
   request:
@@ -108,6 +119,11 @@ patterns:
     - "powód ograniczył żądanie do kwoty {amount}"
     - "powód dochodzi dopłaty {amount} ponad kwotę wypłaconą przez ubezpieczyciela"
     - "powódka wystąpiła z żądaniem zapłaty {amount} tytułem zwrotu kosztów leczenia"
+    - "na wypadek nieuwzględnienia żądania głównego powód domaga się zapłaty {amount} jako żądania ewentualnego"
+    - "powód dochodzi na razie części roszczenia w kwocie {amount} zastrzegając możliwość dochodzenia pozostałej części"
+    - "powód domaga się przyznania każdemu z poszkodowanych po {amount}"
+    - "pozwany w powództwie wzajemnym żąda od powoda zapłaty {amount} tytułem odszkodowania"
+    - "prokurator wnosi o orzeczenie wobec oskarżonego obowiązku zapłaty pokrzywdzonemu {amount} tytułem zadośćuczynienia"
 
   # These groups compete with target roles; their winners are not target amounts.
   prior_payment:
@@ -121,6 +137,10 @@ patterns:
     - "decyzją ubezpieczyciela przyznano i wypłacono poszkodowanemu {amount} przed procesem"
     - "w toku likwidacji szkody wypłacono zaliczkę na odszkodowanie w kwocie {amount}"
     - "sprawca zwrócił poszkodowanemu {amount} przed wniesieniem pozwu i częściowo zaspokoił roszczenie"
+    - "po doręczeniu pozwu pozwany zapłacił powodowi {amount} na poczet dochodzonego zadośćuczynienia"
+    - "poszkodowany otrzymał {amount} w wykonaniu zawartej z pozwanym ugody pozasądowej"
+    - "komornik przekazał powodowi wyegzekwowane od pozwanego {amount} należności głównej"
+    - "pozwany zapłacił powodowi {amount} wykonując obowiązek naprawienia szkody orzeczony wcześniej w sprawie karnej"
 
   procedural_costs:
     - "zasądza od pozwanego na rzecz powoda {amount} tytułem zwrotu kosztów procesu"
@@ -137,6 +157,10 @@ patterns:
     - "zasądza od powoda na rzecz pozwanego {amount} tytułem kosztów zastępstwa procesowego"
     - "nakazuje zwrócić ze Skarbu Państwa powodowi nadpłaconą opłatę sądową w wysokości {amount}"
     - "zasądza od pozwanego na rzecz świadka {amount} tytułem zwrotu kosztów stawiennictwa w postępowaniu"
+    - "po stosunkowym rozdzieleniu kosztów procesu do zwrotu na rzecz pozwanego pozostaje {amount}"
+    - "ściąga z zasądzonego na rzecz powoda roszczenia {amount} tytułem nieuiszczonych kosztów sądowych"
+    - "wydatki sądowe tymczasowo poniesione przez Skarb Państwa w kwocie {amount} obciążają pozwanego"
+    - "wzajemnie znosi między stronami koszty zastępstwa procesowego wynoszące {amount}"
 
   mixed:
     - "powód żądał {previous_amount}, lecz sąd zasądził tylko {amount}"
@@ -149,6 +173,11 @@ patterns:
     - "umarza postępowanie co do kwoty {amount} wskutek cofnięcia powództwa"
     - "utrzymuje w mocy wyrok zasądzający kwotę {amount}"
     - "pozwany wniósł o oddalenie powództwa o zapłatę {amount}"
+    - "uchyla zaskarżony wyrok zasądzający {amount} i przekazuje sprawę do ponownego rozpoznania"
+    - "odrzuca pozew obejmujący żądanie zapłaty {amount} z powodu powagi rzeczy osądzonej"
+    - "powód cofnął żądanie zapłaty {amount} po zaspokojeniu roszczenia przez pozwanego"
+    - "uwzględniając wcześniejszą wypłatę {previous_amount} sąd zasądził różnicę w wysokości {amount}"
+    - "na dochodzoną kwotę {amount} składają się zadośćuczynienie oraz zwrot wydatków poniesionych przez powoda"
 
   # Non-principal payments outside the selected one-off compensation targets.
   other_payments:
@@ -161,3 +190,6 @@ patterns:
     - "zasądza od pozwanego {amount} tytułem odsetek za okres opóźnienia"
     - "zasądza rentę skapitalizowaną za poprzedni okres w kwocie {amount}"
     - "umarza orzeczoną grzywnę w pozostałej kwocie {amount}"
+    - "zasądza ustawowe odsetki za opóźnienie od kwoty {amount} od dnia wezwania do dnia zapłaty"
+    - "podwyższa rentę należną powodowi do kwoty {amount} miesięcznie"
+    - "przyznaje jednorazowo {amount} zamiast renty należnej za przyszłe okresy"
