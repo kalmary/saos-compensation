@@ -40,12 +40,14 @@ def test_changed_question_invalidates_checkpoint(
         checkpoints.load_checkpoint(changed)
 
 
+@pytest.mark.parametrize("previous_version", [26, 27, 28])
 def test_prefix_matching_version_rejects_previous_extraction_checkpoint(
-    config_directory, monkeypatch, tmp_path
+    config_directory, monkeypatch, tmp_path, previous_version
 ):
-    """Keep old independent-clause datasets separate from right-growing prefixes.
+    """Keep earlier search policies separate from first-monetary-prefix datasets.
 
     args:
+        previous_version: Earlier clause or prefix search version.
         config_directory: Current acquisition settings.
         monkeypatch: Scoped output-root replacement.
         tmp_path: Isolated dataset root.
@@ -57,9 +59,9 @@ def test_prefix_matching_version_rejects_previous_extraction_checkpoint(
 
     monkeypatch.setattr(checkpoints, "ROOT", tmp_path)
     config = configuration.load_config(config_directory)
-    previous = {**config, "version": "saos-extraction-26"}
+    previous = {**config, "version": f"saos-extraction-{previous_version}"}
     checkpoint = checkpoints.load_checkpoint(previous)
     checkpoints.save_checkpoint(tmp_path / config["api"]["download_path"], checkpoint)
-    assert config["version"] == "saos-extraction-27"
+    assert config["version"] == "saos-extraction-29"
     with pytest.raises(ValueError, match="Extraction settings changed"):
         checkpoints.load_checkpoint(config)

@@ -279,8 +279,8 @@ def test_prefix_without_amount_grows_without_embedding_and_stops_after_match():
 
 
 @pytest.mark.parametrize("initial_score", [0.6, 0.7])
-def test_prefix_grows_only_to_the_right_after_no_strict_match(initial_score):
-    """Extend a below-threshold prefix without dropping its beginning.
+def test_first_monetary_prefix_stops_growth_even_without_a_strict_match(initial_score):
+    """Reject a below-threshold monetary prefix without examining its suffix.
 
     args:
         initial_score: First-prefix score below or exactly at the strict threshold.
@@ -295,16 +295,12 @@ def test_prefix_grows_only_to_the_right_after_no_strict_match(initial_score):
         prepare_text(sentence): [1, 0],
     })
     result = TargetMatcher(SETTINGS, PATTERNS, encoder).match(sentence)
-    assert result["judgment"]["text"] == sentence
-    assert result["judgment"]["start"] == 0
-    assert result["judgment"]["end"] == len(sentence)
-    assert encoder.calls[1:] == [
-        [prepare_text(prefix)], [prepare_text(sentence)],
-    ]
+    assert result["judgment"] is None
+    assert encoder.calls[1:] == [[prepare_text(prefix)]]
 
 
-def test_first_matching_prefix_prevents_a_later_higher_score_from_replacing_it():
-    """Finish an accepted sentence before embedding its longer prefixes.
+def test_first_monetary_prefix_does_not_examine_later_context():
+    """Stop at the first monetary part without embedding longer prefixes.
 
     args:
         None.
@@ -362,9 +358,7 @@ def test_unmatched_prefixes_end_at_the_sentence_boundary():
         sentence + " Inny rachunek wynosi 200 zł."
     )
     assert all(match is None for match in result.values())
-    assert encoder.calls[1:] == [
-        [prepare_text(prefix)], [prepare_text(sentence)],
-    ]
+    assert encoder.calls[1:] == [[prepare_text(prefix)]]
 
 
 def test_recipient_list_before_comma_reaches_amount_parser(monkeypatch):
@@ -391,3 +385,30 @@ def test_recipient_list_before_comma_reaches_amount_parser(monkeypatch):
     assert result["confirmed"]
     assert result["injured_party_count"] == 2
     assert result["suma"] == "200"
+
+
+@pytest.mark.parametrize("scores", [(0.8, 0.95, 0.75), (0.95, 0.8, 0.75)])
+def test_best_monetary_prefix_wins_regardless_of_score_order(scores):
+    """Compare all sentence candidates without requiring monotonically rising scores.
+
+    args:
+        scores: Controlled judgment similarities in source order.
+
+    returns:
+        None.
+    """
+    prefixes = [
+        f"Zasądza {kind}, w kwocie 100 zł,"
+        for kind in ("świadczenie", "odszkodowanie", "zadośćuczynienie")
+    ]
+    encoder = Encoder({
+        prepare_text(prefix): [score, -math.sqrt(1 - score**2)]
+        for prefix, score in zip(prefixes, scores, strict=True)
+    })
+    text = "\n".join(prefix + " po rozpoznaniu sprawy." for prefix in prefixes)
+    result = TargetMatcher(SETTINGS, PATTERNS, encoder).match(text)
+    expected = prefixes[scores.index(max(scores))]
+    assert result["judgment"]["text"] == expected
+    assert result["judgment"]["similarity"] == pytest.approx(max(scores))
+    assert text[result["judgment"]["start"]:result["judgment"]["end"]] == expected
+    assert encoder.calls[1:] == [[prepare_text(prefix) for prefix in prefixes]]

@@ -121,12 +121,11 @@ def test_candidate_filter_grows_prefixes_without_splitting_decimal_amounts(
 
     assert [row["text"] for row in rows] == [
         "Zasądza 10 000,50 zł,",
-        "Zasądza 10 000,50 zł" + separator + "powód żądał 20 000,75 zł.",
     ]
     assert [row["classes"] for row in rows] == [
-        ("judgment",), ("judgment", "request"),
+        ("judgment",),
     ]
-    assert rows[0]["start"] == rows[1]["start"]
+    assert rows[0]["start"] == text.index("Zasądza")
     assert all(text[row["start"] : row["end"]] == row["text"] for row in rows)
 
 
@@ -252,9 +251,23 @@ def test_growing_prefixes_preserve_earlier_request_and_cost_roles(text, classes)
         None.
     """
     rows = target_matching.candidate_sentences(text, KEYWORDS)
-    assert len(rows) == 2
+    assert len(rows) == 1
     assert {row["start"] for row in rows} == {0}
-    assert [row["classes"] for row in rows] == [classes, classes]
-    assert rows[1]["text"].startswith(rows[0]["text"])
-    assert rows[1]["text"] == text
+    assert rows[0]["classes"] == classes
+    assert text.startswith(rows[0]["text"])
+    assert rows[0]["text"].endswith("zł,")
     assert all(text[row["start"]:row["end"]] == row["text"] for row in rows)
+
+
+def test_first_monetary_prefix_without_keywords_does_not_borrow_later_role():
+    """Stop at the first monetary part even when only later parts contain role cues.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    assert target_matching.candidate_sentences(
+        "Kwota 100 zł, którą sąd zasądza powodowi.", KEYWORDS
+    ) == []
