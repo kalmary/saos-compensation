@@ -1,0 +1,9 @@
+feature_fields:
+- cause
+- damage
+- limitations
+- judgment_year
+- injured_party_count
+- prior_payment
+- instance
+- court_locality_size
