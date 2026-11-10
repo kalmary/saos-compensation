@@ -87,6 +87,20 @@ patterns:
   # Keep distinct constructions, not inflection, word-order or ending variants.
   # Placeholders stand for source text; these are not regular expressions.
   # Exclusion groups compete with target roles before numeric parsing.
+  # Full dismissal of the modeled claim; matcher integration is pending.
+  judgment-denial:
+    - "oddala powództwo w całości"
+    - "zmienia zaskarżony wyrok w ten sposób że oddala powództwo w całości"
+    - "oddala powództwo o zapłatę {amount} tytułem zadośćuczynienia w całości"
+    - "oddala żądanie zasądzenia od {defendant} na rzecz {claimant} odszkodowania w kwocie {amount}"
+    - "odmawia przyznania powodowi zadośćuczynienia w jakiejkolwiek wysokości"
+    - "powództwo podlegało oddaleniu w całości z uwagi na niewykazanie szkody"
+    - "wobec braku związku przyczynowego sąd oddalił powództwo w całości"
+    - "sąd uznał roszczenie o zapłatę {amount} za przedawnione i oddalił powództwo w całości"
+    - "powód nie wykazał odpowiedzialności pozwanego co skutkowało oddaleniem powództwa w całości"
+    - "sąd nie znalazł podstaw do zasądzenia jakiejkolwiek kwoty na rzecz powoda i oddalił powództwo"
+    - "dotychczas wypłacone świadczenie w pełni zaspokoiło roszczenie powoda dlatego powództwo o dalszą zapłatę {amount} oddalono w całości"
+    - "powództwo o zapłatę {amount} oddalono w całości wobec niewykazania naruszenia dobra osobistego"
   judgment:
     - "zasądza od {defendant} na rzecz {claimant} kwotę {amount}"
     - "przyznaje {claimant} kwotę {amount}"
