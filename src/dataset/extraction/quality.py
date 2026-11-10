@@ -83,6 +83,8 @@ def target_rejection_reason(award, config):
     returns:
         Rejection reason, or None for an admissible target.
     """
+    if award.get("denied"):
+        return "judgment denied"
     if "target_matches" in award:
         match = award["target_matches"].get("judgment")
         threshold = config["embedding"]["minimum_cosine_similarity"]

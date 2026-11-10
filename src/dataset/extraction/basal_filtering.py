@@ -24,6 +24,8 @@ async def extract(server, text, config, identifier):
     """
     print(f"ID {identifier}: extracting target", flush=True)
     award = await amounts.extract_award(server, text, [], config)
+    if award.get("denied"):
+        return {"id": identifier, "award": award, "fields_evaluated": False}
     if (
         not config["api"]["debug"]
         and target_rejection_reason(award, config) is not None

@@ -40,11 +40,11 @@ def test_changed_question_invalidates_checkpoint(
         checkpoints.load_checkpoint(changed)
 
 
-@pytest.mark.parametrize("previous_version", [26, 27, 28])
-def test_prefix_matching_version_rejects_previous_extraction_checkpoint(
+@pytest.mark.parametrize("previous_version", [26, 27, 28, 29])
+def test_denial_matching_version_rejects_previous_extraction_checkpoint(
     config_directory, monkeypatch, tmp_path, previous_version
 ):
-    """Keep earlier search policies separate from first-monetary-prefix datasets.
+    """Keep earlier search policies separate from full-text denial screening.
 
     args:
         previous_version: Earlier clause or prefix search version.
@@ -62,6 +62,6 @@ def test_prefix_matching_version_rejects_previous_extraction_checkpoint(
     previous = {**config, "version": f"saos-extraction-{previous_version}"}
     checkpoint = checkpoints.load_checkpoint(previous)
     checkpoints.save_checkpoint(tmp_path / config["api"]["download_path"], checkpoint)
-    assert config["version"] == "saos-extraction-29"
+    assert config["version"] == "saos-extraction-30"
     with pytest.raises(ValueError, match="Extraction settings changed"):
         checkpoints.load_checkpoint(config)

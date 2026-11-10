@@ -4,13 +4,14 @@ import json
 import math
 import re
 from functools import lru_cache, partial
+from itertools import batched
 
 from ..extraction.source.text import MONEY, sentence_fragments
 from .encoding import create_embeddings, validate_settings as validate_encoder_settings
 
 TARGET_CLASSES = ("judgment", "request")
 EXCLUDED_CLASSES = ("prior_payment", "procedural_costs", "mixed", "other_payments")
-PATTERN_CLASSES = TARGET_CLASSES + EXCLUDED_CLASSES
+PATTERN_CLASSES = TARGET_CLASSES + EXCLUDED_CLASSES + ("judgment-denial",)
 
 
 def validate_settings(settings, patterns):
@@ -44,9 +45,11 @@ def validate_settings(settings, patterns):
     ):
         raise ValueError("minimum_cosine_similarity must be between 0 and 1")
     keywords = settings["candidate_keywords"]
-    if not isinstance(keywords, dict) or set(keywords) != {*PATTERN_CLASSES, "shared"}:
+    # Denial screening uses every sentence, so it has no keyword group.
+    keyword_groups = {*TARGET_CLASSES, *EXCLUDED_CLASSES, "shared"}
+    if not isinstance(keywords, dict) or set(keywords) != keyword_groups:
         raise ValueError(
-            f"candidate_keywords requires {sorted((*PATTERN_CLASSES, 'shared'))} groups"
+            f"candidate_keywords requires {sorted(keyword_groups)} groups"
         )
     if not any(keywords.values()) or any(
         not isinstance(words, list)
@@ -176,6 +179,43 @@ class TargetMatcher:
             [prepare_text(phrase) for _, phrase in self.patterns]
         )
 
+    def match_denial(self, text):
+        """Check full sentences for denial before any monetary candidate selection.
+
+        args:
+            text: Full normalized judgment, including sentences without PLN or keywords.
+
+        returns:
+            Strongest denial match in the first matching batch, or None.
+        """
+        from .cosine_similarity import cosine_similarity
+
+        indices = [
+            index for index, (label, _) in enumerate(self.patterns)
+            if label == "judgment-denial"
+        ]
+        sentences = (
+            sentence
+            for line in re.finditer(r"[^\n]+", text)
+            for sentence in sentence_fragments(
+                {"text": line[0], "start": line.start(), "end": line.end()}
+            )
+        )
+        for batch in batched(sentences, self.settings["batch_size"]):
+            vectors = self.encode([prepare_text(row["text"]) for row in batch])
+            scores = cosine_similarity(
+                vectors, self.pattern_vectors[indices], device=self.settings["device"]
+            ).cpu()
+            values, patterns = scores.max(dim=1)
+            best = int(values.argmax())
+            score = float(values[best])
+            if score > self.settings["minimum_cosine_similarity"]:
+                return {
+                    **batch[best], "similarity": score,
+                    "pattern": self.patterns[indices[int(patterns[best])]][1],
+                }
+        return None
+
     def match(self, text):
         """
         Rank the first monetary prefixes across sentences using a strict threshold.
@@ -230,19 +270,22 @@ def cached_matcher(settings_json, patterns_json):
 
 def match_targets(text, config):
     """
-    Locate target roles and competing exclusion contexts using configured embeddings.
+    Reject denial matches before locating monetary target and exclusion contexts.
 
     args:
         text: Full normalized judgment.
         config: Effective pipeline configuration.
 
     returns:
-        Best matching source sentence per target or exclusion class.
+        Denial evidence, or best monetary matches per target/exclusion class.
     """
-    if not candidate_sentences(text, config["embedding"]["candidate_keywords"]):
+    if not text.strip():
         return dict.fromkeys(PATTERN_CLASSES)
     matcher = cached_matcher(
         json.dumps(config["embedding"], sort_keys=True),
         json.dumps(config["target_patterns"], sort_keys=True),
     )
+    denial = matcher.match_denial(text)
+    if denial is not None:
+        return {**dict.fromkeys(PATTERN_CLASSES), "judgment-denial": denial}
     return matcher.match(text)

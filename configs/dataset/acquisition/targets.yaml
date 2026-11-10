@@ -6,7 +6,7 @@ embedding:
   max_length: 128 # Longer sentences use all token windows, without dropping the tail.
   minimum_cosine_similarity: 0.7 # Winning score must be strictly greater. If more than one is, highest score wins
 
-  # Context grows rightward from the sentence start; the first accepted prefix wins.
+  # Monetary context stops at the first comma-delimited part containing PLN.
   # Target and exclusion groups compete by similarity; shared stems enable target roles.
   candidate_keywords:
     judgment:
@@ -87,7 +87,7 @@ patterns:
   # Keep distinct constructions, not inflection, word-order or ending variants.
   # Placeholders stand for source text; these are not regular expressions.
   # Exclusion groups compete with target roles before numeric parsing.
-  # Full dismissal of the modeled claim; matcher integration is pending.
+  # Checked against every full sentence before monetary selection, without keyword/PLN filters.
   judgment-denial:
     - "oddala powództwo w całości"
     - "zmienia zaskarżony wyrok w ten sposób że oddala powództwo w całości"
