@@ -92,3 +92,100 @@ def test_additional_constructions_reach_their_configured_group(text, group):
     (candidate,) = target_matching.candidate_sentences(text, keywords)
     assert group in candidate["classes"]
     assert candidate["text"] == text
+
+
+@pytest.mark.parametrize(
+    ("text", "group"),
+    [
+        (
+            "Nakłada na sprawcę obowiązek zapłaty pokrzywdzonemu 900 zł tytułem zadośćuczynienia.",
+            "judgment",
+        ),
+        (
+            "Podwyższa zasądzone zadośćuczynienie do kwoty 18000 zł.",
+            "judgment",
+        ),
+        (
+            "Zasądza 12000 zł na rzecz małoletniego powoda płatne do rąk matki.",
+            "judgment",
+        ),
+        (
+            "Powód dochodzi tylko części roszczenia w wysokości 5000 zł.",
+            "request",
+        ),
+        (
+            "W powództwie wzajemnym pozwany żąda zapłaty 8000 zł.",
+            "request",
+        ),
+        (
+            "Komornik przekazał wierzycielowi wyegzekwowaną należność główną 4200 zł.",
+            "prior_payment",
+        ),
+        (
+            "Po doręczeniu pozwu pozwany zapłacił powodowi 1500 zł.",
+            "prior_payment",
+        ),
+        (
+            "Ściąga z zasądzonego roszczenia 650 zł nieuiszczonych kosztów sądowych.",
+            "procedural_costs",
+        ),
+        (
+            "Po stosunkowym rozdzieleniu kosztów procesu pozwany otrzyma zwrot 350 zł.",
+            "procedural_costs",
+        ),
+        (
+            "Uchyla wyrok zasądzający od pozwanego 30000 zł.",
+            "mixed",
+        ),
+        (
+            "Odrzuca pozew o zapłatę 6000 zł.",
+            "mixed",
+        ),
+        (
+            "Zasądza odsetki ustawowe od kwoty 15000 zł do dnia zapłaty.",
+            "other_payments",
+        ),
+        (
+            "Przyznaje jednorazową kwotę 40000 zł zamiast renty na przyszłość.",
+            "other_payments",
+        ),
+    ],
+)
+def test_extended_role_constructions_pass_keyword_filter(text, group):
+    """Keep distinctive new constructions eligible before semantic ranking.
+
+    args:
+        text: Monetary source construction independent of template wording.
+        group: Target or exclusion category that must participate in ranking.
+
+    returns:
+        None.
+    """
+    from dataset.extraction.model.configuration import load_config
+
+    config = load_config()
+    (candidate,) = target_matching.candidate_sentences(
+        text, config["embedding"]["candidate_keywords"]
+    )
+    assert group in candidate["classes"]
+    assert text[candidate["start"]:candidate["end"]] == text
+
+
+def test_configured_patterns_keep_distinct_normalized_templates():
+    """Prevent identical prepared examples from competing under different roles.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    from dataset.extraction.model.configuration import load_config
+
+    config = load_config()
+    normalized = [
+        " ".join(target_matching.prepare_text(phrase).casefold().split())
+        for phrases in config["target_patterns"].values()
+        for phrase in phrases
+    ]
+    assert len(normalized) == len(set(normalized))
