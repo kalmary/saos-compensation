@@ -15,20 +15,21 @@ saos-compensation/
 │   └── training/                  # model input feature selection
 ├── src/                           # implementation
 │   ├── dataset/                   # dataset preparation
-│   │   ├── acquisition/           # SAOS access, downloads and checkpoints
+│   │   ├── cli/                   # argument parsing and acquisition entry point
+│   │   ├── acquisition/           # resumable downloads, validation and metadata enrichment
 │   │   ├── extraction/            # predictor extraction and validation
 │   │   │   ├── model/             # model configuration, prompts and decision cache
 │   │   │   ├── source/            # source normalization and passage selection
 │   │   │   └── targets/           # monetary parsing and prior-payment extraction
 │   │   ├── embeddings/            # text encoding and target sentence matching
-│   │   ├── storage/               # local records, atomic writes and size limits
-│   │   ├── database/              # PostgreSQL/pgvector ingestion — not implemented
+│   │   ├── storage/               # records, checkpoints, locality snapshots and atomic writes
+│   │   ├── clients/               # HTTP, Basal worker and read-only SQLite integrations
 │   │   └── preprocessing/         # numeric/category encoding and reversible target scaling
 │   ├── architectures/             # regression model definitions — not implemented
 │   ├── training/                  # regression training — not implemented
 │   ├── evaluation/                # regression metrics and error analysis — not implemented
 │   └── inference/                 # compensation prediction — not implemented
-├── tests/                         # automated checks
+├── tests/                         # checks grouped by component, with shared fixtures
 ├── fixtures/                      # development snapshots
 ├── notebooks/                     # optional local experiments
 ├── data/                          # dataset placeholder
@@ -37,6 +38,16 @@ saos-compensation/
 ├── embedding_weights/             # local embedding weight cache
 └── tmp/                           # default acquisition output and locality cache
 ```
+
+## Package boundaries
+
+The installed package is `dataset`, discovered under `src/`. `dataset.cli` parses arguments, delegates acquisition to `dataset.acquisition.pipeline.run`, and handles CLI exit codes. Acquisition, extraction, embeddings and preprocessing remain reusable independently of the command.
+
+`clients/` owns HTTP access, read-only SQLite queries and the Basal model/worker lifecycle. `storage/` owns local records, checkpoints, pending state, locality snapshots and fitted preprocessing artifacts. Court/date enrichment and admission decisions stay in the domain packages. PostgreSQL and S3 access are not implemented.
+
+`run(config, *, extractor=None, record_source=None)` accepts keyword-only runtime dependencies for extraction and source iteration. By default it uses the existing resumable downloader and a shared Basal worker. Tests and other interfaces can supply an async extraction context and a source iterator factory without replacing imported modules. The extraction context yields a callable accepting judgment text and its identifier; the source factory accepts acquisition settings, checkpoint and run ID, and returns a closable iterator. It must preserve the downloader's durable-output/checkpoint contract when used outside tests.
+
+These are ordinary module boundaries and explicit dependencies; no container or interface hierarchy is required.
 
 ## Setup
 
@@ -68,6 +79,8 @@ uv run --no-sync get-data --help
 # Small initial run: at most one dump page, containing up to 100 judgments
 uv run --no-sync get-data --max-pages 1 --download-path tmp/dataset
 ```
+
+The equivalent module entry point is `uv run --no-sync python -m dataset.cli`. Both use the installed `dataset` package from the `src/` layout, without modifying Python import paths.
 
 This command downloads judgments and runs extraction. There is no download-only CLI mode. A page contains all judgment types; local filtering and extraction can leave few or no retained cases.
 
@@ -191,13 +204,23 @@ After syncing the test group:
 uv run --no-sync pytest -q
 ```
 
-Tests cover configuration, acquisition/checkpoints, extraction, monetary parsing, source/leakage checks and embeddings. Local notebook experiments are ignored; their tests skip when legacy inputs are absent.
+Tests are grouped under `tests/acquisition`, `tests/clients`, `tests/storage`, `tests/extraction`, `tests/embeddings`, `tests/preprocessing` and `tests/cli`. Root fixtures share editable configuration and source payloads; component fixtures isolate acquisition output and model caches. Pytest imports tests through importlib, without adding source directories to the import path.
+
+```bash
+uv run --no-sync pytest tests/acquisition tests/storage -q
+uv run --no-sync pytest tests/cli -q
+uv run --no-sync pytest -m "not cuda and not mps" -q
+uv run --no-sync pytest -m cuda -q
+uv run --no-sync pytest -m mps -q
+```
+
+CUDA/MPS markers select small hardware checks, which skip automatically when their backend is unavailable; they do not download models. The `cpu` marker selects the corresponding CPU numeric check. Local notebook experiments live under `tests/experiments`; their tests skip when legacy inputs are absent. They retain their separate notebook-loading setup.
 
 ## Reusable embeddings
 
 ```python
-from src.dataset import load_config
-from src.dataset.embeddings import create_embeddings
+from dataset import load_config
+from dataset.embeddings import create_embeddings
 
 settings = load_config()["embedding"]
 vectors = create_embeddings(["Opis szkody.", "Ograniczenia w pracy."], settings)
@@ -218,10 +241,10 @@ Feature transformations and persistence are implemented directly in `feature_pre
 | `instance`, `court_locality_size` | One-hot category vectors |
 | Target `total` | Training-fitted robust scaling, inverted to PLN for evaluation |
 
-The preprocessing utilities use `configs/training/model_input.yaml` only to select original predictor fields. `load_records()` lives in `src/dataset/preprocessing/io/records.py` and is exported from the package:
+The preprocessing utilities use `configs/training/model_input.yaml` only to select original predictor fields. `load_records()` lives in `src/dataset/storage/records.py` and is exported from the package:
 
 ```python
-from src.dataset.preprocessing import (
+from dataset.preprocessing import (
     FeaturePreprocessor, TargetPreprocessor, load_config, load_records,
 )
 
@@ -247,7 +270,7 @@ This is a utility API example, not a training/inference implementation. Neither 
 
 Feature output contains finite `X`, stable IDs, column names and half-open field-to-column ranges. Fixed rules in `transforms/rules.py` are: year → final two digits divided by ten (2000–2099), count unchanged, prior payment → log1p plus training-fitted robust scaling, nominal categories → one-hot. Missing numbers raise; missing categories get a dedicated column and unseen categories an all-zero block. Target preprocessing separately subtracts the training-target median and divides by the training interquartile range, without log transformation; inverse transformation returns PLN. For [100, 200, 300], the scaled targets are [-1, 0, 1]. Zero-range protection is provided by scikit-learn. Scaling does not establish feature importance.
 
-`io/` handles configuration, input loading and persistence; `transforms/` holds shared numeric helpers and fixed rules. Both artifacts use trusted local pickle files and reject incompatible preprocessing/scikit-learn versions. Feature and target files are independent, with no duplicated target object in the feature artifact. Source/debug records are unchanged. Combining tabular output with embeddings remains unimplemented.
+`preprocessing/io/` handles configuration; `storage/preprocessing.py` persists fitted state; `storage/records.py` loads dataset records; `transforms/` holds shared numeric helpers and fixed rules. Both artifacts use trusted local pickle files and reject incompatible preprocessing/scikit-learn versions. Version-4 artifacts saved with the previous `src.dataset` imports remain loadable. Feature and target files are independent, with no duplicated target object in the feature artifact. Source/debug records are unchanged. Combining tabular output with embeddings remains unimplemented.
 
 ## Current limitations and remaining work
 

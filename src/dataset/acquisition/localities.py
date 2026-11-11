@@ -1,18 +1,7 @@
 """Official court-seat locality matching and population classes."""
 
-import hashlib
-import json
 import re
-import sqlite3
-import tempfile
-from datetime import datetime, timezone
-from pathlib import Path
 
-import requests
-
-from ..storage.files import write_bytes, write_json
-
-SOURCE = "https://opendata.geoportal.gov.pl/bdot10k/schemat2021/GPKG/OT_ADMS_P.gpkg"
 
 def locality_class(kind, population):
     """
@@ -40,56 +29,6 @@ def locality_class(kind, population):
         if population < boundary:
             return label
     return "city_at_least_500000"
-
-
-def load_localities(directory=None, timeout=30):
-    """
-    Read official locality attributes and verify retained snapshot integrity.
-
-    args:
-        directory: Input or output directory for this operation.
-        timeout: Connection/read timeout in seconds.
-
-    returns:
-        Locality rows and snapshot provenance.
-    """
-    with tempfile.TemporaryDirectory() as temporary:
-        path = (
-            Path(directory) / "OT_ADMS_P.gpkg"
-            if directory
-            else Path(temporary) / "OT_ADMS_P.gpkg"
-        )
-        path.parent.mkdir(parents=True, exist_ok=True)
-        metadata_path = path.with_suffix(".meta.json")
-        if path.exists() and metadata_path.exists():
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            if (
-                metadata["url"] != SOURCE
-                or hashlib.sha256(path.read_bytes()).hexdigest() != metadata["sha256"]
-            ):
-                raise ValueError("GUGiK snapshot integrity check failed")
-        else:
-            with requests.get(SOURCE, timeout=timeout) as response:
-                response.raise_for_status()
-                content = response.content
-            write_bytes(path, content)
-            metadata = {
-                "url": SOURCE,
-                "sha256": hashlib.sha256(content).hexdigest(),
-                "acquired_at": datetime.now(timezone.utc).isoformat(),
-                "population_year": None,
-            }
-            write_json(metadata_path, metadata)
-        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as connection:
-            if connection.execute("pragma quick_check").fetchone()[0] != "ok":
-                raise ValueError("Incomplete or damaged GUGiK GeoPackage")
-            connection.row_factory = sqlite3.Row
-            rows = connection.execute(
-                "select NAZWA, RODZAJ, LICZBAMIESZKANCOW, IDENTYFIKATORSIMC, "
-                "IDENTYFIKATORTERC, IDENTYFIKATORPRNG, WERSJA from OT_ADMS_P "
-                "where RODZAJ in ('miasto', 'wieś')"
-            ).fetchall()
-        return [dict(row) for row in rows], metadata
 
 
 def match_locality(court_name, rows, morphology):

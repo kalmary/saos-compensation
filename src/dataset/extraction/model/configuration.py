@@ -41,7 +41,7 @@ def load_config(directory=None, overrides=None):
     returns:
         Effective validated configuration.
     """
-    from ...acquisition.api import search_settings
+    from ...acquisition.settings import search_settings
 
     directory = (
         Path(directory)

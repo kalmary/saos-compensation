@@ -1,1 +1,1 @@
-"""Preprocessing configuration, local input records and fitted-state storage."""
+"""Preprocessing configuration loading and validation."""

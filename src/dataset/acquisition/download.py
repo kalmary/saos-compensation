@@ -5,14 +5,46 @@ import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-import requests
-
+from ..clients import api
+from ..clients.api import BASE_URL, load_divisions, open_session
 from ..extraction.source.text import MONEY, extract_text
-from ..storage.files import remove_tree, write_json
-from .api import BASE_URL, load_divisions, search_pages, validate_judgment
-from .checkpoints import record_complete
+from ..storage.checkpoints import save_checkpoint
+from ..storage.files import remove_tree
+from ..storage.records import record_complete
+from .settings import search_settings
+from .validation import validate_judgment
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def search_pages(
+    config, directory=None, today=None, session=None, start_page=0, params=None
+):
+    """
+    Yield dump pages starting at the saved pagination position.
+
+    args:
+        config: Effective pipeline or acquisition settings.
+        directory: Input or output directory for this operation.
+        today: Date used to anchor the acquisition range.
+        session: Reusable HTTP session, when supplied.
+        start_page: First page number to request.
+        params: Effective SAOS query parameters.
+
+    returns:
+        Iterator of page-number/response pairs.
+    """
+    _, _, defaults = search_settings(config, today)
+    params = defaults if params is None else params
+    page = start_page
+    while config["max_pages"] == 0 or page < config["max_pages"]:
+        result = api.search_judgments(
+            {**params, "pageNumber": page}, directory, session, config["timeout"]
+        )
+        yield page, result
+        if not any(link["rel"] == "next" for link in result["links"]):
+            break
+        page += 1
 
 
 def download(config, checkpoint, run_id):
@@ -31,7 +63,6 @@ def download(config, checkpoint, run_id):
     start = date.fromisoformat(params["judgmentStartDate"])
     end = date.fromisoformat(params["judgmentEndDate"])
     directory = ROOT / config["download_path"]
-    checkpoint_path = directory / "checkpoint.json"
     raw = None
     manifest = {
         "started_at": datetime.now(timezone.utc).isoformat(),
@@ -50,7 +81,7 @@ def download(config, checkpoint, run_id):
     seen = set()
     divisions = None
     try:
-        with requests.Session() as session:
+        with open_session() as session:
             for number, page in search_pages(
                 config, None, end, session, checkpoint["page"], params
             ):
@@ -60,7 +91,7 @@ def download(config, checkpoint, run_id):
                         "SAOS page contents changed since the checkpoint; use a different download_path"
                     )
                 checkpoint["page_ids"] = ids
-                write_json(checkpoint_path, checkpoint)
+                save_checkpoint(directory, checkpoint)
                 manifest["pages"] += 1
                 first = checkpoint["next_item"]
                 for index, item in enumerate(page["items"]):
@@ -127,7 +158,7 @@ def download(config, checkpoint, run_id):
                         "source_url": f"{BASE_URL}/judgments/{identifier}",
                     }
                     record["source_payload"] = item
-                    write_json(checkpoint_path, checkpoint)
+                    save_checkpoint(directory, checkpoint)
                     manifest["accepted"] += 1
                     yield record
                     # Advance only after the consumer has durably saved the final record.
@@ -138,14 +169,14 @@ def download(config, checkpoint, run_id):
                             f"Cannot advance checkpoint without a completed record: {identifier}"
                         )
                     checkpoint["next_item"] = index + 1
-                    write_json(checkpoint_path, checkpoint)
+                    save_checkpoint(directory, checkpoint)
                 checkpoint.update(
                     page=number + 1,
                     next_item=0,
                     page_ids=None,
                     complete=not any(link["rel"] == "next" for link in page["links"]),
                 )
-                write_json(checkpoint_path, checkpoint)
+                save_checkpoint(directory, checkpoint)
         manifest["complete"] = True
     except Exception as error:
         manifest["error"] = str(error)
