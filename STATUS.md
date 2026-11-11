@@ -6,11 +6,17 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
-This structural layer is stacked on target-search and preserves its version-28 fragment expansion. Packaging, CLI, client/storage separation and component tests are integrated without changing that matcher policy.
+PR #53, refactor/acquisition-structure, integrates main after target-search PR #48 landed and preserves its version-28 fragment expansion. Packaging, CLI, client/storage separation and component tests are integrated without changing that matcher policy.
 
 Acquisition restructuring now separates CLI, domain orchestration, external clients and persistence. Basal startup is isolated in clients/basal.py and runtime extraction/source dependencies are injectable. Tests are organized by component with shared configuration, source, output and model-cache fixtures; pytest uses importlib mode and CPU/CUDA/MPS hardware markers. Latest validation: 463 passed, five skipped (two unavailable accelerator checks plus three existing optional inputs). A wheel built successfully and all 46 submodules plus its installed get-data entry point passed an outside-checkout smoke check. Live SAOS access and model inference remain unverified; ZenML is deferred.
 
-Current branch: refactor/acquisition-rebuild. Packaging/CLI and client/storage checkpoints have been committed and pushed. Runtime dependency injection, the modular test suite and documentation are complete. Previous preprocessing work is recorded in PR #49 (https://github.com/kalmary/saos-compensation/pull/49).
+Current branch: refactor/acquisition-structure. Runtime dependency injection, the modular test suite and documentation are complete. Preprocessing PR #49 and target-search PR #48 have landed on main. Runtime validation of this integration remains pending because uv and the repository .venv are unavailable in this checkout.
+
+Target extraction version 28 ranks keyword-bearing comma seeds from full sentences containing PLN evidence and grows money-free target seeds right first, then left, retrying right after accepted left growth. Improving money-free spans may start below threshold; final monetary spans must strictly exceed 0.7 and preserve target-role/exclusion competition. Right-added fragments containing multiple PLN amounts are cut immediately after their first amount before eligibility/scoring; left growth is unchanged. All 438 offline tests pass with three skips. Prior cached CPU checks recovered three comma-separated example awards and preserved selected amounts on five stored cases. Older extraction checkpoints require a fresh output path; broader labeled accuracy remains unmeasured.
+
+Model caches under basal_weights/ and embedding_weights/ are ignored, including __init__.py; only their .gitkeep placeholders remain tracked. Local files are preserved.
+
+Local basal_weights/ and embedding_weights/ directories are ignored as downloaded model caches. Notebook files matching the existing ignore rule are no longer tracked; all local files are preserved.
 
 Implemented separate FeaturePreprocessor and TargetPreprocessor utilities. Feature validation, transformation and persistence now live together in feature_preprocessor.py; the delegating features.py layer was removed. Fixed rules encode numeric/category predictors and independently robust-scale targets without log transformation. Each has fit/transform/save/load; target inverse_transform restores PLN. Independent artifacts default to checkpoints/preprocessing/feature_preprocessor.pkl and target_preprocessor.pkl (format version 4). load_records is a raw-record/ID/optional-valid-target reader only; future callers own grouped splitting and training/inference orchestration. configs/training/model_input.yaml is the sole ordered original feature list, with no scaling controls; the former dataset-path copy was removed. The previous full suite passed 451 tests with three skips; all 36 focused preprocessing tests pass after consolidating the feature implementation. Embedding concatenation, splitting, training and inference remain unimplemented.
 
@@ -18,7 +24,7 @@ Created GitHub issue #46 for reproducible Rysy V100 container execution with dri
 
 Remote branch cleanup is complete: only main and the eight stack/get-data/ branches remain. Removed 30 obsolete remote branches after the earlier refinement-p4 deletion; all eight PRs remain open with their original bases and heads. Local branches preserve the previous history.
 
-The acquisition implementation is organized into eight feature-sized pull requests, chained from main in dependency order and registered as one native GitHub stack. Related components are grouped into complete review units, with get_data/ titles and ordered stack/get-data/ branches. Each layer includes its focused tests; original branches preserve the previous history. The final application, configuration and lockfile match the published extraction-version-26 snapshot. Offline validation in a separate locked environment covers every intermediate layer; live API and model inference are not rerun for the PR rebuild.
+The acquisition implementation is organized into eight feature-sized pull requests, chained from main in dependency order and registered as one native GitHub stack. Related components are grouped into complete review units, with get_data/ titles and ordered stack/get-data/ branches. Each layer includes its focused tests; original branches preserve the previous history. The merged acquisition baseline is the published extraction-version-26 snapshot; this branch advances target matching to version 28. Offline validation in a separate locked environment covers every intermediate layer; live API and model inference are not rerun for the PR rebuild.
 
 ## Next steps
 
@@ -28,10 +34,6 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-11-01: Replaced damage-specific admission with at least one accepted source-backed configured text feature. Removed required_fields from features.yaml and the requirement to select damage, while retaining nonempty question mappings. Metadata does not count; target, source, relevance and leakage checks remain active. Updated normal/debug pipeline tests for cause-only, damage-only, limitations-only and no-text records. Advanced extractor to version 23, requiring a fresh output path for older checkpoints. Validation: 367 tests passed, three skipped; no live inference or existing-record rewrite.
-
-- 2026-11-01: Moved SentenceEncoder and encoder-only validation into embeddings/encoding.py and exported create_embeddings(texts, settings) from src.dataset.embeddings. Target matching reuses the function with its existing normalization and pattern cache. Added input/settings validation and lazy reuse keyed only by encoder settings, preserving long-text window pooling and vector order. Validation: 380 tests passed, three skipped; cached CPU inference produced exactly identical 2-by-384 float32 vectors before/after extraction. MPS/CUDA and Basal inference were not rerun.
 
 - 2026-11-01: Split PR #5 at 20a33fb using an exact-SHA force-with-lease after pushing backup/inspect-data-before-stack-20261101. Retained the existing freature/inspect-data/refactor branch and opened PR #6 against feature/inspect-data, preserving all 17 existing November 1 commits and PR #5 history. Verified branch ancestry, clean application files and both open PR bases. No application source changes, tests or inference runs; a documentation-only commit records this operational change.
 
@@ -128,3 +130,7 @@ The acquisition implementation is organized into eight feature-sized pull reques
 - 2026-11-10: Integrated feature/model-preprocessing as the base of target-search for stacked review. Retained both implementations and reconciled the status log without changing version-28 target behavior. Full offline validation passed: 474 tests, three skipped. No source records or checkpoints were rewritten.
 
 - 2026-11-10: Integrated target-search into the structural acquisition layer, preserving version-28 matcher behavior while adapting its growth tests to installed dataset imports and the component test layout. Retained packaging compatibility, clients/storage separation and dependency injection. Full offline validation passed: 487 tests, four skipped. Source artifacts are unchanged.
+
+- 2026-11-11: Resolved STATUS.md conflicts while rebasing refactor/target-search onto 7ae36eb, which includes merged preprocessing PR #49. Preserved both implementations and their relevant status history, removed obsolete feasibility-summary text and retained only the latest 50 log entries. Application source and tests applied without conflicts; git diff --check passed. Tests could not run because uv and the repository .venv are absent. No remote changes were made; runtime validation and publishing the rebased branch remain pending.
+
+- 2026-11-11: Integrated main at 3dac28a into refactor/acquisition-structure to resolve PR #53 conflicts after PR #48 was squash-merged. Reconciled STATUS.md and retained the latest 50 log entries. Omitted a duplicate legacy-path growth test after confirming it is identical to tests/embeddings/test_sentence_growth.py apart from the migrated package namespace. Preserved source behavior, installed-package tests and branch history. Runtime tests remain blocked by missing uv and .venv; CI validation remains pending.
