@@ -14,6 +14,7 @@ dependencies = [
     "numpy>=2.5.4",
     "pyyaml>=6.0.3",
     "requests>=2.34.2",
+    "scikit-learn>=1.5,<2",
     "torch>=2.11",
     "transformers>=4.41",
 ]
