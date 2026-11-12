@@ -105,10 +105,10 @@ def test_candidate_filter_preserves_offsets_and_does_not_match_word_interiors():
 
 
 @pytest.mark.parametrize("separator", [", ", ","])
-def test_candidate_filter_splits_comma_clauses_without_splitting_decimal_amounts(
+def test_candidate_filter_grows_prefixes_without_splitting_decimal_amounts(
     separator,
 ):
-    """Separate monetary roles while preserving decimal amounts and source offsets.
+    """Keep a fixed sentence start while preserving decimal amounts and offsets.
 
     args:
         separator: Clause boundary with or without whitespace.
@@ -121,14 +121,16 @@ def test_candidate_filter_splits_comma_clauses_without_splitting_decimal_amounts
 
     assert [row["text"] for row in rows] == [
         "Zasądza 10 000,50 zł,",
-        "powód żądał 20 000,75 zł.",
     ]
-    assert [row["classes"] for row in rows] == [("judgment",), ("request",)]
+    assert [row["classes"] for row in rows] == [
+        ("judgment",),
+    ]
+    assert rows[0]["start"] == text.index("Zasądza")
     assert all(text[row["start"] : row["end"]] == row["text"] for row in rows)
 
 
-def test_money_free_keyword_seed_retains_sentence_bounds_without_changing_feature_splitting():
-    """Allow a keyword seed to recover money later without changing feature sentences.
+def test_prefix_keeps_earlier_keyword_and_leaves_feature_sentences_intact():
+    """Retain an earlier role cue while leaving feature sentence splitting unchanged.
 
     args:
         None
@@ -139,9 +141,9 @@ def test_money_free_keyword_seed_retains_sentence_bounds_without_changing_featur
     from dataset.extraction.source.text import sentence_fragments
 
     text = "Zasądza świadczenie, rachunek opiewa na 100 zł."
-    (seed,) = target_matching.candidate_sentences(text, KEYWORDS)
-    assert seed["text"] == "Zasądza świadczenie,"
-    assert (seed["sentence_start"], seed["sentence_end"]) == (0, len(text))
+    (candidate,) = target_matching.candidate_sentences(text, KEYWORDS)
+    assert candidate["text"] == text
+    assert candidate["classes"] == ("judgment",)
     assert [row["text"] for row in sentence_fragments({"text": text, "start": 0})] == [
         text
     ]
@@ -223,3 +225,49 @@ def test_exclusion_keywords_also_select_sentences_before_embedding(text, group, 
     (row,) = target_matching.candidate_sentences(text, groups)
     assert row["classes"] == (group,)
     assert text[row["start"] : row["end"]] == text
+
+
+@pytest.mark.parametrize(
+    ("text", "classes"),
+    [
+        (
+            "Powód żąda zapłaty, po zakończeniu leczenia, kwoty 20000 zł, w tym 10000 zł odszkodowania.",
+            ("request",),
+        ),
+        (
+            "Koszty procesu, po ich wzajemnym rozliczeniu, wynoszą 470,50 zł, należne stronie pozwanej.",
+            ("procedural_costs",),
+        ),
+    ],
+)
+def test_growing_prefixes_preserve_earlier_request_and_cost_roles(text, classes):
+    """Keep role cues before several commas when monetary evidence appears later.
+
+    args:
+        text: Sentence with its role before the first monetary clause.
+        classes: Eligible roles retained in every growing prefix.
+
+    returns:
+        None.
+    """
+    rows = target_matching.candidate_sentences(text, KEYWORDS)
+    assert len(rows) == 1
+    assert {row["start"] for row in rows} == {0}
+    assert rows[0]["classes"] == classes
+    assert text.startswith(rows[0]["text"])
+    assert rows[0]["text"].endswith("zł,")
+    assert all(text[row["start"]:row["end"]] == row["text"] for row in rows)
+
+
+def test_first_monetary_prefix_without_keywords_does_not_borrow_later_role():
+    """Stop at the first monetary part even when only later parts contain role cues.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    assert target_matching.candidate_sentences(
+        "Kwota 100 zł, którą sąd zasądza powodowi.", KEYWORDS
+    ) == []

@@ -50,7 +50,7 @@ class Encoder:
         Keep controlled sentence vectors and track encoding batches.
 
         args:
-            vectors: Embeddings returned for source sentences.
+            vectors: Source vectors in batch order or keyed by normalized text.
 
         returns:
             None.
@@ -69,14 +69,17 @@ class Encoder:
             Float32 embedding matrix.
         """
         self.calls.append(texts)
-        return torch.tensor(
-            torch.eye(len(PATTERN_CLASSES)).tolist()
-            if len(self.calls) == 1
-            else [
-                vector + [0.0] * (len(PATTERN_CLASSES) - len(vector))
-                for vector in self.vectors
-            ]
+        if len(self.calls) == 1:
+            return torch.eye(len(PATTERN_CLASSES))
+        vectors = (
+            [self.vectors[text] for text in texts]
+            if isinstance(self.vectors, dict)
+            else self.vectors
         )
+        return torch.tensor([
+            vector + [0.0] * (len(PATTERN_CLASSES) - len(vector))
+            for vector in vectors
+        ])
 
 
 def test_highest_match_wins_and_request_is_optional():
@@ -254,3 +257,158 @@ def test_exclusion_wins_an_exact_tie_instead_of_admitting_a_target():
     result = matcher.match("Zasądza 100 zł kosztów.")
     assert result["judgment"] is None
     assert result["procedural_costs"] is not None
+
+
+def test_prefix_without_amount_grows_without_embedding_and_stops_after_match():
+    """Encode the first monetary prefix and skip its suffix after acceptance.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    prefix = "Żąda zapłaty, po zakończeniu leczenia, kwoty 100 zł,"
+    encoder = Encoder({prepare_text(prefix): [0, 1]})
+    result = TargetMatcher(SETTINGS, PATTERNS, encoder).match(
+        prefix + " tytułem odszkodowania."
+    )
+    assert result["request"]["text"] == prefix
+    assert result["judgment"] is None
+    assert encoder.calls[1:] == [[prepare_text(prefix)]]
+
+
+@pytest.mark.parametrize("initial_score", [0.6, 0.7])
+def test_first_monetary_prefix_stops_growth_even_without_a_strict_match(initial_score):
+    """Reject a below-threshold monetary prefix without examining its suffix.
+
+    args:
+        initial_score: First-prefix score below or exactly at the strict threshold.
+
+    returns:
+        None.
+    """
+    prefix = "Zasądza 100 zł,"
+    sentence = prefix + " tytułem zadośćuczynienia."
+    encoder = Encoder({
+        prepare_text(prefix): [initial_score, -math.sqrt(1 - initial_score**2)],
+        prepare_text(sentence): [1, 0],
+    })
+    result = TargetMatcher(SETTINGS, PATTERNS, encoder).match(sentence)
+    assert result["judgment"] is None
+    assert encoder.calls[1:] == [[prepare_text(prefix)]]
+
+
+def test_first_monetary_prefix_does_not_examine_later_context():
+    """Stop at the first monetary part without embedding longer prefixes.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    prefix = "Zasądza 100 zł,"
+    encoder = Encoder({prepare_text(prefix): [0.8, 0.6]})
+    result = TargetMatcher(SETTINGS, PATTERNS, encoder).match(
+        prefix + " wraz z odsetkami od 50 zł."
+    )
+    assert result["judgment"]["text"] == prefix
+    assert encoder.calls[1:] == [[prepare_text(prefix)]]
+
+
+def test_exclusion_stops_its_sentence_without_stopping_other_sentences():
+    """Prevent a cost suffix from becoming an award while retaining another award.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    prefix = "Koszty procesu wynoszą 100 zł,"
+    award = "Zasądza 300 zł."
+    encoder = Encoder({
+        prepare_text(prefix): [0, 0, 0, 1],
+        prepare_text(award): [1, 0],
+    })
+    text = prefix + " zasądza się ich zwrot.\n" + award
+    result = TargetMatcher(SETTINGS, PATTERNS, encoder).match(text)
+    assert result["procedural_costs"]["text"] == prefix
+    assert result["judgment"]["text"] == award
+    assert encoder.calls[1:] == [[prepare_text(prefix), prepare_text(award)]]
+
+
+def test_unmatched_prefixes_end_at_the_sentence_boundary():
+    """Exhaust a sentence without crossing into the next sentence for context.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    prefix = "Zasądza 100 zł,"
+    sentence = prefix + " po zakończeniu leczenia."
+    encoder = Encoder({
+        prepare_text(prefix): [0.6, 0.8],
+        prepare_text(sentence): [0.6, 0.8],
+    })
+    result = TargetMatcher(SETTINGS, PATTERNS, encoder).match(
+        sentence + " Inny rachunek wynosi 200 zł."
+    )
+    assert all(match is None for match in result.values())
+    assert encoder.calls[1:] == [[prepare_text(prefix)]]
+
+
+def test_recipient_list_before_comma_reaches_amount_parser(monkeypatch):
+    """Retain named beneficiaries when the amount occurs after their comma-separated list.
+
+    args:
+        monkeypatch: Supply the controlled matcher result to the monetary parser.
+
+    returns:
+        None.
+    """
+    import asyncio
+
+    from dataset.extraction.targets import target_extraction
+
+    text = "Zasądza na rzecz A. B., C. D. kwoty po 100 zł."
+    encoder = Encoder({prepare_text(text): [1, 0]})
+    matches = TargetMatcher(SETTINGS, PATTERNS, encoder).match(text)
+    monkeypatch.setattr(target_extraction, "match_targets", lambda *args: matches)
+    result = asyncio.run(
+        target_extraction.extract_targets(None, text, {"embedding": SETTINGS})
+    )
+    assert matches["judgment"]["text"] == text
+    assert result["confirmed"]
+    assert result["injured_party_count"] == 2
+    assert result["suma"] == "200"
+
+
+@pytest.mark.parametrize("scores", [(0.8, 0.95, 0.75), (0.95, 0.8, 0.75)])
+def test_best_monetary_prefix_wins_regardless_of_score_order(scores):
+    """Compare all sentence candidates without requiring monotonically rising scores.
+
+    args:
+        scores: Controlled judgment similarities in source order.
+
+    returns:
+        None.
+    """
+    prefixes = [
+        f"Zasądza {kind}, w kwocie 100 zł,"
+        for kind in ("świadczenie", "odszkodowanie", "zadośćuczynienie")
+    ]
+    encoder = Encoder({
+        prepare_text(prefix): [score, -math.sqrt(1 - score**2)]
+        for prefix, score in zip(prefixes, scores, strict=True)
+    })
+    text = "\n".join(prefix + " po rozpoznaniu sprawy." for prefix in prefixes)
+    result = TargetMatcher(SETTINGS, PATTERNS, encoder).match(text)
+    expected = prefixes[scores.index(max(scores))]
+    assert result["judgment"]["text"] == expected
+    assert result["judgment"]["similarity"] == pytest.approx(max(scores))
+    assert text[result["judgment"]["start"]:result["judgment"]["end"]] == expected
+    assert encoder.calls[1:] == [[prepare_text(prefix) for prefix in prefixes]]

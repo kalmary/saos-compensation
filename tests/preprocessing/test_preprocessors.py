@@ -6,7 +6,7 @@ import json
 import numpy as np
 import pytest
 
-from dataset.preprocessing import FeaturePreprocessor, TargetPreprocessor, load_config, load_records
+from dataset.preprocessing import FeaturePreprocessor, TargetPreprocessor, load_records
 
 
 @pytest.fixture
@@ -166,17 +166,16 @@ def test_local_input_filtering_and_prediction_without_awards(tmp_path):
         load_records(tmp_path, include_targets=True)
 
 
-def test_public_yaml_and_nonnegative_logarithm(project_root):
+def test_nonnegative_logarithm(settings):
     """Use explicit per-field policies and reject invalid logarithmic inputs.
 
     args:
-        project_root: Repository configuration and fixture root.
-        None.
+        settings: Independent feature allowlist.
 
     returns:
         None.
     """
-    config = load_config(project_root / "configs/training/model_input.yaml")
+    config = settings
     records = [{"judgment_year": 2016, "injured_party_count": 1, "prior_payment": 0,
                 "instance": "pierwsza", "court_locality_size": "not_available"}]
     model = FeaturePreprocessor().fit(records, config)
@@ -228,18 +227,16 @@ def test_yaml_rejects_preprocessing_overrides(settings, override):
         FeaturePreprocessor().fit([], settings)
 
 
-def test_year_digits_are_fixed_and_keep_column_mapping(project_root, tmp_path):
+def test_year_digits_are_fixed_and_keep_column_mapping(tmp_path):
     """Encode year digits independently of the observed training-year range.
 
     args:
-        project_root: Repository configuration and fixture root.
         tmp_path: Temporary fitted-state destination.
 
     returns:
         None.
     """
-    config = load_config(project_root / "configs/training/model_input.yaml")
-    config["feature_fields"] = ["judgment_year"]
+    config = {"feature_fields": ["judgment_year"]}
     model = FeaturePreprocessor().fit([{"judgment_year": 2016}], config)
     years = [2000, 2009, 2018, 2019, 2020, 2025, 2099]
     records = [{"judgment_year": year} for year in years]
