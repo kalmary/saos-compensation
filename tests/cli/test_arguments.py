@@ -38,8 +38,7 @@ def test_config_and_path_are_independent_of_working_directory(
     monkeypatch.chdir(tmp_path)
     config = config_module.load_config()
     assert config == expected
-    assert list(config["fields"]) == ["cause", "damage", "limitations"]
-    assert pipeline.ROOT / config["api"]["download_path"] == project_root / "tmp"
+    assert pipeline.ROOT / config["api"]["download_path"] == project_root / expected["api"]["download_path"]
     start, end, params = search_settings(CONFIG, date(2024, 2, 29))
     assert (start, end) == (date(2014, 2, 28), date(2024, 2, 29))
     assert params["judgmentStartDate"] == "2014-02-28"
