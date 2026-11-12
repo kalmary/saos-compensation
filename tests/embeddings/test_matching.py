@@ -41,6 +41,7 @@ PATTERNS = {
     "procedural_costs": ["zwrot kosztów procesu {amount}"],
     "mixed": ["żądał więcej, zasądzono {amount}"],
     "other_payments": ["odsetki wynoszą {amount}"],
+    "judgment-denial": ["oddala powództwo w całości"],
 }
 
 

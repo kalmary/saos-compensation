@@ -120,6 +120,12 @@ async def extract_targets(server, text, config):
         "target_matches": matches,
         "status": "no matching judgment sentence",
     }
+    denial = matches.get("judgment-denial")
+    if denial is not None:
+        if text[denial["start"]:denial["end"]] != denial["text"]:
+            raise ValueError("Selected denial sentence does not match its source")
+        result.update(denied=True, status="judgment denied")
+        return result
     selected = matches["judgment"]
     if selected is None:
         return result

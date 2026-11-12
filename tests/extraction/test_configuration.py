@@ -45,3 +45,22 @@ def test_invalid_acquisition_configuration_is_rejected(
     path.write_text(yaml.safe_dump(settings))
     with pytest.raises(ValueError):
         configuration.load_config(config_directory)
+
+
+@pytest.mark.parametrize("phrases", [[], [" "], ["oddala {unknown}"]])
+def test_invalid_denial_patterns_fail_before_inference(config_directory, phrases):
+    """Validate the active denial category before any model is initialized.
+
+    args:
+        config_directory: Isolated acquisition YAML directory.
+        phrases: Invalid denial template list.
+
+    returns:
+        None.
+    """
+    path = config_directory / "targets.yaml"
+    settings = configuration.read_config(path)
+    settings["patterns"]["judgment-denial"] = phrases
+    path.write_text(yaml.safe_dump(settings, allow_unicode=True))
+    with pytest.raises(ValueError, match="nonempty|Unknown"):
+        configuration.load_config(config_directory)

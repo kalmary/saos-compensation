@@ -149,9 +149,9 @@ def test_prefix_keeps_earlier_keyword_and_leaves_feature_sentences_intact():
     ]
 
 
-def test_no_candidates_does_not_load_the_embedding_model(monkeypatch):
+def test_empty_text_does_not_load_the_embedding_model(monkeypatch):
     """
-    Return missing matches without loading weights for irrelevant input.
+    Return missing matches without loading weights when there is no text to scan.
 
     args:
         monkeypatch: Scoped model-factory replacement.
@@ -166,7 +166,7 @@ def test_no_candidates_does_not_load_the_embedding_model(monkeypatch):
     )
     config = {"embedding": {"candidate_keywords": KEYWORDS}}
     assert target_matching.match_targets(
-        "Zasądza świadczenie. Inny rachunek: 100 zł.", config
+        " \n ", config
     ) == dict.fromkeys(target_matching.PATTERN_CLASSES)
 
 

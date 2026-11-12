@@ -210,3 +210,60 @@ def test_completed_checkpoint_does_not_start_extraction(output_root, fake_extrac
     asyncio.run(pipeline.run(config, extractor=fake_extractor.context))
     assert (directory / "checkpoint.json").read_bytes() == original
     assert not fake_extractor.stopped
+
+
+@pytest.mark.parametrize("debug", [False, True])
+def test_denied_case_is_discarded_even_with_text_features(
+    output_root, fake_extractor, record_source, monkeypatch, capsys, debug
+):
+    """Discard denied cases and pending state without writing basic or debug files.
+
+    args:
+        output_root: Isolated output root.
+        fake_extractor: Controlled extraction context.
+        record_source: One-judgment source iterator.
+        monkeypatch: Replacements forbidding post-rejection enrichment and export.
+        capsys: Captured rejection summary.
+        debug: Whether rejected debug attempts would otherwise be retained.
+
+    returns:
+        None.
+    """
+    config = config_module.load_config(overrides={"debug": debug})
+    config["api"]["max_gib"] = 0
+    config["metadata_fields"] = []
+    config["system_one"]["device"] = config["embedding"]["device"] = "cpu"
+    field = next(iter(config["fields"]))
+
+    async def extract(text, identifier):
+        """Return an explicitly denied case with an otherwise populated predictor.
+
+        args:
+            text: Original judgment text.
+            identifier: Stable source identifier.
+
+        returns:
+            Denied extraction result that must never reach export.
+        """
+        return {
+            "id": identifier,
+            "award": {"denied": True, "confirmed": False},
+            "features": {field: text},
+            "evidence": {field: [{"start": 0, "end": len(text)}]},
+        }
+
+    fake_extractor.extract = extract
+    monkeypatch.setattr(
+        pipeline, "add_metadata_features",
+        lambda *args: pytest.fail("Denied case must not be enriched"),
+    )
+    monkeypatch.setattr(
+        pipeline, "write_result",
+        lambda *args: pytest.fail("Denied case must not be saved"),
+    )
+    asyncio.run(pipeline.run(config, extractor=fake_extractor.context, record_source=record_source))
+    assert not (output_root / config["api"]["download_path"] / "42").exists()
+    output = capsys.readouterr().out
+    assert "Rejected judgment 42: judgment denied" in output
+    assert '"rejected_records": 1' in output
+    assert fake_extractor.stopped
