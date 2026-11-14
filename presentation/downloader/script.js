@@ -96,7 +96,8 @@ fullscreen.addEventListener('click', () => {
 });
 document.addEventListener('fullscreenchange', () => { fullscreen.textContent = document.fullscreenElement ? 'Opuść pełny ekran' : 'Pełny ekran'; });
 document.addEventListener('keydown', (event) => {
-  if (event.target.closest('input, textarea, select, button, [contenteditable="true"]') || document.querySelector('dialog[open]')) return;
+  if (event.target.closest('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]')) return;
+  if (event.key === ' ' && event.target.closest('button')) return;
   const keys = { ArrowRight: current + 1, ' ': current + 1, PageDown: current + 1, ArrowLeft: current - 1, PageUp: current - 1, Home: 0, End: slides.length - 1 };
   if (Object.hasOwn(keys, event.key)) { event.preventDefault(); showSlide(keys[event.key]); }
 });
