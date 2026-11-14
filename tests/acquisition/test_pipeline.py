@@ -107,7 +107,7 @@ def test_pipeline_writes_separate_outputs_and_closes_extractor(
         assert "final award verification not run" in output
     directory = tmp_path / "tmp"
     path = directory / "42"
-    if sparse_features or ((low_confidence or missing_target) and not debug):
+    if text_field != "damage" or sparse_features or ((low_confidence or missing_target) and not debug):
         assert not path.exists()
         assert fake_extractor.stopped
         return
@@ -213,16 +213,15 @@ def test_completed_checkpoint_does_not_start_extraction(output_root, fake_extrac
 
 
 @pytest.mark.parametrize("debug", [False, True])
-def test_denied_case_is_discarded_even_with_text_features(
-    output_root, fake_extractor, record_source, monkeypatch, capsys, debug
+def test_denied_case_saves_zero_with_damage(
+    output_root, fake_extractor, record_source, capsys, debug
 ):
-    """Discard denied cases and pending state without writing basic or debug files.
+    """Save denied cases with valid zero targets and remove pending state.
 
     args:
         output_root: Isolated output root.
         fake_extractor: Controlled extraction context.
         record_source: One-judgment source iterator.
-        monkeypatch: Replacements forbidding post-rejection enrichment and export.
         capsys: Captured rejection summary.
         debug: Whether rejected debug attempts would otherwise be retained.
 
@@ -233,7 +232,7 @@ def test_denied_case_is_discarded_even_with_text_features(
     config["api"]["max_gib"] = 0
     config["metadata_fields"] = []
     config["system_one"]["device"] = config["embedding"]["device"] = "cpu"
-    field = next(iter(config["fields"]))
+    field = "damage"
 
     async def extract(text, identifier):
         """Return an explicitly denied case with an otherwise populated predictor.
@@ -243,27 +242,29 @@ def test_denied_case_is_discarded_even_with_text_features(
             identifier: Stable source identifier.
 
         returns:
-            Denied extraction result that must never reach export.
+            Zero-target result with safe damage evidence.
         """
         return {
             "id": identifier,
-            "award": {"denied": True, "confirmed": False},
+            "award": {
+                "denied": True, "confirmed": True, "suma": "0",
+                "target_matches": {"judgment-denial": {"similarity": 0.9}},
+            },
+            "instance": {"value": "pierwsza"},
             "features": {field: text},
             "evidence": {field: [{"start": 0, "end": len(text)}]},
+            "description_reviews": [{
+                "start": 0, "end": len(text),
+                "answers": {"wyciek": {"noul": 0.01}, "fit_damage": {"noul": 0.9}},
+            }],
         }
 
     fake_extractor.extract = extract
-    monkeypatch.setattr(
-        pipeline, "add_metadata_features",
-        lambda *args: pytest.fail("Denied case must not be enriched"),
-    )
-    monkeypatch.setattr(
-        pipeline, "write_result",
-        lambda *args: pytest.fail("Denied case must not be saved"),
-    )
     asyncio.run(pipeline.run(config, extractor=fake_extractor.context, record_source=record_source))
-    assert not (output_root / config["api"]["download_path"] / "42").exists()
+    path = output_root / config["api"]["download_path"] / "42"
+    assert json.loads((path / "award.json").read_text()) == {"total": "0", "valid": True}
+    assert json.loads((path / "record.json").read_text()) == {"damage": "Opis."}
+    assert not (path / "pending").exists()
     output = capsys.readouterr().out
-    assert "Rejected judgment 42: judgment denied" in output
-    assert '"rejected_records": 1' in output
+    assert '"rejected_records": 0' in output
     assert fake_extractor.stopped

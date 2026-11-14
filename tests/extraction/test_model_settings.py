@@ -90,7 +90,7 @@ def test_basal_validates_historical_requests_and_responses(
 
 def test_config_requires_text_fields_with_metadata_selection(project_root, tmp_path):
     """
-    Require text questions without requiring a specific field or embedding metadata.
+    Require damage questions alongside the metadata selection.
 
     args:
         project_root: Repository configuration and fixture root.
@@ -108,7 +108,7 @@ def test_config_requires_text_fields_with_metadata_selection(project_root, tmp_p
     (tmp_path / "features.yaml").write_text(yaml.safe_dump(config))
     with pytest.raises(ValueError, match="must be nonempty"):
         config_module.load_config(tmp_path)
-    config["text_fields"]["cause"] = "Co spowodowało szkodę?"
+    config["text_fields"]["damage"] = "Jakiej szkody doznał poszkodowany?"
     (tmp_path / "features.yaml").write_text(yaml.safe_dump(config))
     loaded = config_module.load_config(tmp_path)
     assert loaded["metadata_fields"] == list(prompts.METADATA_FIELDS)

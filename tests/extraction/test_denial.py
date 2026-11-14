@@ -1,4 +1,4 @@
-"""Denial rejection before amount parsing, predictors and Basal requests."""
+"""Zero-valued denial targets with ordinary predictor extraction."""
 
 import asyncio
 
@@ -7,12 +7,12 @@ import pytest
 from dataset.extraction import basal_filtering
 from dataset.extraction.model import configuration, decisions
 from dataset.extraction.quality import target_rejection_reason
-from dataset.extraction.targets import amounts, target_extraction
+from dataset.extraction.targets import target_extraction
 
 
 @pytest.mark.parametrize("debug", [False, True])
-def test_denied_case_skips_amount_and_feature_extraction(monkeypatch, debug):
-    """Return a rejected result without parsing money or asking for predictors.
+def test_denied_case_extracts_features_with_zero_target(monkeypatch, debug):
+    """Continue extracting predictors without parsing a monetary award.
 
     args:
         monkeypatch: Scoped matcher and downstream extraction replacements.
@@ -28,25 +28,47 @@ def test_denied_case_skips_amount_and_feature_extraction(monkeypatch, debug):
         target_extraction, "match_targets",
         lambda *args: {"judgment-denial": denial, "judgment": None},
     )
-    for module, name in (
-        (target_extraction, "amount_in_pln"),
-        (amounts, "extract_prior_payment"),
-        (decisions, "ask"),
-        (basal_filtering, "extract_features"),
-    ):
-        monkeypatch.setattr(module, name, lambda *args: pytest.fail("Unexpected extraction after denial"))
+    monkeypatch.setattr(
+        target_extraction, "amount_in_pln",
+        lambda *args: pytest.fail("Denial must not parse an award amount"),
+    )
+    async def ask(*args):
+        """Supply an instance decision.
+
+        args:
+            args: Inference request arguments.
+
+        returns:
+            Controlled instance response.
+        """
+        return {"instancja": {"choice": "pierwsza", "confidence": 0.9}}
+
+    async def features(*args):
+        """Supply factual damage evidence.
+
+        args:
+            args: Feature extraction arguments.
+
+        returns:
+            Extracted damage and its source evidence.
+        """
+        return {"features": {"damage": "Opis szkody."}, "fields_evaluated": True}
+
+    monkeypatch.setattr(decisions, "ask", ask)
+    monkeypatch.setattr(basal_filtering, "extract_features", features)
+    config["metadata_fields"] = []
     calls = [] if debug else None
     token = decisions.MODEL_CALLS.set(calls)
     try:
         result = asyncio.run(basal_filtering.extract(None, text, config, 42))
     finally:
         decisions.MODEL_CALLS.reset(token)
-    assert result["fields_evaluated"] is False
+    assert result["fields_evaluated"] is True
     assert result["award"]["denied"] is True
-    assert result["award"]["confirmed"] is False
-    assert result["award"]["suma"] == "brak informacji"
-    assert target_rejection_reason(result["award"], config) == "judgment denied"
-    assert "features" not in result and "prior_payment" not in result
+    assert result["award"]["confirmed"] is True
+    assert result["award"]["suma"] == "0"
+    assert target_rejection_reason(result["award"], config) is None
+    assert result["features"]["damage"] == "Opis szkody."
     if debug:
         assert calls[0]["matches"]["judgment-denial"] == denial
 

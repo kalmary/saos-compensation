@@ -124,7 +124,7 @@ async def extract_targets(server, text, config):
     if denial is not None:
         if text[denial["start"]:denial["end"]] != denial["text"]:
             raise ValueError("Selected denial sentence does not match its source")
-        result.update(denied=True, status="judgment denied")
+        result.update(denied=True, suma="0", confirmed=True, status="judgment denied")
         return result
     selected = matches["judgment"]
     if selected is None:

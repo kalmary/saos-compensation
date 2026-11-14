@@ -24,8 +24,6 @@ async def extract(server, text, config, identifier):
     """
     print(f"ID {identifier}: extracting target", flush=True)
     award = await amounts.extract_award(server, text, [], config)
-    if award.get("denied"):
-        return {"id": identifier, "award": award, "fields_evaluated": False}
     if (
         not config["api"]["debug"]
         and target_rejection_reason(award, config) is not None
@@ -36,7 +34,11 @@ async def extract(server, text, config, identifier):
         prior_features["prior_payment"] = await amounts.extract_prior_payment(
             server, award.get("target_matches", {}).get("prior_payment"), config
         )
-    if "target_matches" in award and award["target_matches"]["judgment"] is None:
+    if (
+        "target_matches" in award
+        and award["target_matches"]["judgment"] is None
+        and not award.get("denied")
+    ):
         return {
             "id": identifier,
             "award": award,

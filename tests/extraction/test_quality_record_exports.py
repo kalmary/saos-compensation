@@ -131,8 +131,8 @@ def test_award_rejection_reports_probability_and_threshold(
     "value", [None, "", " ", "brak informacji", "not_available", 123, "Source text"]
 )
 @pytest.mark.parametrize("evidence", [False, True])
-def test_any_source_backed_text_feature_is_sufficient(field, value, evidence):
-    """Accept each text feature alone and reject absent or ungrounded descriptions.
+def test_source_backed_damage_is_required(field, value, evidence):
+    """Require damage even when another text feature has accepted evidence.
 
     args:
         field: Sole populated text field.
@@ -152,9 +152,9 @@ def test_any_source_backed_text_feature_is_sufficient(field, value, evidence):
         "fields": {name: "Question" for name in ("cause", "damage", "limitations")}
     }
     reason = feature_rejection_reason(result, config)
-    assert (reason is None) is (value == "Source text" and evidence)
+    assert (reason is None) is (field == "damage" and value == "Source text" and evidence)
     if reason is not None:
-        assert reason == "no source-backed text feature"
+        assert reason == "no source-backed damage description"
 
 
 def test_metadata_and_unselected_text_do_not_satisfy_admission():
