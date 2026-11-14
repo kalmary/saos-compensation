@@ -32,7 +32,7 @@ Górny poziomy ciąg: SAOS → selekcja i tekst → MiniLM. Pod nim trzy równol
 
 ### 05. Poszukiwanie targetu
 
-Trzy duże kroki ze strzałkami: przykładowe zdanie z PLN ze źródła → rzeczywiste wzorce zasądzenia, żądania i kosztów z `targets.yaml` → embeddingi MiniLM, kosinus i wybór roli, po czym odczyt kwoty. Kandydaci pieniężni wymagają kwoty PLN i właściwego słowa; grupa pełnego oddalenia jest sprawdzana osobno w pełnych zdaniach. Próg kosinusa jest ściśle >0,7 i nie oznacza prawdopodobieństwa. W dole dyskretna nota „Polityka 0 zł: do wdrożenia”.
+Trzy duże kroki ze strzałkami: schematyczne zdanie z PLN → rzeczywiste wzorce zasądzenia, żądania i kosztów z `targets.yaml` → embeddingi MiniLM, cosine similarity i wybór roli, po czym odczyt kwoty. Kandydaci pieniężni wymagają kwoty PLN i właściwego słowa; grupa pełnego oddalenia jest sprawdzana osobno w pełnych zdaniach. Próg cosine similarity jest ściśle >0,7 i nie oznacza prawdopodobieństwa. W dole dyskretna nota „Polityka 0 zł: do wdrożenia”.
 
 ### 06. Rodzaje ról
 
