@@ -51,24 +51,24 @@ def rejection_reason(result, config):
 
 
 def feature_rejection_reason(result, config):
-    """Require an accepted source-backed value for at least one selected text field.
+    """Require an accepted source-backed description of the damage.
 
     args:
         result: Extracted feature values and source evidence.
         config: Effective text feature selection; metadata is excluded.
 
     returns:
-        Rejection reason when no source-backed text feature exists, otherwise None.
+        Rejection reason when damage evidence is missing, otherwise None.
     """
-    for field in config["fields"]:
-        value = result.get("features", {}).get(field)
-        if (
-            isinstance(value, str)
-            and value.strip() not in ("", "brak informacji", "not_available")
-            and result.get("evidence", {}).get(field)
-        ):
-            return None
-    return "no source-backed text feature"
+    value = result.get("features", {}).get("damage")
+    if (
+        "damage" in config["fields"]
+        and isinstance(value, str)
+        and value.strip() not in ("", "brak informacji", "not_available")
+        and result.get("evidence", {}).get("damage")
+    ):
+        return None
+    return "no source-backed damage description"
 
 
 
@@ -83,10 +83,10 @@ def target_rejection_reason(award, config):
     returns:
         Rejection reason, or None for an admissible target.
     """
-    if award.get("denied"):
-        return "judgment denied"
     if "target_matches" in award:
-        match = award["target_matches"].get("judgment")
+        match = award["target_matches"].get(
+            "judgment-denial" if award.get("denied") else "judgment"
+        )
         threshold = config["embedding"]["minimum_cosine_similarity"]
         if match is None or match["similarity"] <= threshold:
             return f"no judgment sentence with cosine similarity > {threshold}"
@@ -96,6 +96,8 @@ def target_rejection_reason(award, config):
             total = Decimal(award.get("suma", ""))
         except (InvalidOperation, TypeError, ValueError):
             return "invalid target"
+        if award.get("denied") and total != 0:
+            return "invalid denied target"
         return None if total.is_finite() and total >= 0 else "invalid target"
     threshold = config["system_one"]["amount_minimum_probability"]
     probability = award.get("verification", {}).get("noul")

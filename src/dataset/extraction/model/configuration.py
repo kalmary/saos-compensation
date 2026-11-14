@@ -85,6 +85,8 @@ def load_config(directory=None, overrides=None):
         raise ValueError(
             "text_fields must be nonempty and map field names to nonempty questions"
         )
+    if "damage" not in fields:
+        raise ValueError("text_fields must include damage")
     validate_settings(embedding, patterns)
     api.update(overrides or {})
     search_settings(api)

@@ -194,6 +194,10 @@ class TargetMatcher:
             index for index, (label, _) in enumerate(self.patterns)
             if label == "judgment-denial"
         ]
+        costs = [
+            index for index, (label, _) in enumerate(self.patterns)
+            if label == "procedural_costs"
+        ]
         sentences = (
             sentence
             for line in re.finditer(r"[^\n]+", text)
@@ -204,9 +208,11 @@ class TargetMatcher:
         for batch in batched(sentences, self.settings["batch_size"]):
             vectors = self.encode([prepare_text(row["text"]) for row in batch])
             scores = cosine_similarity(
-                vectors, self.pattern_vectors[indices], device=self.settings["device"]
+                vectors, self.pattern_vectors[indices + costs], device=self.settings["device"]
             ).cpu()
-            values, patterns = scores.max(dim=1)
+            values, patterns = scores[:, :len(indices)].max(dim=1)
+            cost_values = scores[:, len(indices):].max(dim=1).values
+            values = values.masked_fill(values <= cost_values, -1)
             best = int(values.argmax())
             score = float(values[best])
             if score > self.settings["minimum_cosine_similarity"]:
@@ -270,7 +276,7 @@ def cached_matcher(settings_json, patterns_json):
 
 def match_targets(text, config):
     """
-    Reject denial matches before locating monetary target and exclusion contexts.
+    Locate denial evidence before monetary target and exclusion contexts.
 
     args:
         text: Full normalized judgment.

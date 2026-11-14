@@ -164,8 +164,7 @@ async def process(config, *, extractor=None, record_source=None):
                         )
                         reason = f"{reason}; {detail}"
                     if reason is not None and (
-                        result["award"].get("denied")
-                        or not config["api"]["debug"] or feature_reason
+                        not config["api"]["debug"] or feature_reason
                     ):
                         record["rejected"] = True
                         summary["rejected_records"] += 1
