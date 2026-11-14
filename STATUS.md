@@ -6,7 +6,7 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
-Prepared a Polish 16-slide downloader presentation plan covering source acquisition, text preparation, MiniLM selection, Basal extraction/review and separate feature/target outputs. The presentation shows the intended denial-to-zero policy, explicitly marked as awaiting implementation; downloader behavior is unchanged. HTML implementation and visual verification are in progress.
+Prepared a Polish 16-slide downloader presentation plan covering source acquisition, text preparation, MiniLM selection, Basal extraction/review and separate feature/target outputs. The presentation shows the intended denial-to-zero policy, explicitly marked as awaiting implementation; downloader behavior is unchanged. The offline HTML presentation is implemented with slide navigation, notes, source references and print styles. Structural and JavaScript syntax checks passed; browser verification and minimal corrections are in progress.
 
 Native GitHub stack #56 targets main with ordered PRs #49, #48, #53, #54, #55 and #57. PR #57 contains version-30 denial screening and targets refactor/acquisition-rebuild from #55; independent API reads confirmed its position at 6 of 6. The earlier setup had chained branch bases but no native stack membership. PR descriptions now identify the native stack and defer base management to GitHub. No PR was merged and no source or branch history changed.
 
@@ -40,8 +40,6 @@ Tests validate behavior with controlled inputs rather than pinning experiment se
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-11-06: Read issue #47 and added a vectorization package skeleton with configuration/record boundaries, FeatureTransformer, TargetTransformer and Preprocessor interfaces. Documented training-only fitting, optional targets, deterministic column mapping, persisted metadata and prediction-to-PLN contracts. Updated PROJECT and README; retained the protected model_input.yaml scaffold. Import/syntax and placeholder checks passed with the repository Python 3.12 environment. Scaling, encoding, artifact persistence and runtime integration remain unimplemented; no inference or Git commands run.
 
 - 2026-11-07: Renamed vectorization to preprocessing and rebuilt the mixed-feature skeleton around separate text, numeric and categorical modules alongside target transformation. FeatureTransformer coordinates stable field blocks; package exports include configuration and record loading. Updated current documentation and package references. Syntax/import and explicit-placeholder checks passed. Runtime preprocessing and behavioral acceptance tests remain unimplemented.
 
@@ -140,3 +138,5 @@ Tests validate behavior with controlled inputs rather than pinning experiment se
 - 2026-11-12: Integrated squash-merged main into PR #57, retaining denial screening, the first-monetary-prefix matcher and the test cleanup. The main tree exactly matched the validated parent branch, so conflict resolution preserves the already tested combined implementation. Marcin’s checkpoint-test thread is fixed and resolved. Final offline validation: 477 passed, four skipped, with three existing SWIG warnings. GitHub validation and squash merge remain pending.
 
 - 2026-11-14: Read PROJECT.md, README.md and the acquisition, source preparation, embedding, Basal, validation and output implementation. Added presentation/downloader-plan.md with exact Polish copy and visual specifications for 16 HTML slides, including model inputs/outputs, source checks, leakage controls and limitations. Denial is presented as an intended zero-PLN target with an implementation-pending note; application code remains unchanged. HTML implementation and browser review remain pending. No live API or model inference was performed.
+
+- 2026-11-14: Implemented the 16-slide Polish HTML presentation in presentation/downloader/ from the detailed plan, using local HTML/CSS/JavaScript without external resources. Included separate MiniLM/Basal roles, source preparation, extraction and review, output admission, notes and source references, keyboard/hash navigation, dialogs, fullscreen and print styles. Confirmed 16 unique sequential slide IDs, notes/sources on every slide and valid JavaScript syntax. Browser comparison and minimal fixes remain in progress; downloader behavior and datasets are unchanged.
