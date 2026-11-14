@@ -91,3 +91,26 @@ def test_denial_evidence_must_match_original_source(monkeypatch):
     )
     with pytest.raises(ValueError, match="denial sentence does not match its source"):
         asyncio.run(target_extraction.extract_targets(None, "Inny tekst.", configuration.load_config()))
+
+
+@pytest.mark.parametrize("similarity", [0.7, 0.7001])
+@pytest.mark.parametrize("total", ["0", "1", "NaN", "brak informacji"])
+def test_denial_target_requires_strict_match_and_zero(similarity, total):
+    """Validate denial targets without accepting a monetary cost as zero evidence.
+
+    args:
+        similarity: Denial similarity at or above the configured threshold.
+        total: Proposed denial target value.
+
+    returns:
+        None.
+    """
+    config = configuration.load_config()
+    config["embedding"]["minimum_cosine_similarity"] = 0.7
+    award = {
+        "denied": True, "confirmed": True, "suma": total,
+        "target_matches": {"judgment-denial": {"similarity": similarity}},
+    }
+    assert (target_rejection_reason(award, config) is None) is (
+        similarity > 0.7 and total == "0"
+    )

@@ -12,16 +12,18 @@ from dataset.extraction.model.configuration import load_config
 class Encoder:
     """Supply controlled denial similarities without loading model weights."""
 
-    def __init__(self, scores):
+    def __init__(self, scores, costs=None):
         """Store source scores and capture every encoding batch.
 
         args:
             scores: Source sentences mapped to their denial cosine similarities.
+            costs: Optional source-to-cost similarities.
 
         returns:
             None.
         """
         self.scores = {target_matching.prepare_text(text): score for text, score in scores.items()}
+        self.costs = {target_matching.prepare_text(text): score for text, score in (costs or {}).items()}
         self.calls = []
 
     def encode(self, texts):
@@ -36,12 +38,15 @@ class Encoder:
         self.calls.append(texts)
         if len(self.calls) == 1:
             self.width = len(texts) + 1
+            self.cost_index = next(index for index, text in enumerate(texts) if "zwrotu kosztów procesu" in text)
             return torch.eye(self.width)[:-1]
         vectors = torch.zeros((len(texts), self.width))
         for index, text in enumerate(texts):
             score = self.scores[text]
             vectors[index, 0] = score
-            vectors[index, -1] = math.sqrt(1 - score**2)
+            cost = self.costs.get(text, 0)
+            vectors[index, self.cost_index] = cost
+            vectors[index, -1] = math.sqrt(max(0, 1 - score**2 - cost**2))
         return vectors
 
 
@@ -180,3 +185,40 @@ def test_denial_pass_with_empty_text_does_not_encode_source():
     matcher, encoder, _ = make_matcher({})
     assert matcher.match_denial(" \n ") is None
     assert len(encoder.calls) == 1
+
+
+@pytest.mark.parametrize("cost_score,denial_expected", [(0.69, True), (0.7, False), (0.71, False)])
+def test_cost_match_blocks_denial_on_equal_or_higher_similarity(cost_score, denial_expected):
+    """Keep cost allocation from supplying a denial, including exact score ties.
+
+    args:
+        cost_score: Controlled procedural-cost similarity relative to denial.
+        denial_expected: Whether the denial score should win.
+
+    returns:
+        None.
+    """
+    text = "Po rozliczeniu wzajemnym zasądza od powódki 470,50 zł na korzyść pozwanego."
+    config = load_config()
+    config["embedding"].update(device="cpu", minimum_cosine_similarity=0.6)
+    encoder = Encoder({text: 0.7}, {text: cost_score})
+    matcher = target_matching.TargetMatcher(config["embedding"], config["target_patterns"], encoder)
+    assert (matcher.match_denial(text) is not None) is denial_expected
+
+
+def test_cost_veto_does_not_hide_another_denial_in_the_same_batch():
+    """Select a lower-scoring denial after excluding a stronger cost sentence.
+
+    args:
+        None.
+
+    returns:
+        None.
+    """
+    cost = "Po rozliczeniu wzajemnym zasądza od powódki 470,50 zł."
+    denial = "Oddala powództwo w całości."
+    config = load_config()
+    config["embedding"].update(device="cpu", batch_size=2, minimum_cosine_similarity=0.6)
+    encoder = Encoder({cost: 0.7, denial: 0.69}, {cost: 0.71})
+    matcher = target_matching.TargetMatcher(config["embedding"], config["target_patterns"], encoder)
+    assert matcher.match_denial(cost + "\n" + denial)["text"] == denial

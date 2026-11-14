@@ -413,3 +413,63 @@ def test_best_monetary_prefix_wins_regardless_of_score_order(scores):
     assert result["judgment"]["similarity"] == pytest.approx(max(scores))
     assert text[result["judgment"]["start"]:result["judgment"]["end"]] == expected
     assert encoder.calls[1:] == [[prepare_text(prefix) for prefix in prefixes]]
+
+
+@pytest.mark.parametrize("with_award", [False, True])
+@pytest.mark.parametrize("cost", [
+    "po rozliczeniu wzajemnym Sąd zasądził od powódki 470,50 zł na korzyść pozwanego",
+    "Po wzajemnym potrąceniu kosztów zasądza od powoda na rzecz pozwanego 470,50 zł.",
+])
+def test_mutual_cost_settlement_is_excluded_without_denial(monkeypatch, with_award, cost):
+    """Route mutual settlements through cost exclusion and retain an independent award.
+
+    args:
+        monkeypatch: Scoped encoder and matcher replacement.
+        with_award: Whether a separate compensation award is present.
+        cost: Mutual cost settlement sentence.
+
+    returns:
+        None.
+    """
+    import asyncio
+    from types import SimpleNamespace
+
+    from dataset.embeddings import target_matching
+    from dataset.extraction.model.configuration import load_config
+    from dataset.extraction.targets.target_extraction import extract_targets
+
+    config = load_config()
+    config["embedding"]["device"] = "cpu"
+    patterns = config["target_patterns"]
+    labels = list(patterns)
+    award = "Zasądza od pozwanego na rzecz powódki 1000 zł tytułem odszkodowania."
+    pattern_texts = [prepare_text(phrase) for phrases in patterns.values() for phrase in phrases]
+    axes = torch.eye(len(labels))
+
+    def encode(texts):
+        """Supply controlled role vectors for configured patterns and source sentences.
+
+        args:
+            texts: Prepared patterns or source sentences.
+
+        returns:
+            Role vectors with orthogonal denial and cost axes.
+        """
+        if texts == pattern_texts:
+            return torch.stack([
+                axes[labels.index(label)] for label, phrases in patterns.items() for _ in phrases
+            ])
+        return torch.stack([
+            axes[labels.index("procedural_costs" if text == prepare_text(cost) else "judgment")]
+            for text in texts
+        ])
+
+    matcher = TargetMatcher(config["embedding"], patterns, SimpleNamespace(encode=encode))
+    monkeypatch.setattr(target_matching, "cached_matcher", lambda *args: matcher)
+    text = cost + ("\n" + award if with_award else "")
+    result = asyncio.run(extract_targets(None, text, config))
+    assert result["target_matches"]["procedural_costs"]["text"] == cost
+    assert result["target_matches"]["judgment-denial"] is None
+    assert not result.get("denied")
+    assert result["confirmed"] is with_award
+    assert result["suma"] == ("1000" if with_award else "brak informacji")

@@ -56,6 +56,8 @@ embedding:
     - egzekuc
     - zaliczk
     - spis
+    - rozlicz
+    - potrąc
     other_payments:
     - odset
     - rent
@@ -158,6 +160,8 @@ patterns:
     - "pozwany zapłacił powodowi {amount} wykonując obowiązek naprawienia szkody orzeczony wcześniej w sprawie karnej"
 
   procedural_costs:
+    - "po rozliczeniu wzajemnym Sąd zasądził od powódki {amount} na korzyść pozwanego"
+    - "po wzajemnym potrąceniu kosztów zasądza od powoda na rzecz pozwanego {amount}"
     - "zasądza od pozwanego na rzecz powoda {amount} tytułem zwrotu kosztów procesu"
     - "powodowie wnieśli o zasądzenie {amount} tytułem zastępstwa procesowego"
     - "nakazuje pobrać na rzecz Skarbu Państwa {amount} nieuiszczonych kosztów sądowych"
