@@ -6,6 +6,8 @@ Maintain a concise record of completed work, findings, and outstanding tasks. Af
 
 ## Summary
 
+Prepared a Polish 16-slide downloader presentation plan covering source acquisition, text preparation, MiniLM selection, Basal extraction/review and separate feature/target outputs. The presentation shows the intended denial-to-zero policy, explicitly marked as awaiting implementation; downloader behavior is unchanged. HTML implementation and visual verification are in progress.
+
 Native GitHub stack #56 targets main with ordered PRs #49, #48, #53, #54, #55 and #57. PR #57 contains version-30 denial screening and targets refactor/acquisition-rebuild from #55; independent API reads confirmed its position at 6 of 6. The earlier setup had chained branch bases but no native stack membership. PR descriptions now identify the native stack and defer base management to GitHub. No PR was merged and no source or branch history changed.
 
 Activated the 12 judgment-denial templates as a full-text precheck before monetary selection. Every complete sentence is embedded without PLN or keyword filtering, in configured batches; a cosine match strictly above the configured minimum (default 0.7) rejects the case immediately. Denied cases skip target parsing, prior-payment extraction, instance/features, metadata enrichment and export, including under debug. Rejected pending state is removed and existing case artifacts are preserved. Denial never becomes a zero-valued target. Version 30 rejects older checkpoints, including version 29. Validation: 511 offline tests passed, four skipped, with three existing SWIG deprecation warnings. No live API/model inference or labeled-corpus evaluation was run; quoted/historical/other-claim denials can cause false rejection under this full-text policy.
@@ -38,8 +40,6 @@ Tests validate behavior with controlled inputs rather than pinning experiment se
 - Compare a fixed Polish model against the labeled feature sample before selecting it.
 
 ## Log
-
-- 2026-11-03: Created issue #47 for mixed-feature preprocessing and reversible target scaling. Defined model-ready outputs, training-only fitting, missing/unseen-value handling, artifact persistence, predictor allowlisting and PLN evaluation. Clarified that embeddings are not generally restricted to 0–1 and small values do not imply low importance; vector encodings must follow field semantics. No preprocessing implementation or runtime tests. Project linkage remains blocked by missing Project permissions.
 
 - 2026-11-06: Read issue #47 and added a vectorization package skeleton with configuration/record boundaries, FeatureTransformer, TargetTransformer and Preprocessor interfaces. Documented training-only fitting, optional targets, deterministic column mapping, persisted metadata and prediction-to-PLN contracts. Updated PROJECT and README; retained the protected model_input.yaml scaffold. Import/syntax and placeholder checks passed with the repository Python 3.12 environment. Scaling, encoding, artifact persistence and runtime integration remain unimplemented; no inference or Git commands run.
 
@@ -138,3 +138,5 @@ Tests validate behavior with controlled inputs rather than pinning experiment se
 - 2026-11-12: Integrated the validated parent PR into #57 and removed the version-specific checkpoint test raised in review. Retained the changed-settings resume guard and behavioral denial-screening tests. Configuration-pinning and obsolete growth tests remain removed. Full offline validation: 477 passed, four skipped, with three existing SWIG warnings. GitHub checks passed before the base update; no inference or dataset rewrite was performed.
 
 - 2026-11-12: Integrated squash-merged main into PR #57, retaining denial screening, the first-monetary-prefix matcher and the test cleanup. The main tree exactly matched the validated parent branch, so conflict resolution preserves the already tested combined implementation. Marcin’s checkpoint-test thread is fixed and resolved. Final offline validation: 477 passed, four skipped, with three existing SWIG warnings. GitHub validation and squash merge remain pending.
+
+- 2026-11-14: Read PROJECT.md, README.md and the acquisition, source preparation, embedding, Basal, validation and output implementation. Added presentation/downloader-plan.md with exact Polish copy and visual specifications for 16 HTML slides, including model inputs/outputs, source checks, leakage controls and limitations. Denial is presented as an intended zero-PLN target with an implementation-pending note; application code remains unchanged. HTML implementation and browser review remain pending. No live API or model inference was performed.
